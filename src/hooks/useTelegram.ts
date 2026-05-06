@@ -41,7 +41,8 @@ export function useTelegram(): TelegramContext {
     tg.ready()
     tg.expand()
 
-    setUser(tg.initDataUnsafe?.user ?? null)
+    const tgUser = tg.initDataUnsafe?.user
+    setUser(tgUser ?? { id: 0, first_name: 'Guest' })
     setInitData(tg.initData ?? '')
     setIsDark(tg.colorScheme === 'dark')
     setIsReady(true)

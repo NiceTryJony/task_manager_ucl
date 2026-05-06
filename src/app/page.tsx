@@ -22,11 +22,13 @@ export default function HomePage() {
   const listRef   = useRef<HTMLDivElement>(null)
 
   // Auth + fetch lists
-  useEffect(() => {
-    if (!isReady || !user) return
-    setUserId(user.id)
-    init()
-  }, [isReady, user])
+useEffect(() => {
+    if (!isReady) return
+    if (user && user.id > 0) {
+      setUserId(user.id)
+      init()
+    }
+}, [isReady, user])
 
   async function init() {
     // Validate Telegram session
