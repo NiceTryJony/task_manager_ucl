@@ -1,15 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  reactStrictMode: true,
   typescript: { ignoreBuildErrors: true },
   eslint:     { ignoreDuringBuilds: true },
+  reactStrictMode: true,
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 't.me' },
       { protocol: 'https', hostname: '*.telegram.org' },
     ],
   },
-  // Required for Telegram WebView compatibility
   headers: async () => [
     {
       source: '/(.*)',
