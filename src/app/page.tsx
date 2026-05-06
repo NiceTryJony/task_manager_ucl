@@ -23,11 +23,9 @@ export default function HomePage() {
 
   // Auth + fetch lists
 useEffect(() => {
-    if (!isReady) return
-    if (user && user.id > 0) {
-      setUserId(user.id)
-      init()
-    }
+  if (!isReady) return
+  setUserId(user?.id ?? 0)
+  init()
 }, [isReady, user])
 
   async function init() {
@@ -40,7 +38,7 @@ useEffect(() => {
     })
 
     // Fetch lists
-    const res = await fetch(`/api/lists?userId=${user!.id}`)
+    const res = await fetch(`/api/lists?userId=${user?.id ?? 0}`)
     const data = await res.json()
     setLists(data.lists ?? [])
     setLoading(false)
