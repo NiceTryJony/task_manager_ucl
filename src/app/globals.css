@@ -1,0 +1,143 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    box-sizing: border-box;
+  }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  body {
+    background: #0C0C13;
+    color: #F0EFF8;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: rgba(123,110,246,0.3); border-radius: 9999px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgba(123,110,246,0.5); }
+
+  /* Remove input autofill blue bg */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus {
+    -webkit-text-fill-color: #F0EFF8;
+    -webkit-box-shadow: 0 0 0px 1000px #1A1A2A inset;
+    transition: background-color 5000s ease-in-out 0s;
+  }
+
+  /* Prevent text selection in UI */
+  .no-select { user-select: none; -webkit-user-select: none; }
+}
+
+@layer components {
+  .glass {
+    background: linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.07);
+  }
+
+  .card {
+    @apply bg-bg-card rounded-2xl border border-bg-border shadow-card;
+  }
+
+  .btn-primary {
+    @apply bg-accent hover:bg-accent-hover active:scale-95 text-white font-semibold
+           px-4 py-2.5 rounded-xl transition-all duration-150 select-none;
+  }
+
+  .btn-ghost {
+    @apply text-text-secondary hover:text-text-primary hover:bg-bg-hover
+           px-3 py-2 rounded-xl transition-all duration-150 select-none;
+  }
+
+  .input-field {
+    @apply bg-bg-card border border-bg-border rounded-xl px-4 py-3
+           text-text-primary placeholder:text-text-dim
+           focus:outline-none focus:border-accent/50 focus:ring-1 focus:ring-accent/30
+           transition-all duration-150 w-full;
+  }
+
+  /* Skeleton loading */
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      rgba(255,255,255,0.04) 25%,
+      rgba(255,255,255,0.08) 50%,
+      rgba(255,255,255,0.04) 75%
+    );
+    background-size: 200px 100%;
+    animation: shimmer 1.6s ease-in-out infinite;
+  }
+
+  /* Page container respecting Telegram safe areas */
+  .page-container {
+    height: 100dvh;
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* Priority indicator dot */
+  .priority-dot {
+    @apply w-2 h-2 rounded-full flex-shrink-0;
+  }
+
+  /* Swipe-to-delete track */
+  .swipe-track {
+    position: relative;
+    overflow: hidden;
+    touch-action: pan-y;
+  }
+
+  /* Checkbox custom */
+  .custom-checkbox {
+    @apply w-5 h-5 rounded-md border-2 flex items-center justify-center
+           transition-all duration-200 cursor-pointer flex-shrink-0;
+  }
+
+  .custom-checkbox.checked {
+    @apply bg-accent border-accent;
+  }
+
+  .custom-checkbox.unchecked {
+    @apply border-text-dim hover:border-accent/60;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    background: linear-gradient(135deg, #7B6EF6 0%, #F472B6 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .scrollable {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  .inset-x-safe {
+    padding-left: max(16px, env(safe-area-inset-left));
+    padding-right: max(16px, env(safe-area-inset-right));
+  }
+}
