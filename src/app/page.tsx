@@ -26,19 +26,17 @@ useEffect(() => {
   if (!isReady) return
   setUserId(user?.id ?? 0)
   init()
-}, [isReady, user])
+}, [isReady])
 
   async function init() {
-    // Validate Telegram session
+    const uid = user?.id ?? 0
     const initData = window?.Telegram?.WebApp?.initData ?? ''
     await fetch('/api/auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ initData }),
     })
-
-    // Fetch lists
-    const res = await fetch(`/api/lists?userId=${user?.id ?? 0}`)
+    const res = await fetch(`/api/lists?userId=${uid}`)
     const data = await res.json()
     setLists(data.lists ?? [])
     setLoading(false)
