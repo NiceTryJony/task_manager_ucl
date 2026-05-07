@@ -55,6 +55,9 @@ export interface Task {
   status: TaskStatus
   priority: Priority
   due_date?: string
+  due_at?: string
+  creator_tz?: string
+  archived?: boolean
   position: number
   created_by: number
   created_at: string
