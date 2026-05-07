@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { gsap } from 'gsap'
 import {
-  DndContext, closestCenter, PointerSensor, useSensor, useSensors,
+  DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors,
   type DragEndEvent,
 } from '@dnd-kit/core'
 import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from '@dnd-kit/sortable'
@@ -13,12 +13,11 @@ import { useTaskStore } from '@/lib/store'
 import { useTelegram } from '@/hooks/useTelegram'
 import { PRIORITY_CONFIG, cn } from '@/lib/utils'
 import {
-  ArrowLeft, Plus, Share2, Download, GripVertical,
-  Archive, ArchiveRestore, Search, X, SortAsc,
-  Calendar, CheckCircle2, Wifi, WifiOff,
+  ArrowLeft, Plus, GripVertical,
+  Archive, Search, X, SortAsc,
+  Calendar, CheckCircle2,
 } from 'lucide-react'
 import { TaskSheet }   from '@/components/TaskSheet'
-import { ShareSheet }  from '@/components/ShareSheet'
 import { ContextMenu, type ContextMenuItem } from '@/components/ContextMenu'
 import { Confetti }    from '@/components/Confetti'
 import type { Task, TaskStatus, Priority } from '@/types'
@@ -52,7 +51,6 @@ export function ListDetailView({ onBack }: Props) {
   const [showSort,    setShowSort]    = useState(false)
   const [activeTask,  setActiveTask]  = useState<Task | null>(null)
   const [showCreate,  setShowCreate]  = useState(false)
-  const [showShare,   setShowShare]   = useState(false)
   const [isOnline,    setIsOnline]    = useState(true)
   const [showConfetti, setShowConfetti] = useState(false)
   const [contextMenu, setContextMenu]  = useState<{ task: Task; x: number; y: number } | null>(null)
@@ -93,7 +91,10 @@ export function ListDetailView({ onBack }: Props) {
   const totalCount = activeTasks.length
   const progress   = totalCount ? Math.round((doneCount / totalCount) * 100) : 0
 
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor,   { activationConstraint: { delay: 200, tolerance: 8 } })
+  )
 
   // ── Telegram buttons ───────────────────────────────────────
   useEffect(() => {
@@ -236,12 +237,20 @@ export function ListDetailView({ onBack }: Props) {
   }
 
   async function handleDelete(task: Task) {
-    const el = document.getElementById(`task-${task.id}`)
-    if (el) await gsap.to(el, { x: 40, opacity: 0, height: 0, marginBottom: 0, duration: 0.22, ease: 'power2.in' })
+    // Instant optimistic remove — no confirm dialog, no lag
     removeTask(task.id, task.list_id)
     haptic.heavy()
+    toast('Task deleted', {
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          // Re-fetch to restore
+          fetchTasks(false)
+        },
+      },
+      duration: 4000,
+    })
     await fetch(`/api/tasks?taskId=${task.id}&userId=${user?.id ?? 0}`, { method: 'DELETE' })
-    toast.success('Deleted')
   }
 
   // ── Priority change ────────────────────────────────────────
@@ -272,22 +281,6 @@ export function ListDetailView({ onBack }: Props) {
         body: JSON.stringify({ taskId: t.id, userId: user?.id ?? 0, position: i }),
       })
     ))
-  }
-
-  // ── Export ─────────────────────────────────────────────────
-  async function handleExport() {
-    haptic.light()
-    const res  = await fetch(`/api/export?listId=${activeListId}&userId=${user?.id ?? 0}`)
-    const text = await res.text()
-    const tg   = window?.Telegram?.WebApp
-    if (navigator.share) {
-      await navigator.share({ title: list?.title, text })
-    } else if (tg?.sendData) {
-      tg.sendData(text.slice(0, 4096))
-    } else {
-      await navigator.clipboard.writeText(text)
-      toast.success('Copied to clipboard!')
-    }
   }
 
   // ── Context menu items ─────────────────────────────────────
@@ -351,10 +344,6 @@ export function ListDetailView({ onBack }: Props) {
           <button onClick={() => setShowSort(!showSort)}
             className={cn('btn-ghost p-2', sortKey !== 'position' && 'text-accent bg-accent/10')}>
             <SortAsc size={17} />
-          </button>
-          <button onClick={handleExport}  className="btn-ghost p-2"><Download size={17} /></button>
-          <button onClick={() => { setShowShare(true); haptic.light() }} className="btn-ghost p-2">
-            <Share2 size={17} />
           </button>
         </div>
 
@@ -501,9 +490,6 @@ export function ListDetailView({ onBack }: Props) {
           onClose={() => { setShowCreate(false); setActiveTask(null) }}
           onSaved={() => { setShowCreate(false); setActiveTask(null); fetchTasks() }}
         />
-      )}
-      {showShare && (
-        <ShareSheet listId={activeListId!} userId={user?.id ?? 0} onClose={() => setShowShare(false)} />
       )}
     </div>
   )
