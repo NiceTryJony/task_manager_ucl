@@ -79,8 +79,8 @@ export function ListDetailView({ onBack }: Props) {
 
   const sorted = [...searched].sort((a, b) => {
     if (sortKey === 'due_at') {
-      const da = (a as any).due_at ?? a.due_date ?? ''
-      const db_ = (b as any).due_at ?? b.due_date ?? ''
+      const da = a.due_at ?? a.due_date ?? ''
+      const db_ = b.due_at ?? b.due_date ?? ''
       if (!da) return 1; if (!db_) return -1
       return da.localeCompare(db_)
     }
@@ -132,9 +132,9 @@ export function ListDetailView({ onBack }: Props) {
 
     const channel = supabase
       .channel(`tasks-${activeListId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter: `list_id=eq.${activeListId}` }, fetchTasks)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'subtasks' }, fetchTasks)
-      .subscribe(status => setIsOnline(status === 'SUBSCRIBED'))
+      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'tasks', filter: `list_id=eq.${activeListId}` }, fetchTasks)
+      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'subtasks' }, fetchTasks)
+      .subscribe((status: string) => setIsOnline(status === 'SUBSCRIBED'))
 
     return () => { supabase.removeChannel(channel) }
   }, [activeListId, user])
@@ -214,7 +214,7 @@ export function ListDetailView({ onBack }: Props) {
 
   // ── Archive / delete ───────────────────────────────────────
   async function handleArchive(task: Task) {
-    updateTask(task.id, { archived: true } as any)
+    updateTask(task.id, { archived: true })
     haptic.medium()
     await fetch('/api/tasks', {
       method: 'PATCH',
@@ -225,7 +225,7 @@ export function ListDetailView({ onBack }: Props) {
   }
 
   async function handleUnarchive(task: Task) {
-    updateTask(task.id, { archived: false } as any)
+    updateTask(task.id, { archived: false })
     haptic.medium()
     await fetch('/api/tasks', {
       method: 'PATCH',
@@ -471,7 +471,7 @@ export function ListDetailView({ onBack }: Props) {
       </div>
 
       {/* FAB — only if Telegram MainButton not available */}
-      {!window?.Telegram?.WebApp?.MainButton?.isVisible && (
+      {!(typeof window !== 'undefined' && window?.Telegram?.WebApp?.MainButton?.isVisible) && (
         <button
           onClick={() => { setShowCreate(true); haptic.light() }}
           className="fixed bottom-6 right-4 w-14 h-14 rounded-2xl bg-accent text-white
@@ -531,13 +531,13 @@ function SortableTaskCard({ task, onToggle, onOpen, onLongPress }: CardProps) {
 
   const priority    = PRIORITY_CONFIG[task.priority]
   const isDone      = task.status === 'done'
-  const isArchived  = (task as any).archived
+  const isArchived  = task.archived
   const subDone     = task.subtasks?.filter(s => s.completed).length ?? 0
   const subTotal    = task.subtasks?.length ?? 0
 
   // Due date display with dual timezone
-  const dueAt      = (task as any).due_at ?? task.due_date
-  const creatorTz  = (task as any).creator_tz ?? 'UTC'
+  const dueAt      = task.due_at ?? task.due_date
+  const creatorTz  = task.creator_tz ?? 'UTC'
   const viewerTz   = Intl.DateTimeFormat().resolvedOptions().timeZone
   let dueLabel = '', dueUrgent = false, dueOverdue = false, dueLocalLabel = ''
 
