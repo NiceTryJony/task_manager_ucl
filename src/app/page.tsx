@@ -16,32 +16,33 @@ import { Toaster } from 'sonner'
 export default function HomePage() {
   const { user, isReady, haptic } = useTelegram()
   const { lists, setLists, setUserId, activeListId, setActiveList } = useTaskStore()
-  const [loading, setLoading]   = useState(true)
+  const [loading, setLoading]     = useState(true)
   const [showCreate, setShowCreate] = useState(false)
+  const [uid, setUid]             = useState<number>(0)
   const headerRef = useRef<HTMLDivElement>(null)
   const listRef   = useRef<HTMLDivElement>(null)
 
-  // Auth + fetch lists
-useEffect(() => {
-  if (!isReady) return
-  setUserId(user?.id ?? 0)
-  init()
-}, [isReady])
+  useEffect(() => {
+    if (!isReady) return
+    const resolvedUid = user?.id ?? 0
+    setUid(resolvedUid)
+    setUserId(resolvedUid)
+    init(resolvedUid)
+  }, [isReady])
 
-  async function init() {
-    const uid = user?.id ?? 0
+  async function init(resolvedUid: number) {
     const initData = window?.Telegram?.WebApp?.initData ?? ''
     await fetch('/api/auth', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ initData }),
     })
-    const res = await fetch(`/api/lists?userId=${uid}`)
+
+    const res  = await fetch(`/api/lists?userId=${resolvedUid}`)
     const data = await res.json()
     setLists(data.lists ?? [])
     setLoading(false)
 
-    // Animate in
     requestAnimationFrame(() => {
       if (headerRef.current) {
         gsap.fromTo(headerRef.current,
@@ -59,19 +60,19 @@ useEffect(() => {
     })
   }
 
-  // Real-time: update list counts when tasks change
+  // Realtime: refresh list counts when tasks change
   useEffect(() => {
-    if (!user) return
+    if (!uid) return
     const channel = supabase
       .channel('lists-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
-        fetch(`/api/lists?userId=${user.id}`)
+        fetch(`/api/lists?userId=${uid}`)
           .then(r => r.json())
           .then(d => setLists(d.lists ?? []))
       })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
-  }, [user])
+  }, [uid])
 
   function handleListCreated(list: TaskList) {
     setLists([list, ...lists])
@@ -83,7 +84,6 @@ useEffect(() => {
   const totalTasks = lists.reduce((s, l) => s + (l.task_count ?? 0), 0)
   const doneTasks  = lists.reduce((s, l) => s + (l.done_count ?? 0), 0)
 
-  // If list is active, show detail view
   if (activeListId) {
     return (
       <>
@@ -97,7 +97,6 @@ useEffect(() => {
     <div className="page-container">
       <Toaster position="top-center" theme="dark" />
 
-      {/* Header */}
       <div ref={headerRef} className="px-4 pt-4 pb-3 flex-shrink-0">
         <div className="flex items-start justify-between">
           <div>
@@ -119,7 +118,6 @@ useEffect(() => {
           </button>
         </div>
 
-        {/* Progress bar */}
         {totalTasks > 0 && (
           <div className="mt-3 h-1.5 bg-bg-card rounded-full overflow-hidden">
             <div
@@ -130,7 +128,6 @@ useEffect(() => {
         )}
       </div>
 
-      {/* Lists */}
       <div className="flex-1 scrollable px-4 pb-4">
         {loading ? (
           <SkeletonList />
@@ -150,10 +147,9 @@ useEffect(() => {
         )}
       </div>
 
-      {/* Create list bottom sheet */}
       {showCreate && (
         <CreateListSheet
-          userId={user!.id}
+          userId={uid}
           onClose={() => setShowCreate(false)}
           onCreated={handleListCreated}
         />
@@ -165,7 +161,7 @@ useEffect(() => {
 function EmptyState({ onCreate }: { onCreate: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center h-64 text-center px-6">
-      <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center mb-4">
+      <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center mb-4 animate-float">
         <Sparkles size={28} className="text-accent" />
       </div>
       <h2 className="text-lg font-semibold mb-1">No lists yet</h2>
