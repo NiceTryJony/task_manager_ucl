@@ -120,3 +120,12 @@ create policy "service role bypass" on notifications using (true) with check (tr
 alter publication supabase_realtime add table tasks;
 alter publication supabase_realtime add table subtasks;
 alter publication supabase_realtime add table task_lists;
+
+-- ============================================================
+-- Migration v2: due_at with timezone, archive, creator_tz
+-- ============================================================
+alter table tasks add column if not exists due_at timestamptz;
+alter table tasks add column if not exists creator_tz text default 'UTC';
+alter table tasks add column if not exists archived boolean not null default false;
+
+create index if not exists tasks_archived_idx on tasks(list_id, archived);
