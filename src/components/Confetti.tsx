@@ -30,6 +30,7 @@ export function Confetti({ onDone }: { onDone: () => void }) {
     let raf: number
 
     function draw() {
+      if (!canvas) return
       ctx.clearRect(0, 0, canvas.width, canvas.height)
       let alive = 0
       for (const p of particles) {
