@@ -41,8 +41,17 @@ export function useTelegram(): TelegramContext {
     tg.ready()
     tg.expand()
 
-    const tgUser = tg.initDataUnsafe?.user
-    setUser(tgUser ?? null)
+    // Try initDataUnsafe first, then parse initData string manually (TG v6.0 fix)
+    let resolvedUser = tg.initDataUnsafe?.user ?? null
+    if (!resolvedUser && tg.initData) {
+      try {
+        const params = new URLSearchParams(tg.initData)
+        const userStr = params.get('user')
+        if (userStr) resolvedUser = JSON.parse(decodeURIComponent(userStr))
+      } catch {}
+    }
+
+    setUser(resolvedUser ?? { id: 0, first_name: 'Guest' })
     setInitData(tg.initData ?? '')
     setIsDark(tg.colorScheme === 'dark')
     setIsReady(true)

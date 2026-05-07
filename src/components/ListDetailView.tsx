@@ -14,11 +14,10 @@ import { CSS } from '@dnd-kit/utilities'
 import { supabase } from '@/lib/supabase'
 import { useTaskStore } from '@/lib/store'
 import { useTelegram } from '@/hooks/useTelegram'
-import { PRIORITY_CONFIG, STATUS_CONFIG, formatDueDate, cn } from '@/lib/utils'
+import { PRIORITY_CONFIG, formatDueDate, cn } from '@/lib/utils'
 import {
-  ArrowLeft, Plus, Share2, Download, Filter,
-  ChevronDown, CheckCircle2, Circle, GripVertical,
-  ChevronRight, Trash2, Calendar, Flag,
+  ArrowLeft, Plus, Share2, Download, GripVertical,
+  Trash2, Calendar, CheckCircle2,
 } from 'lucide-react'
 import { TaskSheet } from '@/components/TaskSheet'
 import { ShareSheet } from '@/components/ShareSheet'
@@ -28,10 +27,10 @@ import { toast } from 'sonner'
 interface Props { onBack: () => void }
 
 const STATUS_TABS: { key: TaskStatus | 'all'; label: string }[] = [
-  { key: 'all',        label: 'All' },
-  { key: 'todo',       label: 'To Do' },
-  { key: 'in_progress', label: 'Doing' },
-  { key: 'done',       label: 'Done' },
+  { key: 'all',         label: 'All'     },
+  { key: 'todo',        label: 'To Do'   },
+  { key: 'in_progress', label: 'Doing'   },
+  { key: 'done',        label: 'Done'    },
 ]
 
 export function ListDetailView({ onBack }: Props) {
@@ -39,36 +38,38 @@ export function ListDetailView({ onBack }: Props) {
   const { lists, tasks, activeListId, setTasks, updateTask, removeTask, reorderTasks } = useTaskStore()
   const list = lists.find(l => l.id === activeListId)
 
-  const [filter,      setFilter]    = useState<TaskStatus | 'all'>('all')
-  const [loading,     setLoading]   = useState(true)
-  const [activeTask,  setActiveTask] = useState<Task | null>(null)
-  const [showCreate,  setShowCreate] = useState(false)
-  const [showShare,   setShowShare]  = useState(false)
-  const headerRef = useRef<HTMLDivElement>(null)
+  const [filter,     setFilter]    = useState<TaskStatus | 'all'>('all')
+  const [loading,    setLoading]   = useState(true)
+  const [activeTask, setActiveTask] = useState<Task | null>(null)
+  const [showCreate, setShowCreate] = useState(false)
+  const [showShare,  setShowShare]  = useState(false)
+  const pageRef   = useRef<HTMLDivElement>(null)
   const listRef   = useRef<HTMLDivElement>(null)
 
   const allTasks = tasks[activeListId!] ?? []
   const filtered = filter === 'all' ? allTasks : allTasks.filter(t => t.status === filter)
+  const doneCount = allTasks.filter(t => t.status === 'done').length
 
-  const sensors = useSensors(useSensor(PointerSensor, {
-    activationConstraint: { distance: 8 },
-  }))
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
 
-  // Fetch tasks
+  // Page entrance animation
+  useEffect(() => {
+    if (pageRef.current) {
+      gsap.fromTo(pageRef.current,
+        { x: 40, opacity: 0 },
+        { x: 0, opacity: 1, duration: 0.32, ease: 'power3.out' }
+      )
+    }
+  }, [])
+
   useEffect(() => {
     if (!activeListId || !user) return
     fetchTasks()
 
-    // Realtime subscription
     const channel = supabase
       .channel(`tasks-${activeListId}`)
-      .on('postgres_changes', {
-        event: '*', schema: 'public', table: 'tasks',
-        filter: `list_id=eq.${activeListId}`,
-      }, () => fetchTasks())
-      .on('postgres_changes', {
-        event: '*', schema: 'public', table: 'subtasks',
-      }, () => fetchTasks())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks', filter: `list_id=eq.${activeListId}` }, fetchTasks)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'subtasks' }, fetchTasks)
       .subscribe()
 
     return () => { supabase.removeChannel(channel) }
@@ -79,27 +80,42 @@ export function ListDetailView({ onBack }: Props) {
     const data = await res.json()
     setTasks(activeListId!, data.tasks ?? [])
     setLoading(false)
-    // Animate
+
     requestAnimationFrame(() => {
-      const cards = listRef.current?.querySelectorAll('.task-card')
+      const cards = listRef.current?.querySelectorAll('.task-item')
       if (cards?.length) {
         gsap.fromTo(cards,
           { x: -16, opacity: 0 },
-          { x: 0, opacity: 1, duration: 0.3, stagger: 0.05, ease: 'power2.out' }
+          { x: 0, opacity: 1, duration: 0.28, stagger: 0.045, ease: 'power2.out' }
         )
       }
     })
   }
 
+  function handleBack() {
+    haptic.light()
+    gsap.to(pageRef.current, {
+      x: 40, opacity: 0, duration: 0.22, ease: 'power2.in',
+      onComplete: onBack,
+    })
+  }
+
   async function handleStatusToggle(task: Task) {
     const next: TaskStatus = task.status === 'done' ? 'todo' : 'done'
-    // Optimistic update
     updateTask(task.id, { status: next })
-    haptic.medium()
 
     if (next === 'done') {
-      // Completion animation
       haptic.success()
+      // Completion ripple on the card
+      const card = document.getElementById(`task-${task.id}`)
+      if (card) {
+        gsap.fromTo(card,
+          { scale: 1 },
+          { scale: 1.025, duration: 0.12, yoyo: true, repeat: 1, ease: 'power2.out' }
+        )
+      }
+    } else {
+      haptic.medium()
     }
 
     await fetch('/api/tasks', {
@@ -110,16 +126,21 @@ export function ListDetailView({ onBack }: Props) {
   }
 
   async function handleDelete(task: Task) {
-    const ok = await new Promise<boolean>(resolve => {
+    const confirmed = await new Promise<boolean>(resolve => {
       window?.Telegram?.WebApp?.showConfirm
         ? window.Telegram.WebApp.showConfirm('Delete this task?', resolve)
         : resolve(window.confirm('Delete this task?'))
     })
-    if (!ok) return
+    if (!confirmed) return
+
+    // Animate out
+    const card = document.getElementById(`task-${task.id}`)
+    if (card) {
+      await gsap.to(card, { x: 40, opacity: 0, height: 0, marginBottom: 0, paddingTop: 0, paddingBottom: 0, duration: 0.25, ease: 'power2.in' })
+    }
 
     removeTask(task.id, task.list_id)
     haptic.heavy()
-
     await fetch(`/api/tasks?taskId=${task.id}&userId=${user!.id}`, { method: 'DELETE' })
     toast.success('Task deleted')
   }
@@ -127,32 +148,24 @@ export function ListDetailView({ onBack }: Props) {
   async function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
     if (!over || active.id === over.id) return
-
     const oldIndex = allTasks.findIndex(t => t.id === active.id)
     const newIndex = allTasks.findIndex(t => t.id === over.id)
     const reordered = arrayMove(allTasks, oldIndex, newIndex)
     reorderTasks(activeListId!, reordered)
     haptic.select()
-
-    // Persist positions
-    await Promise.all(
-      reordered.map((t, i) =>
-        fetch('/api/tasks', {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ taskId: t.id, userId: user!.id, position: i }),
-        })
-      )
-    )
+    await Promise.all(reordered.map((t, i) =>
+      fetch('/api/tasks', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId: t.id, userId: user!.id, position: i }),
+      })
+    ))
   }
 
   async function handleExport() {
     haptic.light()
-    const url = `/api/export?listId=${activeListId}&userId=${user!.id}`
-    const res = await fetch(url)
+    const res  = await fetch(`/api/export?listId=${activeListId}&userId=${user!.id}`)
     const text = await res.text()
-
-    // Copy to clipboard or share via Telegram
     if (navigator.share) {
       await navigator.share({ title: list?.title, text })
     } else {
@@ -163,72 +176,97 @@ export function ListDetailView({ onBack }: Props) {
 
   if (!list) return null
 
+  const progress = allTasks.length ? Math.round((doneCount / allTasks.length) * 100) : 0
+
   return (
-    <div className="page-container">
+    <div ref={pageRef} className="page-container">
       {/* Header */}
-      <div ref={headerRef} className="px-4 pt-3 pb-2 flex-shrink-0">
+      <div className="px-4 pt-3 pb-2 flex-shrink-0">
         <div className="flex items-center gap-2 mb-3">
-          <button onClick={onBack} className="btn-ghost p-2 -ml-2">
+          <button onClick={handleBack} className="btn-ghost p-2 -ml-2">
             <ArrowLeft size={20} />
           </button>
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <span className="text-2xl">{list.emoji}</span>
-            <h1 className="font-bold text-lg truncate">{list.title}</h1>
+          <div
+            className="w-9 h-9 rounded-xl flex items-center justify-center text-xl flex-shrink-0"
+            style={{ background: `${list.color}20` }}
+          >
+            {list.emoji}
+          </div>
+          <div className="flex-1 min-w-0">
+            <h1 className="font-bold text-base leading-tight truncate">{list.title}</h1>
+            {allTasks.length > 0 && (
+              <p className="text-xs text-text-secondary">{doneCount}/{allTasks.length} done</p>
+            )}
           </div>
           <button onClick={handleExport} className="btn-ghost p-2" title="Export">
-            <Download size={18} />
+            <Download size={17} />
           </button>
-          <button onClick={() => setShowShare(true)} className="btn-ghost p-2" title="Share">
-            <Share2 size={18} />
+          <button onClick={() => { setShowShare(true); haptic.light() }} className="btn-ghost p-2">
+            <Share2 size={17} />
           </button>
           <button
             onClick={() => { setShowCreate(true); haptic.light() }}
             className="btn-primary flex items-center gap-1 px-3 py-2 text-sm"
           >
-            <Plus size={16} strokeWidth={2.5} />
+            <Plus size={15} strokeWidth={2.5} />
             Add
           </button>
         </div>
 
+        {/* Progress bar */}
+        {allTasks.length > 0 && (
+          <div className="h-1 bg-bg-card rounded-full overflow-hidden mb-3">
+            <div
+              className="h-full rounded-full transition-all duration-700"
+              style={{
+                width: `${progress}%`,
+                background: progress === 100
+                  ? 'linear-gradient(90deg, #34D399, #10B981)'
+                  : `linear-gradient(90deg, ${list.color}, ${list.color}cc)`,
+              }}
+            />
+          </div>
+        )}
+
         {/* Filter tabs */}
-        <div className="flex gap-1 overflow-x-auto no-scrollbar pb-1">
-          {STATUS_TABS.map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setFilter(tab.key)}
-              className={cn(
-                'px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all',
-                filter === tab.key
-                  ? 'bg-accent text-white'
-                  : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'
-              )}
-            >
-              {tab.label}
-              {tab.key !== 'all' && (
-                <span className="ml-1.5 text-xs opacity-70">
-                  {allTasks.filter(t => t.status === tab.key).length}
-                </span>
-              )}
-            </button>
-          ))}
+        <div className="flex gap-1 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none' }}>
+          {STATUS_TABS.map(tab => {
+            const count = tab.key === 'all' ? allTasks.length : allTasks.filter(t => t.status === tab.key).length
+            return (
+              <button
+                key={tab.key}
+                onClick={() => { setFilter(tab.key); haptic.select() }}
+                className={cn(
+                  'px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all duration-200',
+                  filter === tab.key
+                    ? 'bg-accent text-white shadow-glow-sm'
+                    : 'text-text-secondary hover:text-text-primary hover:bg-bg-hover'
+                )}
+              >
+                {tab.label}
+                {count > 0 && (
+                  <span className={cn('ml-1.5 text-xs', filter === tab.key ? 'opacity-80' : 'opacity-50')}>
+                    {count}
+                  </span>
+                )}
+              </button>
+            )
+          })}
         </div>
       </div>
 
-      {/* Task list */}
+      {/* Tasks */}
       <div ref={listRef} className="flex-1 scrollable px-4 pb-4">
         {loading ? (
           <div className="space-y-2 mt-2">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-16 skeleton rounded-2xl" />
+              <div key={i} className="h-16 skeleton rounded-2xl" style={{ animationDelay: `${i * 80}ms` }} />
             ))}
           </div>
         ) : filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-48 text-center">
+          <div className="flex flex-col items-center justify-center h-48 text-center animate-fade-up">
             <p className="text-text-dim text-sm">No tasks here</p>
-            <button
-              onClick={() => setShowCreate(true)}
-              className="mt-3 text-accent text-sm font-medium"
-            >
+            <button onClick={() => setShowCreate(true)} className="mt-3 text-accent text-sm font-medium">
               + Add one
             </button>
           </div>
@@ -251,7 +289,6 @@ export function ListDetailView({ onBack }: Props) {
         )}
       </div>
 
-      {/* Modals */}
       {(showCreate || activeTask) && (
         <TaskSheet
           listId={activeListId!}
@@ -273,7 +310,7 @@ export function ListDetailView({ onBack }: Props) {
   )
 }
 
-// ─── Sortable Task Card ───────────────────────────────────────────
+// ── Sortable Task Card ─────────────────────────────────────────
 interface TaskCardProps {
   task: Task
   onToggle: () => void
@@ -286,40 +323,36 @@ function SortableTaskCard({ task, onToggle, onOpen, onDelete }: TaskCardProps) {
 
   const style = {
     transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
+    transition: transition ?? 'transform 200ms cubic-bezier(0.25, 1, 0.5, 1)',
+    opacity: isDragging ? 0.45 : 1,
     zIndex: isDragging ? 10 : undefined,
   }
 
-  const priority   = PRIORITY_CONFIG[task.priority]
-  const dueInfo    = task.due_date ? formatDueDate(task.due_date) : null
-  const isDone     = task.status === 'done'
-  const subtasksDone = task.subtasks?.filter(s => s.completed).length ?? 0
+  const priority      = PRIORITY_CONFIG[task.priority]
+  const dueInfo       = task.due_date ? formatDueDate(task.due_date) : null
+  const isDone        = task.status === 'done'
+  const subtasksDone  = task.subtasks?.filter(s => s.completed).length ?? 0
   const subtasksTotal = task.subtasks?.length ?? 0
 
   return (
-    <div ref={setNodeRef} style={style} className="task-card">
+    <div ref={setNodeRef} style={style} id={`task-${task.id}`} className="task-item">
       <div className={cn(
-        'card p-3.5 flex items-start gap-3 transition-colors',
-        isDone && 'opacity-60',
-        'hover:bg-bg-hover'
+        'card p-3.5 flex items-start gap-2.5',
+        isDone ? 'opacity-55' : 'hover:bg-bg-hover',
+        isDragging && 'shadow-glow'
       )}>
-        {/* Drag handle */}
-        <button
-          {...attributes} {...listeners}
-          className="text-text-dim mt-0.5 flex-shrink-0 touch-none"
-        >
-          <GripVertical size={16} />
+        {/* Drag */}
+        <button {...attributes} {...listeners} className="text-text-dim mt-0.5 flex-shrink-0 touch-none cursor-grab active:cursor-grabbing">
+          <GripVertical size={15} />
         </button>
 
         {/* Checkbox */}
-        <button
-          onClick={onToggle}
-          className={cn('custom-checkbox mt-0.5', isDone ? 'checked' : 'unchecked')}
-        >
+        <button onClick={onToggle} className={cn('custom-checkbox mt-0.5', isDone ? 'checked' : 'unchecked')}>
           {isDone && (
             <svg width="11" height="9" viewBox="0 0 11 9" fill="none">
-              <path d="M1 4L4 7L10 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M1 4L4 7L10 1" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"
+                style={{ strokeDasharray: 20, strokeDashoffset: 0, animation: 'checkmark-draw 0.25s ease forwards' }}
+              />
             </svg>
           )}
         </button>
@@ -331,34 +364,29 @@ function SortableTaskCard({ task, onToggle, onOpen, onDelete }: TaskCardProps) {
           </p>
 
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5">
-            {/* Priority */}
             <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', priority.color, priority.bg)}>
               {priority.label}
             </span>
-
-            {/* Due date */}
             {dueInfo && (
-              <span className={cn(
-                'text-xs flex items-center gap-1',
+              <span className={cn('text-xs flex items-center gap-1',
                 dueInfo.overdue ? 'text-danger' : dueInfo.urgent ? 'text-amber' : 'text-text-secondary'
               )}>
                 <Calendar size={11} />
                 {dueInfo.label}
               </span>
             )}
-
-            {/* Subtasks */}
             {subtasksTotal > 0 && (
-              <span className="text-xs text-text-secondary">
-                ☑ {subtasksDone}/{subtasksTotal}
+              <span className="text-xs text-text-secondary flex items-center gap-1">
+                <CheckCircle2 size={11} />
+                {subtasksDone}/{subtasksTotal}
               </span>
             )}
           </div>
         </button>
 
         {/* Delete */}
-        <button onClick={onDelete} className="text-text-dim hover:text-danger transition-colors mt-0.5">
-          <Trash2 size={15} />
+        <button onClick={onDelete} className="text-text-dim hover:text-danger transition-colors duration-150 mt-0.5 p-0.5">
+          <Trash2 size={14} />
         </button>
       </div>
     </div>

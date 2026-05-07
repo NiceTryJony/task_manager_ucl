@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
 // POST — create list
 export async function POST(req: NextRequest) {
   const { userId, title, emoji, color } = await req.json()
-  if (userId == null || !title) return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+  if (userId == null || userId === '' || !title) return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
 
   const db = createServiceClient()
 

@@ -6,15 +6,16 @@ export async function POST(req: NextRequest) {
   try {
     const { initData } = await req.json()
 
-    // Dev bypass
-    if (process.env.NODE_ENV === 'development' && !initData) {
-      return NextResponse.json({
-        ok: true,
-        user: { id: 123456789, first_name: 'Developer', username: 'dev' },
-      })
-    }
+    const db = createServiceClient()
 
-    if (!initData) return NextResponse.json({ ok: false, error: 'No initData' }, { status: 400 })
+    // No initData = old TG version or browser — create guest user
+    if (!initData) {
+      await db.from('users').upsert(
+        { id: 0, first_name: 'Guest', username: null },
+        { onConflict: 'id', ignoreDuplicates: true }
+      )
+      return NextResponse.json({ ok: true, user: { id: 0, first_name: 'Guest' } })
+    }
 
     // Verify HMAC-SHA256
     const params = new URLSearchParams(initData)
@@ -39,17 +40,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, error: 'Invalid signature' }, { status: 403 })
     }
 
-    // Auth date check (max 1 hour)
     const authDate = Number(params.get('auth_date'))
-    if (Date.now() / 1000 - authDate > 3600) {
+    if (Date.now() / 1000 - authDate > 86400) {
       return NextResponse.json({ ok: false, error: 'Expired' }, { status: 403 })
     }
 
-    const userData = JSON.parse(params.get('user') ?? '{}')
+    const userData = JSON.parse(decodeURIComponent(params.get('user') ?? '{}'))
     if (!userData.id) return NextResponse.json({ ok: false, error: 'No user' }, { status: 400 })
 
-    // Upsert user in DB
-    const db = createServiceClient()
     await db.from('users').upsert({
       id:         userData.id,
       username:   userData.username ?? null,
