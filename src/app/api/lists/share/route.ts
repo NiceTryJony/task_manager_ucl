@@ -4,7 +4,7 @@ import { createServiceClient } from '@/lib/supabase'
 export async function POST(req: NextRequest) {
   const { listId, ownerId, invitedUserId, role } = await req.json()
 
-  if (!listId || !ownerId || !invitedUserId) {
+  if (!listId || ownerId == null || !invitedUserId) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
   }
 
@@ -53,7 +53,7 @@ export async function DELETE(req: NextRequest) {
   const userId      = searchParams.get('userId')
   const requesterId = searchParams.get('requesterId')
 
-  if (!listId || !userId || !requesterId) {
+  if (!listId || userId == null || !requesterId) {
     return NextResponse.json({ error: 'Missing params' }, { status: 400 })
   }
 

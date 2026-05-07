@@ -4,7 +4,7 @@ import { createServiceClient } from '@/lib/supabase'
 // POST — add subtask
 export async function POST(req: NextRequest) {
   const { taskId, userId, title } = await req.json()
-  if (!taskId || !userId || !title) {
+  if (!taskId || userId == null || !title) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
   }
 
@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
 // PATCH — toggle/rename subtask
 export async function PATCH(req: NextRequest) {
   const { subtaskId, userId, ...updates } = await req.json()
-  if (!subtaskId || !userId) {
+  if (!subtaskId || userId == null) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
   }
 
@@ -68,7 +68,7 @@ export async function DELETE(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const subtaskId = searchParams.get('subtaskId')
   const userId    = searchParams.get('userId')
-  if (!subtaskId || !userId) {
+  if (!subtaskId || userId == null) {
     return NextResponse.json({ error: 'Missing params' }, { status: 400 })
   }
 

@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
   const q      = searchParams.get('q')?.trim().replace(/^@/, '')
   const userId = searchParams.get('userId')
 
-  if (!q || !userId) {
+  if (!q || userId == null) {
     return NextResponse.json({ error: 'Missing params' }, { status: 400 })
   }
 

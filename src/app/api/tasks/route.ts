@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
   const listId = searchParams.get('listId')
   const userId = searchParams.get('userId')
 
-  if (!listId || !userId) {
+  if (!listId || userId == null) {
     return NextResponse.json({ error: 'Missing params' }, { status: 400 })
   }
 
@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json()
   const { listId, userId, title, description, priority, due_date } = body
 
-  if (!listId || !userId || !title) {
+  if (!listId || userId == null || !title) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
   }
 
@@ -103,7 +103,7 @@ export async function PATCH(req: NextRequest) {
   const body = await req.json()
   const { taskId, userId, ...updates } = body
 
-  if (!taskId || !userId) {
+  if (!taskId || userId == null) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
   }
 
@@ -145,7 +145,7 @@ export async function DELETE(req: NextRequest) {
   const taskId = searchParams.get('taskId')
   const userId = searchParams.get('userId')
 
-  if (!taskId || !userId) {
+  if (!taskId || userId == null) {
     return NextResponse.json({ error: 'Missing params' }, { status: 400 })
   }
 

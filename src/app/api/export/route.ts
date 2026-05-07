@@ -7,7 +7,7 @@ export async function GET(req: NextRequest) {
   const listId = searchParams.get('listId')
   const userId = searchParams.get('userId')
 
-  if (!listId || !userId) {
+  if (!listId || userId == null) {
     return NextResponse.json({ error: 'Missing params' }, { status: 400 })
   }
 

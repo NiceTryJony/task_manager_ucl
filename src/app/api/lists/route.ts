@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
 // PATCH — update list meta
 export async function PATCH(req: NextRequest) {
   const { listId, userId, title, emoji, color } = await req.json()
-  if (!listId || !userId) return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+  if (!listId || userId == null) return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
 
   const db = createServiceClient()
 
@@ -95,7 +95,7 @@ export async function DELETE(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const listId = searchParams.get('listId')
   const userId = searchParams.get('userId')
-  if (!listId || !userId) return NextResponse.json({ error: 'Missing params' }, { status: 400 })
+  if (!listId || userId == null) return NextResponse.json({ error: 'Missing params' }, { status: 400 })
 
   const db = createServiceClient()
 
