@@ -4,7 +4,7 @@ import { createServiceClient } from '@/lib/supabase'
 // GET /api/lists?userId=...
 export async function GET(req: NextRequest) {
   const userId = new URL(req.url).searchParams.get('userId')
-  if (!userId) return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
+  if (userId == null) return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
 
   const db = createServiceClient()
 
