@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 
-// GET /api/users/search?q=username_or_id&userId=...
+// GET /api/users/search?q=...&userId=...&multi=true
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const q      = searchParams.get('q')?.trim().replace(/^@/, '')
   const userId = searchParams.get('userId')
+  const multi  = searchParams.get('multi') === 'true'
 
   if (!q || userId == null) {
     return NextResponse.json({ error: 'Missing params' }, { status: 400 })
@@ -13,35 +14,36 @@ export async function GET(req: NextRequest) {
 
   const db = createServiceClient()
 
-  // Try numeric ID first
+  // Exact numeric ID lookup
   const numericId = Number(q)
-
-  let user = null
-
-  if (!isNaN(numericId) && numericId > 0) {
-    // Search by Telegram ID
+  if (!isNaN(numericId) && numericId > 0 && !multi) {
     const { data } = await db
       .from('users')
       .select('id, first_name, username')
       .eq('id', numericId)
       .single()
-    user = data
+    if (data) return NextResponse.json({ user: data, users: [data] })
   }
 
-  if (!user) {
-    // Search by username (case-insensitive)
+  // Multi mode: prefix search — returns up to 8 results
+  if (multi) {
     const { data } = await db
       .from('users')
       .select('id, first_name, username')
-      .ilike('username', q)
-      .limit(1)
-      .single()
-    user = data
+      .ilike('username', `${q}%`)
+      .neq('id', Number(userId))
+      .limit(8)
+
+    return NextResponse.json({ users: data ?? [] })
   }
 
-  if (!user) {
-    return NextResponse.json({ user: null })
-  }
+  // Single mode (legacy): exact match
+  const { data } = await db
+    .from('users')
+    .select('id, first_name, username')
+    .ilike('username', q)
+    .limit(1)
+    .single()
 
-  return NextResponse.json({ user })
+  return NextResponse.json({ user: data ?? null })
 }

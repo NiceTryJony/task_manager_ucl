@@ -426,6 +426,7 @@ export default function HomePage() {
       {shareList && (
         <ShareSheet
           listId={shareList.id}
+          listTitle={shareList.title}
           userId={uid}
           onClose={() => setShareList(null)}
         />
