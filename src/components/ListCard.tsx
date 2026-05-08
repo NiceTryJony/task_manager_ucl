@@ -121,7 +121,7 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted }: Props) 
                 <h3 className="font-semibold text-base truncate flex-1">{list.title}</h3>
                 <button
                   onClick={e => { e.stopPropagation(); setShowMenu(!showMenu) }}
-                  className="btn-ghost p-1.5 -mr-1 flex-shrink-0"
+                  className="flex-shrink-0 -mr-2 -my-1 p-3 rounded-xl hover:bg-bg-hover active:bg-bg-card transition-colors"
                 >
                   <MoreVertical size={15} className="text-text-dim" />
                 </button>
