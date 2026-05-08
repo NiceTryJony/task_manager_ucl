@@ -140,7 +140,7 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted }: Props) 
                 )}
               </div>
               {(list.task_count ?? 0) > 0 && (
-                <div className="mt-2.5 h-1 bg-bg-hover rounded-full overflow-hidden">
+                <div className="mt-2.5 h-1 bg-bg-hover rounded-full">
                   <div className="h-full rounded-full transition-all duration-500"
                     style={{ width: `${progress}%`, background: progress === 100 ? '#34D399' : list.color }} />
                 </div>
