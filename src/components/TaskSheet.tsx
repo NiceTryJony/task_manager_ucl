@@ -25,8 +25,7 @@ function getUserTimezone() {
 function formatInTz(isoStr: string, tz: string) {
   try {
     return new Date(isoStr).toLocaleString('en-US', {
-      timeZone: tz,
-      month: 'short', day: 'numeric',
+      timeZone: tz, month: 'short', day: 'numeric',
       hour: '2-digit', minute: '2-digit',
     })
   } catch { return isoStr }
@@ -41,17 +40,21 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
   const [priority,    setPriority]    = useState<Priority>(task?.priority ?? 'medium')
   const [dueDate,     setDueDate]     = useState('')
   const [dueTime,     setDueTime]     = useState('')
-  const [subtasks,    setSubtasks]    = useState<Subtask[]>(task?.subtasks ?? [])
+  // Subtasks work both in create and edit mode
+  const [subtasks,    setSubtasks]    = useState<Array<{ id?: string; title: string; completed: boolean }>>(
+    task?.subtasks?.map(s => ({ id: s.id, title: s.title, completed: s.completed })) ?? []
+  )
   const [newSubtask,  setNewSubtask]  = useState('')
   const [saving,      setSaving]      = useState(false)
   const [viewerTz]                    = useState(getUserTimezone())
 
   const sheetRef   = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
+  const subtaskRef = useRef<HTMLInputElement>(null)
 
-  // Parse existing due_at into date/time inputs
+  // Parse existing due_at
   useEffect(() => {
-    const raw = (task as any)?.due_at ?? task?.due_date
+    const raw = task?.due_at ?? task?.due_date
     if (!raw) return
     try {
       const d = new Date(raw)
@@ -70,17 +73,26 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
     gsap.to(overlayRef.current, { opacity: 0, duration: 0.2, onComplete: onClose })
   }
 
-  // Build ISO string from date+time inputs in user's local tz
   function buildDueAt() {
     if (!dueDate) return null
     const localStr = dueTime ? `${dueDate}T${dueTime}:00` : `${dueDate}T00:00:00`
     return new Date(localStr).toISOString()
   }
 
-  // Show creator time vs viewer time
-  const existingDueAt = (task as any)?.due_at
-  const creatorTz     = (task as any)?.creator_tz ?? 'UTC'
-  const showDualTime  = isEdit && existingDueAt && creatorTz !== viewerTz
+  function addSubtaskLocal() {
+    if (!newSubtask.trim()) return
+    setSubtasks(prev => [...prev, { title: newSubtask.trim(), completed: false }])
+    setNewSubtask('')
+    subtaskRef.current?.focus()
+  }
+
+  function removeSubtaskLocal(idx: number) {
+    setSubtasks(prev => prev.filter((_, i) => i !== idx))
+  }
+
+  function toggleSubtaskLocal(idx: number) {
+    setSubtasks(prev => prev.map((s, i) => i === idx ? { ...s, completed: !s.completed } : s))
+  }
 
   async function handleSave() {
     if (!title.trim()) return
@@ -89,65 +101,69 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
     const creator_tz = getUserTimezone()
 
     if (isEdit) {
+      // Update task
       await fetch('/api/tasks', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           taskId: task!.id, userId,
-          title: title.trim(), description, priority,
-          due_at, creator_tz,
+          title: title.trim(), description, priority, due_at, creator_tz,
         }),
       })
+      // Sync subtasks: add new ones, update existing
+      for (const s of subtasks) {
+        if (!s.id) {
+          // New subtask added during edit
+          await fetch('/api/tasks/subtasks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ taskId: task!.id, userId, title: s.title }),
+          })
+        } else {
+          await fetch('/api/tasks/subtasks', {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ subtaskId: s.id, userId, completed: s.completed }),
+          })
+        }
+      }
+      // Delete removed subtasks
+      const currentIds = new Set(subtasks.filter(s => s.id).map(s => s.id))
+      for (const orig of task!.subtasks ?? []) {
+        if (!currentIds.has(orig.id)) {
+          await fetch(`/api/tasks/subtasks?subtaskId=${orig.id}&userId=${userId}`, { method: 'DELETE' })
+        }
+      }
       toast.success('Task updated')
     } else {
-      await fetch('/api/tasks', {
+      // Create task
+      const res  = await fetch('/api/tasks', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          listId, userId,
-          title: title.trim(), description, priority,
-          due_at, creator_tz,
+          listId, userId, title: title.trim(), description, priority, due_at, creator_tz,
         }),
       })
+      const data = await res.json()
+      // Create subtasks if any were added
+      if (data.task?.id && subtasks.length > 0) {
+        for (const s of subtasks) {
+          await fetch('/api/tasks/subtasks', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ taskId: data.task.id, userId, title: s.title }),
+          })
+        }
+      }
       toast.success('Task created!')
     }
     setSaving(false)
     onSaved()
   }
 
-  async function addSubtask() {
-    if (!newSubtask.trim() || !isEdit) return
-    const res  = await fetch('/api/tasks/subtasks', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ taskId: task!.id, userId, title: newSubtask.trim() }),
-    })
-    const data = await res.json()
-    if (data.subtask) {
-      const updated = [...subtasks, data.subtask]
-      setSubtasks(updated)
-      updateSubtasks(task!.id, listId, updated)
-    }
-    setNewSubtask('')
-  }
-
-  async function toggleSubtask(sub: Subtask) {
-    const updated = subtasks.map(s => s.id === sub.id ? { ...s, completed: !s.completed } : s)
-    setSubtasks(updated)
-    updateSubtasks(task!.id, listId, updated)
-    await fetch('/api/tasks/subtasks', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ subtaskId: sub.id, userId, completed: !sub.completed }),
-    })
-  }
-
-  async function deleteSubtask(sub: Subtask) {
-    const updated = subtasks.filter(s => s.id !== sub.id)
-    setSubtasks(updated)
-    updateSubtasks(task!.id, listId, updated)
-    await fetch(`/api/tasks/subtasks?subtaskId=${sub.id}&userId=${userId}`, { method: 'DELETE' })
-  }
+  const existingDueAt = task?.due_at
+  const creatorTz     = task?.creator_tz ?? 'UTC'
+  const showDualTime  = isEdit && existingDueAt && creatorTz !== viewerTz
 
   return (
     <div className="fixed inset-0 z-50 flex items-end">
@@ -163,15 +179,20 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
         </div>
 
         <div className="flex-1 scrollable px-4 pb-4 space-y-4">
-          <input
-            autoFocus={!isEdit}
-            value={title}
-            onChange={e => setTitle(e.target.value)}
-            placeholder="Task title…"
-            className="input-field text-base font-semibold"
-            maxLength={200}
-          />
+          {/* Title */}
+          <div>
+            <input
+              autoFocus={!isEdit}
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              placeholder="Task title…"
+              className="input-field text-base font-semibold"
+              maxLength={200}
+            />
+            <p className="text-right text-xs text-text-dim mt-1">{title.length}/200</p>
+          </div>
 
+          {/* Description */}
           <textarea
             value={description}
             onChange={e => setDescription(e.target.value)}
@@ -201,9 +222,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
 
           {/* Due date + time */}
           <div>
-            <label className="text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2 block">
-              Due Date & Time
-            </label>
+            <label className="text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2 block">Due Date & Time</label>
             <div className="flex gap-2">
               <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
                 className="input-field text-sm flex-1" style={{ colorScheme: 'dark' }} />
@@ -220,35 +239,34 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
               </div>
             </div>
             <p className="text-xs text-text-dim mt-1.5">
-              🌍 Saved in your timezone: <span className="text-text-secondary">{viewerTz}</span>
+              🌍 Your timezone: <span className="text-text-secondary">{viewerTz}</span>
             </p>
-
-            {/* Dual timezone display */}
             {showDualTime && (
               <div className="mt-2 bg-bg-card rounded-xl p-3 border border-bg-border space-y-1">
                 <div className="flex justify-between text-xs">
                   <span className="text-text-secondary">Creator ({creatorTz.split('/').pop()})</span>
-                  <span className="text-text-primary font-medium">{formatInTz(existingDueAt, creatorTz)}</span>
+                  <span className="text-text-primary font-medium">{formatInTz(existingDueAt!, creatorTz)}</span>
                 </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-accent">Your local time</span>
-                  <span className="text-accent font-medium">{formatInTz(existingDueAt, viewerTz)}</span>
+                  <span className="text-accent font-medium">{formatInTz(existingDueAt!, viewerTz)}</span>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Subtasks */}
-          {isEdit && (
-            <div>
-              <label className="text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2 block">
-                Subtasks ({subtasks.filter(s => s.completed).length}/{subtasks.length})
-              </label>
+          {/* Subtasks — available both on create and edit */}
+          <div>
+            <label className="text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2 block">
+              Subtasks {subtasks.length > 0 && `(${subtasks.filter(s => s.completed).length}/${subtasks.length})`}
+            </label>
+
+            {subtasks.length > 0 && (
               <div className="space-y-1.5 mb-2">
-                {subtasks.map(sub => (
-                  <div key={sub.id} className="flex items-center gap-2 group">
-                    <button onClick={() => toggleSubtask(sub)}
-                      className={cn('custom-checkbox', sub.completed ? 'checked' : 'unchecked')}>
+                {subtasks.map((sub, idx) => (
+                  <div key={idx} className="flex items-center gap-2 group">
+                    <button onClick={() => toggleSubtaskLocal(idx)}
+                      className={cn('custom-checkbox flex-shrink-0', sub.completed ? 'checked' : 'unchecked')}>
                       {sub.completed && (
                         <svg width="11" height="9" viewBox="0 0 11 9" fill="none">
                           <path d="M1 4L4 7L10 1" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
@@ -258,28 +276,30 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
                     <span className={cn('flex-1 text-sm', sub.completed && 'line-through text-text-secondary')}>
                       {sub.title}
                     </span>
-                    <button onClick={() => deleteSubtask(sub)}
-                      className="opacity-0 group-hover:opacity-100 text-text-dim hover:text-danger transition-all">
-                      <Trash2 size={14} />
+                    <button onClick={() => removeSubtaskLocal(idx)}
+                      className="opacity-0 group-hover:opacity-100 text-text-dim hover:text-danger transition-all p-1">
+                      <Trash2 size={13} />
                     </button>
                   </div>
                 ))}
               </div>
-              <div className="flex gap-2">
-                <input value={newSubtask} onChange={e => setNewSubtask(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && addSubtask()}
-                  placeholder="Add subtask…" className="input-field text-sm py-2" />
-                <button onClick={addSubtask} disabled={!newSubtask.trim()}
-                  className="btn-primary px-3 py-2 disabled:opacity-40">
-                  <Plus size={16} />
-                </button>
-              </div>
-            </div>
-          )}
+            )}
 
-          {!isEdit && (
-            <p className="text-xs text-text-dim text-center">Subtasks can be added after creating the task</p>
-          )}
+            <div className="flex gap-2">
+              <input
+                ref={subtaskRef}
+                value={newSubtask}
+                onChange={e => setNewSubtask(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && addSubtaskLocal()}
+                placeholder="Add subtask…"
+                className="input-field text-sm py-2"
+              />
+              <button onClick={addSubtaskLocal} disabled={!newSubtask.trim()}
+                className="btn-primary px-3 py-2 disabled:opacity-40 flex-shrink-0">
+                <Plus size={16} />
+              </button>
+            </div>
+          </div>
         </div>
 
         <div className="flex-shrink-0 px-4 pb-6 pt-3 border-t border-bg-border">

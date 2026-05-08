@@ -126,6 +126,18 @@ export function ListDetailView({ onBack }: Props) {
     )
   }, [])
 
+  // ── Online/offline detection ───────────────────────────────
+  useEffect(() => {
+    const goOnline  = () => { setIsOnline(true);  fetchTasks(false) }
+    const goOffline = () => setIsOnline(false)
+    window.addEventListener('online',  goOnline)
+    window.addEventListener('offline', goOffline)
+    return () => {
+      window.removeEventListener('online',  goOnline)
+      window.removeEventListener('offline', goOffline)
+    }
+  }, [])
+
   // ── Fetch + realtime ───────────────────────────────────────
   useEffect(() => {
     if (!activeListId || !user) return
@@ -328,9 +340,9 @@ export function ListDetailView({ onBack }: Props) {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
               <h1 className="font-bold text-base truncate">{list.title}</h1>
-              <div className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0',
-                isOnline ? 'bg-emerald animate-pulse' : 'bg-text-dim')}
-                title={isOnline ? 'Live sync' : 'Offline'} />
+              <div className={cn('w-1.5 h-1.5 rounded-full flex-shrink-0 transition-colors duration-500',
+                isOnline ? 'bg-emerald' : 'bg-danger animate-pulse')}
+              />
             </div>
             {totalCount > 0 && (
               <p className="text-xs text-text-secondary">{doneCount}/{totalCount} done</p>
@@ -412,6 +424,22 @@ export function ListDetailView({ onBack }: Props) {
             )
           })}
         </div>
+
+        {/* Offline banner */}
+        {!isOnline && (
+          <div className="flex items-center justify-between gap-2 bg-danger/10 border border-danger/20 rounded-xl px-3 py-2 mb-2 animate-fade-up">
+            <div className="flex items-center gap-2 text-xs text-danger font-medium">
+              <span className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse flex-shrink-0" />
+              No connection — changes may not be saved
+            </div>
+            <button
+              onClick={() => fetchTasks()}
+              className="text-xs text-danger underline underline-offset-2 flex-shrink-0"
+            >
+              Retry
+            </button>
+          </div>
+        )}
 
         {/* Pull-to-refresh indicator */}
         {isPulling && (
@@ -597,6 +625,10 @@ function SortableTaskCard({ task, onToggle, onOpen, onLongPress }: CardProps) {
             <p className={cn('text-sm font-medium leading-snug', isDone && 'line-through text-text-secondary')}>
               {task.title}
             </p>
+            {/* Description preview — 1 line max */}
+            {task.description && !isDone && (
+              <p className="text-xs text-text-dim mt-0.5 truncate">{task.description}</p>
+            )}
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5">
               <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', priority.color, priority.bg)}>
                 {priority.label}

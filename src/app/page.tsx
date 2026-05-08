@@ -139,7 +139,10 @@ export default function HomePage() {
               <div key={list.id} className="list-card">
                 <ListCard
                   list={list}
+                  userId={uid}
                   onClick={() => { setActiveList(list.id); haptic.light() }}
+                  onEdited={updated => setLists(lists.map(l => l.id === updated.id ? updated : l))}
+                  onDeleted={id => setLists(lists.filter(l => l.id !== id))}
                 />
               </div>
             ))}
