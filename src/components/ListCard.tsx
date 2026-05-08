@@ -150,7 +150,7 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted }: Props) 
 
           {/* Inline mini-menu */}
           {showMenu && (
-            <div className="absolute right-3 top-12 z-20 bg-bg-surface border border-bg-border rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.6)] overflow-hidden animate-scale-pop min-w-[140px]">
+            <div className="absolute right-3 top-12 z-20 bg-bg-surface border border-bg-border rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.6)] animate-scale-pop min-w-[140px]">
               <button onClick={e => { e.stopPropagation(); setShowMenu(false); setShowEdit(true) }}
                 className="flex items-center gap-2.5 px-4 py-3 text-sm font-medium hover:bg-bg-hover w-full text-left text-text-primary transition-colors">
                 <Pencil size={14} className="text-accent flex-shrink-0" />
