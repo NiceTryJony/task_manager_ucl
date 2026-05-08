@@ -38,9 +38,11 @@ export function useTelegram(): TelegramContext {
 
   useEffect(() => {
     const tg = window?.Telegram?.WebApp
-    const hasTgInitData = !!(tg?.initData && tg.initData.length > 0)
+    // Detect Telegram environment by presence of WebApp object, not initData
+    // TG v6.0 may pass empty initData but WebApp object is always present
+    const isTgEnv = !!(tg && typeof tg.ready === 'function')
 
-    if (hasTgInitData) {
+    if (isTgEnv) {
       // ── Telegram Mini App path ────────────────────────────────
       tg!.ready()
       tg!.expand()
