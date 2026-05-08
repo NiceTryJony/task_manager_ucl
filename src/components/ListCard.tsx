@@ -64,7 +64,7 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted }: Props) 
   }
 
   return (
-    <div ref={cardRef} className="overflow-hidden">
+    <div ref={cardRef}>
       {/* Edit sheet */}
       {showEdit && (
         <div className="card p-4 space-y-3 border border-accent/20">
