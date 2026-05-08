@@ -12,13 +12,13 @@ interface Props {
   onClick:   () => void
   onEdited:  (list: TaskList) => void
   onDeleted: (id: string) => void
-  onShare: (list: TaskList) => void
+  onShare:   (list: TaskList) => void
 }
 
-export function ListCard({ list, userId, onClick, onEdited, onDeleted }: Props) {
-  const cardRef    = useRef<HTMLDivElement>(null)
-  const menuRef    = useRef<HTMLDivElement>(null)
-  const btnRef     = useRef<HTMLButtonElement>(null)
+export function ListCard({ list, userId, onClick, onEdited, onDeleted, onShare }: Props) {
+  const cardRef = useRef<HTMLDivElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const btnRef  = useRef<HTMLButtonElement>(null)
 
   const [showMenu, setShowMenu] = useState(false)
   const [showEdit, setShowEdit] = useState(false)
@@ -36,7 +36,6 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted }: Props) 
   // ── Close menu on outside click ────────────────────────────
   useEffect(() => {
     if (!showMenu) return
-
     function handleOutside(e: MouseEvent | TouchEvent) {
       if (
         menuRef.current?.contains(e.target as Node) ||
@@ -44,13 +43,10 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted }: Props) 
       ) return
       setShowMenu(false)
     }
-
-    // Small delay so the same click that opens doesn't close immediately
     const t = setTimeout(() => {
       document.addEventListener('mousedown',  handleOutside)
       document.addEventListener('touchstart', handleOutside)
     }, 10)
-
     return () => {
       clearTimeout(t)
       document.removeEventListener('mousedown',  handleOutside)
@@ -67,8 +63,7 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted }: Props) 
     )
   }, [showMenu])
 
-  function handleCardClick(e: React.MouseEvent) {
-    // Don't navigate if clicking menu or edit area
+  function handleCardClick() {
     if (showMenu || showEdit) return
     if (!cardRef.current) { onClick(); return }
     gsap.to(cardRef.current, {
@@ -123,7 +118,12 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted }: Props) 
             Edit List
           </span>
           <button
-            onClick={() => { setShowEdit(false); setTitle(list.title); setEmoji(list.emoji); setColor(list.color) }}
+            onClick={() => {
+              setShowEdit(false)
+              setTitle(list.title)
+              setEmoji(list.emoji)
+              setColor(list.color)
+            }}
             className="btn-ghost p-1.5 -mr-1"
           >
             <X size={16} />
@@ -140,7 +140,6 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted }: Props) 
           placeholder="List name…"
         />
 
-        {/* Emoji */}
         <div>
           <p className="text-xs text-text-dim mb-2">Icon</p>
           <div className="flex flex-wrap gap-1.5">
@@ -161,7 +160,6 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted }: Props) 
           </div>
         </div>
 
-        {/* Color */}
         <div>
           <p className="text-xs text-text-dim mb-2">Color</p>
           <div className="flex gap-2.5">
@@ -181,7 +179,6 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted }: Props) 
           </div>
         </div>
 
-        {/* Preview stripe */}
         <div className="h-1 rounded-full" style={{ background: color }} />
 
         <button
@@ -202,14 +199,12 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted }: Props) 
         onClick={handleCardClick}
         className="card p-4 cursor-pointer hover:bg-bg-hover active:bg-bg-hover overflow-hidden"
       >
-        {/* Left color stripe */}
         <div
           className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full"
           style={{ background: list.color }}
         />
 
         <div className="flex items-start gap-3 pl-2">
-          {/* Emoji icon */}
           <div
             className="w-11 h-11 rounded-[14px] flex items-center justify-center text-xl flex-shrink-0"
             style={{ background: `${list.color}18` }}
@@ -217,9 +212,7 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted }: Props) 
             {list.emoji}
           </div>
 
-          {/* Content */}
           <div className="flex-1 min-w-0">
-            {/* Title row */}
             <div className="flex items-center gap-1 mb-1">
               <h3 className="font-semibold text-[15px] leading-snug truncate flex-1 text-text-primary">
                 {list.title}
@@ -239,7 +232,6 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted }: Props) 
               </button>
             </div>
 
-            {/* Meta row */}
             <div className="flex items-center gap-2 text-xs text-text-secondary">
               <span>{list.task_count ?? 0} task{list.task_count !== 1 ? 's' : ''}</span>
               {(list.done_count ?? 0) > 0 && (
@@ -259,7 +251,6 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted }: Props) 
               )}
             </div>
 
-            {/* Progress bar */}
             {(list.task_count ?? 0) > 0 && (
               <div className="mt-2.5 h-[3px] bg-bg-hover rounded-full overflow-hidden">
                 <div
@@ -293,7 +284,7 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted }: Props) 
           </button>
           <div className="h-px bg-bg-border mx-2.5" />
           <button
-            onClick={e => { e.stopPropagation(); setShowMenu(false); onClick={e => { e.stopPropagation(); setShowMenu(false); onShare(list) }}
+            onClick={e => { e.stopPropagation(); setShowMenu(false); onShare(list) }}
             className="flex items-center gap-2.5 px-3.5 py-2.5 text-sm font-medium w-full text-left text-text-primary hover:bg-bg-hover transition-colors"
           >
             <Share2 size={14} className="text-text-secondary flex-shrink-0" />
