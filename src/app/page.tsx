@@ -312,10 +312,9 @@ export default function HomePage() {
     init(userId)
   }
 
-  function handleProfileUpdated(userId: number, username: string, firstName: string) {
-    setIdentity(userId, username, firstName)
+  function handleProfileUpdated(firstName: string) {
     setDisplayName(firstName)
-    setCurrentUn(username)
+    setIdentity(uid, currentUn, firstName)
   }
 
   const totalTasks = lists.reduce((s, l) => s + (l.task_count ?? 0), 0)
