@@ -191,19 +191,25 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
   }
 
   // ── Export ─────────────────────────────────────────────────
-  async function handleLoadExport() {
-    if (exportText) { setShowExport(v => !v); return }
-    setLoadingExp(true)
-    const res  = await fetch(`/api/export?listId=${listId}&userId=${userId}`)
+async function handleLoadExport() {
+  if (exportText) { setShowExport(v => !v); return }
+  setLoadingExp(true)
+  try {
+    const res = await fetch(`/api/export?listId=${listId}&userId=${userId}`)
+    if (!res.ok) {
+      toast.error('Failed to load export')
+      setLoadingExp(false)
+      return
+    }
     const text = await res.text()
-    setExportText(text)
-    setLoadingExp(false)
+    setExportText(text || '(empty list)')
     setShowExport(true)
-    requestAnimationFrame(() => {
-      const el = document.getElementById('export-block')
-      if (el) gsap.fromTo(el, { opacity: 0, y: 8 }, { opacity: 1, y: 0, duration: 0.25 })
-    })
+  } catch {
+    toast.error('Network error')
+  } finally {
+    setLoadingExp(false)
   }
+}
 
   async function handleCopy() {
     try {
@@ -359,31 +365,59 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
 
               <div className="space-y-3">
                 <div className="relative">
-                  <div className="relative">
-                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-dim pointer-events-none">
-                      {searching
-                        ? <Loader2 size={15} className="animate-spin text-accent" />
-                        : <Search size={15} />}
-                    </div>
-                    <input
-                      ref={searchRef}
-                      value={query}
-                      onChange={e => { setQuery(e.target.value); setSelectedUser(null) }}
-                      onFocus={() => suggestions.length > 0 && setShowSuggest(true)}
-                      placeholder="@username…"
-                      className={cn(
-                        'input-field pl-10 pr-9 font-mono text-sm',
-                        selectedUser && 'border-accent/50 bg-accent/5'
-                      )}
-                      autoCapitalize="none"
-                      spellCheck={false}
-                    />
-                    {query && (
-                      <button onClick={clearSelection} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-dim hover:text-text-secondary">
-                        <X size={14} />
-                      </button>
-                    )}
+                  <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-dim pointer-events-none">
+                    {searching
+                      ? <Loader2 size={15} className="animate-spin text-accent" />
+                      : <Search size={15} />}
                   </div>
+                  <input
+                    ref={searchRef}
+                    value={query}
+                    onChange={e => { setQuery(e.target.value); setSelectedUser(null) }}
+                    placeholder="@username…"
+                    className={cn(
+                      'input-field pl-10 pr-9 font-mono text-sm',
+                      selectedUser && 'border-accent/50 bg-accent/5'
+                    )}
+                    autoCapitalize="none"
+                    spellCheck={false}
+                  />
+                  {query && (
+                    <button onClick={clearSelection} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-dim">
+                      <X size={14} />
+                    </button>
+                  )}
+
+                  {/* Dropdown — вынесен из overflow контейнера через fixed */}
+                  {showSuggest && suggestions.length > 0 && (
+                    <div
+                      ref={suggestRef}
+                      className="fixed left-4 right-4 z-[200] bg-bg-surface border border-bg-border rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.6)] overflow-hidden"
+                      style={{
+                        top: (searchRef.current?.getBoundingClientRect().bottom ?? 0) + 6,
+                      }}
+                    >
+                      {suggestions.map((u, i) => (
+                        <button
+                          key={u.id}
+                          onMouseDown={e => { e.preventDefault(); selectUser(u) }}
+                          className={cn(
+                            'w-full flex items-center gap-3 px-3.5 py-2.5 text-left transition-colors hover:bg-bg-hover active:bg-bg-hover',
+                            i > 0 && 'border-t border-bg-border/40'
+                          )}
+                        >
+                          <div className="w-8 h-8 rounded-full bg-bg-hover flex items-center justify-center text-xs font-bold text-text-secondary flex-shrink-0">
+                            {u.first_name[0]?.toUpperCase()}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">{u.first_name}</p>
+                            {u.username && <p className="text-xs text-text-dim font-mono">@{u.username}</p>}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
                   {showSuggest && suggestions.length > 0 && (
                     <div ref={suggestRef} className="absolute left-0 right-0 top-full mt-1 z-30 bg-bg-surface border border-bg-border rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] overflow-hidden">
@@ -407,7 +441,6 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
                       ))}
                     </div>
                   )}
-                </div>
 
                 {selectedUser && (
                   <div className="flex items-center gap-3 px-3.5 py-2.5 bg-accent/5 border border-accent/25 rounded-2xl animate-fade-up">
