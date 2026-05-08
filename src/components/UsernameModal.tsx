@@ -18,8 +18,6 @@ function validateUsername(v: string): string | null {
   return null
 }
 
-const LS_KEY_USERNAME = 'taskflow_username'
-const LS_KEY_USER_ID  = 'taskflow_user_id'
 
 export function UsernameModal({ onIdentified }: Props) {
   const [value,   setValue]   = useState('')
