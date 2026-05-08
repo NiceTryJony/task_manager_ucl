@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabase'
 import { ListCard } from '@/components/ListCard'
 import { CreateListSheet } from '@/components/CreateListSheet'
 import { ListDetailView } from '@/components/ListDetailView'
+import { UsernameModal } from '@/components/UsernameModal'
 import { SkeletonList } from '@/components/ui/Skeleton'
 import { Plus, Sparkles } from 'lucide-react'
 import { gsap } from 'gsap'
@@ -14,21 +15,22 @@ import type { TaskList } from '@/types'
 import { Toaster } from 'sonner'
 
 export default function HomePage() {
-  const { user, isReady, haptic } = useTelegram()
+  const { user, isReady, haptic, needsIdentify, setIdentity } = useTelegram()
   const { lists, setLists, setUserId, activeListId, setActiveList } = useTaskStore()
-  const [loading, setLoading]     = useState(true)
+  const [loading,    setLoading]    = useState(true)
   const [showCreate, setShowCreate] = useState(false)
-  const [uid, setUid]             = useState<number>(0)
+  const [uid,        setUid]        = useState<number>(0)
   const headerRef = useRef<HTMLDivElement>(null)
   const listRef   = useRef<HTMLDivElement>(null)
 
+  // Don't init until user is identified (not needsIdentify)
   useEffect(() => {
-    if (!isReady) return
+    if (!isReady || needsIdentify) return
     const resolvedUid = user?.id ?? 0
     setUid(resolvedUid)
     setUserId(resolvedUid)
     init(resolvedUid)
-  }, [isReady])
+  }, [isReady, needsIdentify, user?.id])
 
   async function init(resolvedUid: number) {
     const initData = window?.Telegram?.WebApp?.initData ?? ''
@@ -65,7 +67,7 @@ export default function HomePage() {
     if (!uid) return
     const channel = supabase
       .channel('lists-realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tasks' }, () => {
+      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'tasks' }, () => {
         fetch(`/api/lists?userId=${uid}`)
           .then(r => r.json())
           .then(d => setLists(d.lists ?? []))
@@ -79,6 +81,14 @@ export default function HomePage() {
     setShowCreate(false)
     haptic.success()
     setActiveList(list.id)
+  }
+
+  // Called after UsernameModal succeeds
+  function handleIdentified(userId: number, username: string) {
+    setIdentity(userId, username)
+    setUid(userId)
+    setUserId(userId)
+    init(userId)
   }
 
   const totalTasks = lists.reduce((s, l) => s + (l.task_count ?? 0), 0)
@@ -96,6 +106,11 @@ export default function HomePage() {
   return (
     <div className="page-container">
       <Toaster position="top-center" theme="dark" />
+
+      {/* Username modal — shown only in browser when no identity stored */}
+      {isReady && needsIdentify && (
+        <UsernameModal onIdentified={handleIdentified} />
+      )}
 
       <div ref={headerRef} className="px-4 pt-4 pb-3 flex-shrink-0">
         <div className="flex items-start justify-between">

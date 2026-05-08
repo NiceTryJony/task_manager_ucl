@@ -70,7 +70,7 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted }: Props) 
         <div className="card p-4 space-y-3 border border-accent/20">
           <div className="flex items-center justify-between mb-1">
             <span className="text-sm font-semibold text-text-secondary uppercase tracking-widest">Edit List</span>
-            <button onClick={() => setShowEdit(false)} className="btn-ghost p-1.5"><X size={15}/></button>
+            <button onClick={() => setShowEdit(false)} className="btn-ghost p-1.5"><X size={25}/></button>
           </div>
           <input
             autoFocus
