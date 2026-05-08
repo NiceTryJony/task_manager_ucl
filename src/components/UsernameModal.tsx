@@ -18,7 +18,6 @@ function validateUsername(v: string): string | null {
   return null
 }
 
-
 export function UsernameModal({ onIdentified }: Props) {
   const [value,   setValue]   = useState('')
   const [error,   setError]   = useState<string | null>(null)
@@ -52,15 +51,21 @@ export function UsernameModal({ onIdentified }: Props) {
     setLoading(true)
     setError(null)
 
-    const res  = await fetch('/api/users/identify', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ username: clean }),
-    })
-    const data = await res.json()
-
-    if (!res.ok || !data.user) {
-      setError(data.error ?? 'Something went wrong')
+    let data: any
+    try {
+      const res = await fetch('/api/users/identify', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ username: clean }),
+      })
+      data = await res.json()
+      if (!res.ok || !data.user) {
+        setError(data.error ?? 'Something went wrong')
+        setLoading(false)
+        return
+      }
+    } catch (e) {
+      setError('Server error — check if identify API is deployed')
       setLoading(false)
       return
     }
