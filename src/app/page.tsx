@@ -218,6 +218,7 @@ import { Plus, Sparkles, Settings } from 'lucide-react'
 import { gsap } from 'gsap'
 import type { TaskList } from '@/types'
 import { Toaster } from 'sonner'
+import { ShareSheet } from '@/components/ShareSheet'
 
 export default function HomePage() {
   const { user, isReady, haptic, needsIdentify, setIdentity} = useTelegram()
@@ -232,6 +233,7 @@ export default function HomePage() {
 
   const headerRef = useRef<HTMLDivElement>(null)
   const listRef   = useRef<HTMLDivElement>(null)
+  const [shareList, setShareList] = useState<TaskList | null>(null)
 
   useEffect(() => {
     if (!isReady || needsIdentify) return
@@ -403,6 +405,7 @@ export default function HomePage() {
                   onClick={() => { setActiveList(list.id); haptic.light() }}
                   onEdited={updated => setLists(lists.map(l => l.id === updated.id ? updated : l))}
                   onDeleted={id => setLists(lists.filter(l => l.id !== id))}
+                  onShare={(list) => { setShareList(list); haptic.light() }}
                 />
               </div>
             ))}
@@ -410,11 +413,21 @@ export default function HomePage() {
         )}
       </div>
 
+      
+
       {showCreate && (
         <CreateListSheet
           userId={uid}
           onClose={() => setShowCreate(false)}
           onCreated={handleListCreated}
+        />
+      )}
+
+      {shareList && (
+        <ShareSheet
+          listId={shareList.id}
+          userId={uid}
+          onClose={() => setShareList(null)}
         />
       )}
     </div>

@@ -12,6 +12,7 @@ interface Props {
   onClick:   () => void
   onEdited:  (list: TaskList) => void
   onDeleted: (id: string) => void
+  onShare: (list: TaskList) => void
 }
 
 export function ListCard({ list, userId, onClick, onEdited, onDeleted }: Props) {
@@ -292,7 +293,7 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted }: Props) 
           </button>
           <div className="h-px bg-bg-border mx-2.5" />
           <button
-            onClick={e => { e.stopPropagation(); setShowMenu(false); /* open ShareSheet */ }}
+            onClick={e => { e.stopPropagation(); setShowMenu(false); onClick={e => { e.stopPropagation(); setShowMenu(false); onShare(list) }}
             className="flex items-center gap-2.5 px-3.5 py-2.5 text-sm font-medium w-full text-left text-text-primary hover:bg-bg-hover transition-colors"
           >
             <Share2 size={14} className="text-text-secondary flex-shrink-0" />

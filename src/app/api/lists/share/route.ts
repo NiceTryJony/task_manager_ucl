@@ -1,6 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 
+// GET /api/lists/share?listId=...&userId=...
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url)
+  const listId  = searchParams.get('listId')
+  const userId  = searchParams.get('userId')
+
+  if (!listId || userId == null) {
+    return NextResponse.json({ error: 'Missing params' }, { status: 400 })
+  }
+
+  const db = createServiceClient()
+
+  // Verify requester is a member
+  const { data: member } = await db
+    .from('list_members').select('role')
+    .eq('list_id', listId).eq('user_id', userId).single()
+
+  if (!member) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  // Fetch all members with user info
+  const { data: members, error } = await db
+    .from('list_members')
+    .select('role, joined_at, user_id, users(id, first_name, username)')
+    .eq('list_id', listId)
+    .order('joined_at', { ascending: true })
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  return NextResponse.json({ members, myRole: member.role })
+}
+
 export async function POST(req: NextRequest) {
   const { listId, ownerId, invitedUserId, role } = await req.json()
 
@@ -45,6 +76,33 @@ export async function POST(req: NextRequest) {
   })
 
   return NextResponse.json({ ok: true, user: invitedUser })
+}
+
+export async function PATCH(req: NextRequest) {
+  const { listId, userId, targetUserId, role } = await req.json()
+
+  if (!listId || userId == null || !targetUserId || !role) {
+    return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+  }
+
+  const db = createServiceClient()
+
+  const { data: requester } = await db
+    .from('list_members').select('role')
+    .eq('list_id', listId).eq('user_id', userId).single()
+
+  if (!requester || requester.role !== 'owner') {
+    return NextResponse.json({ error: 'Only owner can change roles' }, { status: 403 })
+  }
+
+  const { error } = await db
+    .from('list_members')
+    .update({ role })
+    .eq('list_id', listId)
+    .eq('user_id', targetUserId)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
 }
 
 export async function DELETE(req: NextRequest) {
