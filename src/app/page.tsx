@@ -220,7 +220,7 @@ import type { TaskList } from '@/types'
 import { Toaster } from 'sonner'
 
 export default function HomePage() {
-  const { user, isReady, haptic, needsIdentify, setIdentity, isTelegramEnv } = useTelegram()
+  const { user, isReady, haptic, needsIdentify, setIdentity} = useTelegram()
   const { lists, setLists, setUserId, activeListId, setActiveList } = useTaskStore()
 
   const [loading,       setLoading]       = useState(true)
@@ -293,6 +293,16 @@ export default function HomePage() {
     setActiveList(list.id)
   }
 
+  // function handleIdentified(userId: number, username: string, firstName: string) {
+  //   setIdentity(userId, username, firstName)
+  //   setUid(userId)
+  //   setUserId(userId)
+  //   setDisplayName(firstName)
+  //   setCurrentUn(username)
+  //   init(userId)
+  // }
+
+  // handleIdentified — убери четвёртый аргумент в SettingsSheet (isTgEnv)
   function handleIdentified(userId: number, username: string, firstName: string) {
     setIdentity(userId, username, firstName)
     setUid(userId)
@@ -333,7 +343,7 @@ export default function HomePage() {
           userId={uid}
           firstName={displayName}
           username={currentUn}
-          isTgEnv={isTelegramEnv}
+          // isTgEnv={isTelegramEnv}
           onClose={() => setShowSettings(false)}
           onUpdated={handleProfileUpdated}
         />

@@ -88,10 +88,18 @@
 
 
 import { NextRequest, NextResponse } from 'next/server'
+import { createHash } from 'crypto'
 import { createServiceClient } from '@/lib/supabase'
 
-function usernameToSyntheticId(username: string): number {
-  const clean = username.toLowerCase().replace(/^@/, '')
+// sha256(username:pin) — lightweight, no extra deps
+function hashPin(username: string, pin: string): string {
+  return createHash('sha256')
+    .update(`${username.toLowerCase()}:${pin}`)
+    .digest('hex')
+}
+
+function syntheticId(username: string): number {
+  const clean = username.toLowerCase()
   let hash = 0
   for (let i = 0; i < clean.length; i++) {
     hash = ((hash << 5) - hash + clean.charCodeAt(i)) | 0
@@ -99,134 +107,130 @@ function usernameToSyntheticId(username: string): number {
   return -(Math.abs(hash) + 1_000_000_000)
 }
 
-function validateUsername(username: string): string | null {
-  const clean = username.trim().replace(/^@/, '')
-  if (clean.length < 3)  return 'Username must be at least 3 characters'
-  if (clean.length > 32) return 'Username must be at most 32 characters'
-  if (!/^[a-zA-Z0-9_]+$/.test(clean)) return 'Only letters, numbers and underscores allowed'
+function validateUsername(u: string): string | null {
+  if (u.length < 3)  return 'Username must be at least 3 characters'
+  if (u.length > 32) return 'Username must be at most 32 characters'
+  if (!/^[a-zA-Z0-9_]+$/.test(u)) return 'Only letters, numbers and underscores'
   return null
 }
 
-// POST — find or create user by username + first_name
+// POST — login or register
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json()
-    const { username, first_name } = body
+    const { username, first_name, pin } = await req.json()
 
-    if (!username) return NextResponse.json({ error: 'Missing username' }, { status: 400 })
+    if (!username || !pin) {
+      return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+    }
+    if (!/^\d{4}$/.test(pin)) {
+      return NextResponse.json({ error: 'PIN must be 4 digits' }, { status: 400 })
+    }
 
-    const validationError = validateUsername(username)
-    if (validationError) return NextResponse.json({ error: validationError }, { status: 400 })
+    const clean  = username.trim().replace(/^@/, '').toLowerCase()
+    const valErr = validateUsername(clean)
+    if (valErr) return NextResponse.json({ error: valErr }, { status: 400 })
 
-    const clean     = username.trim().replace(/^@/, '').toLowerCase()
-    const cleanName = (first_name ?? clean).trim()
-    const db        = createServiceClient()
+    const db       = createServiceClient()
+    const pinHash  = hashPin(clean, pin)
 
-    // 1. Try to find existing user by username
+    // Look up existing user
     const { data: existing } = await db
       .from('users')
-      .select('id, first_name, username')
+      .select('id, first_name, username, pin_hash')
       .ilike('username', clean)
       .single()
 
     if (existing) {
-      // Update first_name if provided and different
-      if (cleanName && cleanName !== existing.first_name) {
-        await db.from('users').update({ first_name: cleanName }).eq('id', existing.id)
-        return NextResponse.json({ user: { ...existing, first_name: cleanName }, isNew: false })
+      // User exists — verify PIN
+      if (!existing.pin_hash) {
+        // Legacy user without PIN — set it now (migration path)
+        await db.from('users').update({ pin_hash: pinHash }).eq('id', existing.id)
+        return NextResponse.json({ user: existing, isNew: false })
+      }
+      if (existing.pin_hash !== pinHash) {
+        return NextResponse.json({ error: 'Invalid PIN' }, { status: 401 })
       }
       return NextResponse.json({ user: existing, isNew: false })
     }
 
-    // 2. Create with synthetic ID
-    const syntheticId = usernameToSyntheticId(clean)
+    // New user — create
+    const cleanName = (first_name ?? clean).trim()
+    const id        = syntheticId(clean)
 
-    const { data: byId } = await db
-      .from('users')
-      .select('id, first_name, username')
-      .eq('id', syntheticId)
-      .single()
-
+    // Collision check
+    const { data: byId } = await db.from('users').select('id').eq('id', id).single()
     if (byId) {
-      return NextResponse.json({ user: byId, isNew: false })
+      // Extremely rare collision — append offset
+      return NextResponse.json({ error: 'ID collision — try a slightly different username' }, { status: 409 })
     }
 
     const { data: created, error } = await db
       .from('users')
-      .insert({ id: syntheticId, username: clean, first_name: cleanName })
-      .select()
+      .insert({ id, username: clean, first_name: cleanName, pin_hash: pinHash })
+      .select('id, first_name, username')
       .single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ user: created, isNew: true })
 
   } catch (e) {
-    console.error('[users/identify POST]', e)
+    console.error('[identify POST]', e)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }
 
-// PATCH — update existing user profile (called from SettingsSheet)
+// PATCH — update profile (requires current PIN)
 export async function PATCH(req: NextRequest) {
   try {
-    const { userId, username, first_name } = await req.json()
+    const { userId, current_pin, first_name, new_pin } = await req.json()
 
-    if (!userId) return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
+    if (!userId || !current_pin) {
+      return NextResponse.json({ error: 'Missing userId or current_pin' }, { status: 400 })
+    }
 
     const db = createServiceClient()
 
-    // Check the user exists
-    const { data: existing } = await db
+    const { data: user } = await db
       .from('users')
-      .select('id, first_name, username')
+      .select('id, username, first_name, pin_hash')
       .eq('id', userId)
       .single()
 
-    if (!existing) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+    if (!user) return NextResponse.json({ error: 'User not found' }, { status: 404 })
+
+    // Verify current PIN
+    const currentHash = hashPin(user.username!, current_pin)
+    if (user.pin_hash && user.pin_hash !== currentHash) {
+      return NextResponse.json({ error: 'Invalid PIN' }, { status: 401 })
+    }
 
     const updates: Record<string, string> = {}
-
-    if (first_name && first_name.trim() !== existing.first_name) {
+    if (first_name && first_name.trim() !== user.first_name) {
       updates.first_name = first_name.trim()
     }
-
-    if (username) {
-      const cleanUn = username.trim().replace(/^@/, '').toLowerCase()
-      const validErr = validateUsername(cleanUn)
-      if (validErr) return NextResponse.json({ error: validErr }, { status: 400 })
-
-      if (cleanUn !== existing.username) {
-        // Check new username isn't taken by a different user
-        const { data: taken } = await db
-          .from('users')
-          .select('id')
-          .ilike('username', cleanUn)
-          .single()
-
-        if (taken && taken.id !== userId) {
-          return NextResponse.json({ error: 'Username already taken' }, { status: 409 })
-        }
-
-        updates.username = cleanUn
+    if (new_pin) {
+      if (!/^\d{4}$/.test(new_pin)) {
+        return NextResponse.json({ error: 'New PIN must be 4 digits' }, { status: 400 })
       }
+      updates.pin_hash = hashPin(user.username!, new_pin)
     }
 
-    if (Object.keys(updates).length === 0) {
-      return NextResponse.json({ user: existing })
+    if (!Object.keys(updates).length) {
+      return NextResponse.json({ user })
     }
 
     const { data: updated, error } = await db
       .from('users')
       .update(updates)
       .eq('id', userId)
-      .select()
+      .select('id, first_name, username')
       .single()
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
     return NextResponse.json({ user: updated })
 
   } catch (e) {
-    console.error('[users/identify PATCH]', e)
+    console.error('[identify PATCH]', e)
     return NextResponse.json({ error: 'Internal error' }, { status: 500 })
   }
 }

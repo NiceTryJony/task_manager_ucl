@@ -162,16 +162,13 @@
 import { useEffect, useState, useCallback } from 'react'
 import type { TgUser } from '@/types'
 
+export const LS_KEY_USER_ID    = 'taskflow_user_id'
 export const LS_KEY_USERNAME   = 'taskflow_username'
 export const LS_KEY_FIRST_NAME = 'taskflow_first_name'
-export const LS_KEY_USER_ID    = 'taskflow_user_id'
 
 export interface TelegramContext {
   user:          TgUser | null
-  initData:      string
   isReady:       boolean
-  isDark:        boolean
-  isTelegramEnv: boolean
   needsIdentify: boolean
   haptic: {
     light:   () => void
@@ -184,100 +181,47 @@ export interface TelegramContext {
   }
   showConfirm: (message: string) => Promise<boolean>
   openLink:    (url: string) => void
-  expand:      () => void
-  setIdentity: (userId: number, username: string, firstName?: string) => void
+  setIdentity: (userId: number, username: string, firstName: string) => void
 }
 
 export function useTelegram(): TelegramContext {
   const [user,          setUser]          = useState<TgUser | null>(null)
-  const [initData,      setInitData]      = useState('')
   const [isReady,       setIsReady]       = useState(false)
-  const [isDark,        setIsDark]        = useState(true)
-  const [isTelegramEnv, setIsTelegramEnv] = useState(false)
   const [needsIdentify, setNeedsIdentify] = useState(false)
 
   useEffect(() => {
-    const tg      = window?.Telegram?.WebApp
-    const isTgEnv = !!(tg && typeof tg.ready === 'function')
+    // Try Telegram WebApp expand (harmless if not in TG)
+    try { window?.Telegram?.WebApp?.ready(); window?.Telegram?.WebApp?.expand() } catch {}
 
-    if (isTgEnv) {
-      // ── Telegram Mini App path ──────────────────────────────
-      tg!.ready()
-      tg!.expand()
-      setIsTelegramEnv(true)
+    const storedId = localStorage.getItem(LS_KEY_USER_ID)
+    const storedUn = localStorage.getItem(LS_KEY_USERNAME)
+    const storedFn = localStorage.getItem(LS_KEY_FIRST_NAME)
 
-      let resolvedUser = tg!.initDataUnsafe?.user ?? null
-      if (!resolvedUser) {
-        try {
-          const params  = new URLSearchParams(tg!.initData)
-          const userStr = params.get('user')
-          if (userStr) resolvedUser = JSON.parse(decodeURIComponent(userStr))
-        } catch {}
-      }
-
-      if (resolvedUser) {
-        // Telegram data always has priority — update localStorage to keep in sync
-        if (resolvedUser.username) {
-          localStorage.setItem(LS_KEY_USERNAME,   resolvedUser.username)
-          localStorage.setItem(LS_KEY_FIRST_NAME, resolvedUser.first_name ?? resolvedUser.username)
-          localStorage.setItem(LS_KEY_USER_ID,    String(resolvedUser.id))
-        }
-        setUser(resolvedUser)
-      } else {
-        // TG env but no user data — fallback to localStorage
-        const storedId = localStorage.getItem(LS_KEY_USER_ID)
-        const storedUn = localStorage.getItem(LS_KEY_USERNAME)
-        const storedFn = localStorage.getItem(LS_KEY_FIRST_NAME)
-        if (storedId && storedUn) {
-          setUser({ id: Number(storedId), first_name: storedFn ?? storedUn, username: storedUn })
-        } else {
-          setUser({ id: 0, first_name: 'Guest' })
-        }
-      }
-
-      setInitData(tg!.initData ?? '')
-      setIsDark(tg!.colorScheme === 'dark')
-      setIsReady(true)
-
+    if (storedId && storedUn) {
+      setUser({ id: Number(storedId), first_name: storedFn ?? storedUn, username: storedUn })
+      setNeedsIdentify(false)
     } else {
-      // ── Browser direct access path ──────────────────────────
-      setIsTelegramEnv(false)
-      setIsDark(window.matchMedia('(prefers-color-scheme: dark)').matches)
-
-      const storedId = localStorage.getItem(LS_KEY_USER_ID)
-      const storedUn = localStorage.getItem(LS_KEY_USERNAME)
-      const storedFn = localStorage.getItem(LS_KEY_FIRST_NAME)
-
-      if (storedId && storedUn) {
-        setUser({ id: Number(storedId), first_name: storedFn ?? storedUn, username: storedUn })
-        setIsReady(true)
-        setNeedsIdentify(false)
-      } else {
-        // No identity — show modal
-        setNeedsIdentify(true)
-        setIsReady(true)
-      }
+      setNeedsIdentify(true)
     }
+    setIsReady(true)
   }, [])
 
-  const setIdentity = useCallback((userId: number, username: string, firstName?: string) => {
-    const fn = firstName ?? username
-    setUser({ id: userId, first_name: fn, username })
-    setNeedsIdentify(false)
-    // Keep localStorage in sync (usually already done by modal/settings, but ensure it)
-    localStorage.setItem(LS_KEY_USERNAME,   username)
-    localStorage.setItem(LS_KEY_FIRST_NAME, fn)
+  const setIdentity = useCallback((userId: number, username: string, firstName: string) => {
     localStorage.setItem(LS_KEY_USER_ID,    String(userId))
+    localStorage.setItem(LS_KEY_USERNAME,   username)
+    localStorage.setItem(LS_KEY_FIRST_NAME, firstName)
+    setUser({ id: userId, first_name: firstName, username })
+    setNeedsIdentify(false)
   }, [])
 
   const haptic = {
-    light:   () => window?.Telegram?.WebApp?.HapticFeedback?.impactOccurred('light'),
-    medium:  () => window?.Telegram?.WebApp?.HapticFeedback?.impactOccurred('medium'),
-    heavy:   () => window?.Telegram?.WebApp?.HapticFeedback?.impactOccurred('heavy'),
-    success: () => window?.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success'),
-    error:   () => window?.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('error'),
-    warning: () => window?.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('warning'),
-    select:  () => window?.Telegram?.WebApp?.HapticFeedback?.selectionChanged(),
+    light:   () => { try { window?.Telegram?.WebApp?.HapticFeedback?.impactOccurred('light')   } catch {} },
+    medium:  () => { try { window?.Telegram?.WebApp?.HapticFeedback?.impactOccurred('medium')  } catch {} },
+    heavy:   () => { try { window?.Telegram?.WebApp?.HapticFeedback?.impactOccurred('heavy')   } catch {} },
+    success: () => { try { window?.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('success') } catch {} },
+    error:   () => { try { window?.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('error')   } catch {} },
+    warning: () => { try { window?.Telegram?.WebApp?.HapticFeedback?.notificationOccurred('warning') } catch {} },
+    select:  () => { try { window?.Telegram?.WebApp?.HapticFeedback?.selectionChanged()               } catch {} },
   }
 
   const showConfirm = useCallback((message: string): Promise<boolean> => {
@@ -291,16 +235,8 @@ export function useTelegram(): TelegramContext {
   }, [])
 
   const openLink = useCallback((url: string) => {
-    window?.Telegram?.WebApp?.openLink(url) ?? window.open(url, '_blank')
+    try { window?.Telegram?.WebApp?.openLink(url) } catch { window.open(url, '_blank') }
   }, [])
 
-  const expand = useCallback(() => {
-    window?.Telegram?.WebApp?.expand()
-  }, [])
-
-  return {
-    user, initData, isReady, isDark,
-    isTelegramEnv, needsIdentify,
-    haptic, showConfirm, openLink, expand, setIdentity,
-  }
+  return { user, isReady, needsIdentify, haptic, showConfirm, openLink, setIdentity }
 }
