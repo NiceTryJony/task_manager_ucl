@@ -30,7 +30,7 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted }: Props) 
   const progress  = list.task_count
     ? Math.round(((list.done_count ?? 0) / list.task_count) * 100)
     : 0
-  const isAllDone = list.task_count > 0 && progress === 100
+  const isAllDone = (list.task_count ?? 0) > 0 && progress === 100
 
   // ── Close menu on outside click ────────────────────────────
   useEffect(() => {
