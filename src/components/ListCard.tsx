@@ -150,15 +150,18 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted }: Props) 
 
           {/* Inline mini-menu */}
           {showMenu && (
-            <div className="absolute right-3 top-12 z-20 bg-bg-surface border border-bg-border rounded-xl shadow-card overflow-hidden animate-scale-pop">
+            <div className="absolute right-3 top-12 z-20 bg-bg-surface border border-bg-border rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.6)] overflow-hidden animate-scale-pop min-w-[140px]">
               <button onClick={e => { e.stopPropagation(); setShowMenu(false); setShowEdit(true) }}
-                className="flex items-center gap-2.5 px-4 py-3 text-sm hover:bg-bg-hover w-full text-left">
-                <Pencil size={14} className="text-accent" /> Edit
+                className="flex items-center gap-2.5 px-4 py-3 text-sm font-medium hover:bg-bg-hover w-full text-left text-text-primary transition-colors">
+                <Pencil size={14} className="text-accent flex-shrink-0" />
+                Edit
               </button>
+              <div className="h-px bg-bg-border mx-2" />
               <button onClick={e => { e.stopPropagation(); setShowMenu(false); handleDelete() }}
                 disabled={deleting}
-                className="flex items-center gap-2.5 px-4 py-3 text-sm hover:bg-bg-hover w-full text-left text-danger">
-                <Trash2 size={14} /> {deleting ? 'Deleting…' : 'Delete'}
+                className="flex items-center gap-2.5 px-4 py-3 text-sm font-medium hover:bg-danger/10 w-full text-left text-danger transition-colors disabled:opacity-50">
+                <Trash2 size={14} className="flex-shrink-0" />
+                {deleting ? 'Deleting…' : 'Delete'}
               </button>
             </div>
           )}
