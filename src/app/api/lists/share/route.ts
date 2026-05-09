@@ -14,22 +14,51 @@ export async function GET(req: NextRequest) {
   const db = createServiceClient()
 
   // Verify requester is a member
-  const { data: member } = await db
-    .from('list_members').select('role')
-    .eq('list_id', listId).eq('user_id', userId).single()
-
-  if (!member) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
-  // Fetch all members with user info
-  const { data: members, error } = await db
+  const { data: myMembership } = await db
     .from('list_members')
-    .select('role, joined_at, user_id, users(id, first_name, username)')
+    .select('role')
+    .eq('list_id', listId)
+    .eq('user_id', userId)
+    .single()
+
+  if (!myMembership) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  // Fetch all memberships for this list
+  const { data: memberships, error } = await db
+    .from('list_members')
+    .select('role, joined_at, user_id')
     .eq('list_id', listId)
     .order('joined_at', { ascending: true })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  return NextResponse.json({ members, myRole: member.role })
+  if (!memberships?.length) {
+    return NextResponse.json({ members: [], myRole: myMembership.role })
+  }
+
+  // Fetch user info separately to avoid FK join issues
+  const userIds = memberships.map(m => m.user_id)
+  const { data: users } = await db
+    .from('users')
+    .select('id, first_name, username')
+    .in('id', userIds)
+
+  const usersMap = new Map((users ?? []).map(u => [u.id, u]))
+
+  const members = memberships.map(m => ({
+    role:      m.role,
+    joined_at: m.joined_at,
+    user_id:   m.user_id,
+    users:     usersMap.get(m.user_id) ?? {
+      id:         m.user_id,
+      first_name: `User ${m.user_id}`,
+      username:   null,
+    },
+  }))
+
+  return NextResponse.json({ members, myRole: myMembership.role })
 }
 
 export async function POST(req: NextRequest) {
