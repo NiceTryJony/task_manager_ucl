@@ -25,7 +25,27 @@ export async function GET(req: NextRequest) {
     .order('position', { ascending: true })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json({ tasks })
+
+  // Enrich subtasks with creator info
+  const allSubtasks = (tasks ?? []).flatMap(t => t.subtasks ?? [])
+  const creatorIds  = [...new Set(allSubtasks.map((s: any) => s.created_by).filter(Boolean))]
+
+  let creatorsMap = new Map()
+  if (creatorIds.length) {
+    const { data: creators } = await db
+      .from('users').select('id, first_name, username').in('id', creatorIds)
+    creatorsMap = new Map((creators ?? []).map(u => [u.id, u]))
+  }
+
+  const enriched = (tasks ?? []).map(t => ({
+    ...t,
+    subtasks: (t.subtasks ?? []).map((s: any) => ({
+      ...s,
+      creator: s.created_by ? (creatorsMap.get(s.created_by) ?? null) : null,
+    })),
+  }))
+
+  return NextResponse.json({ tasks: enriched })
 }
 
 export async function POST(req: NextRequest) {
@@ -49,14 +69,14 @@ export async function POST(req: NextRequest) {
   const { data: task, error } = await db
     .from('tasks')
     .insert({
-      list_id:    listId,
+      list_id:     listId,
       title,
       description: description ?? null,
-      priority:   priority ?? 'medium',
-      due_at:     due_at ?? null,
-      creator_tz: creator_tz ?? 'UTC',
-      position:   (last?.position ?? -1) + 1,
-      created_by: userId,
+      priority:    priority ?? 'medium',
+      due_at:      due_at ?? null,
+      creator_tz:  creator_tz ?? 'UTC',
+      position:    (last?.position ?? -1) + 1,
+      created_by:  userId,
     })
     .select().single()
 
@@ -74,6 +94,8 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({ task })
 }
 
+const TRACKED_FIELDS = ['title', 'description', 'priority', 'status', 'due_at', 'archived'] as const
+
 export async function PATCH(req: NextRequest) {
   const body = await req.json()
   const { taskId, userId, ...updates } = body
@@ -82,7 +104,7 @@ export async function PATCH(req: NextRequest) {
 
   const db = createServiceClient()
 
-  const { data: task } = await db.from('tasks').select('list_id').eq('id', taskId).single()
+  const { data: task } = await db.from('tasks').select('*').eq('id', taskId).single()
   if (!task) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const { data: member } = await db
@@ -95,6 +117,22 @@ export async function PATCH(req: NextRequest) {
     .from('tasks').update(updates).eq('id', taskId).select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+  // Log history for tracked fields
+  const historyEntries = TRACKED_FIELDS
+    .filter(f => f in updates && String(updates[f] ?? '') !== String(task[f] ?? ''))
+    .map(f => ({
+      task_id:   taskId,
+      user_id:   userId,
+      field:     f,
+      old_value: task[f] != null ? String(task[f]) : null,
+      new_value: updates[f] != null ? String(updates[f]) : null,
+    }))
+
+  if (historyEntries.length) {
+    await db.from('task_history').insert(historyEntries)
+  }
+
   return NextResponse.json({ task: updated })
 }
 

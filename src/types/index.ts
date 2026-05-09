@@ -1,116 +1,126 @@
-export type Priority = 'low' | 'medium' | 'high' | 'urgent'
+export type Priority   = 'low' | 'medium' | 'high' | 'urgent'
 export type TaskStatus = 'todo' | 'in_progress' | 'done'
 export type MemberRole = 'owner' | 'editor' | 'viewer'
 
 export interface TgUser {
-  id: number
-  username?: string
-  first_name: string
-  last_name?: string
+  id:          number
+  username?:   string
+  first_name:  string
+  last_name?:  string
 }
 
 export interface User {
-  id: number
-  username?: string
-  first_name: string
-  last_name?: string
-  created_at: string
+  id:          number
+  username?:   string
+  first_name:  string
+  last_name?:  string
+  created_at:  string
 }
 
 export interface TaskList {
-  id: string
-  owner_id: number
-  title: string
-  emoji: string
-  color: string
+  id:          string
+  owner_id:    number
+  title:       string
+  emoji:       string
+  color:       string
   task_count?: number
   done_count?: number
-  created_at: string
-  updated_at: string
+  created_at:  string
+  updated_at:  string
 }
 
 export interface ListMember {
-  list_id: string
-  user_id: number
-  role: MemberRole
+  list_id:    string
+  user_id:    number
+  role:       MemberRole
   invited_by: number
-  joined_at: string
-  user?: User
+  joined_at:  string
+  user?:      User
 }
 
 export interface Subtask {
-  id: string
-  task_id: string
-  title: string
-  completed: boolean
-  position: number
-  created_at: string
+  id:          string
+  task_id:     string
+  title:       string
+  completed:   boolean
+  position:    number
+  created_by?: number
+  created_at:  string
+  // enriched server-side
+  creator?: {
+    id:         number
+    first_name: string
+    username?:  string
+  } | null
 }
 
 export interface Task {
-  id: string
-  list_id: string
-  title: string
+  id:           string
+  list_id:      string
+  title:        string
   description?: string
-  status: TaskStatus
-  priority: Priority
-  due_date?: string
-  due_at?: string
-  creator_tz?: string
-  archived?: boolean
-  position: number
-  created_by: number
+  status:       TaskStatus
+  priority:     Priority
+  due_date?:    string
+  due_at?:      string
+  creator_tz?:  string
+  archived?:    boolean
+  position:     number
+  created_by:   number
+  created_at:   string
+  updated_at:   string
+  subtasks?:    Subtask[]
+}
+
+export interface TaskHistory {
+  id:         string
+  task_id:    string
+  user_id:    number
+  field:      string
+  old_value?: string | null
+  new_value?: string | null
   created_at: string
-  updated_at: string
-  subtasks?: Subtask[]
+  user: {
+    id:         number
+    first_name: string
+    username?:  string | null
+  }
 }
 
 export interface SharedListInvite {
-  list_id: string
+  list_id:         string
   invited_user_id: number
-  role: MemberRole
+  role:            MemberRole
 }
 
 export type CreateTaskInput = Pick<Task, 'list_id' | 'title' | 'priority'> & {
   description?: string
-  due_date?: string
+  due_date?:    string
 }
 
-export type UpdateTaskInput = Partial<Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'due_date' | 'position'>>
+export type UpdateTaskInput = Partial<Pick<Task,
+  'title' | 'description' | 'status' | 'priority' | 'due_date' | 'position'
+>>
 
 export interface TelegramWebApp {
   initData: string
   initDataUnsafe: {
-    user?: TgUser
-    hash: string
-    auth_date: number
+    user?:      TgUser
+    hash:       string
+    auth_date:  number
   }
-  version: string
+  version:     string
   colorScheme: 'light' | 'dark'
-  themeParams: {
-    bg_color?: string
-    text_color?: string
-    hint_color?: string
-    link_color?: string
-    button_color?: string
-    button_text_color?: string
-    secondary_bg_color?: string
-    header_bg_color?: string
-    accent_text_color?: string
-    section_bg_color?: string
-    section_header_text_color?: string
-    subtitle_text_color?: string
-    destructive_text_color?: string
-  }
-  isExpanded: boolean
-  viewportHeight: number
+  themeParams: Record<string, string>
+  isExpanded:  boolean
+  viewportHeight:       number
   viewportStableHeight: number
   MainButton: {
-    text: string
-    color: string
-    textColor: string
-    isVisible: boolean
-    isActive: boolean
+    text:              string
+    color:             string
+    textColor:         string
+    isVisible:         boolean
+    isActive:          boolean
     isProgressVisible: boolean
     setText(text: string): void
     onClick(fn: () => void): void
@@ -152,8 +162,6 @@ export interface TelegramWebApp {
 
 declare global {
   interface Window {
-    Telegram: {
-      WebApp: TelegramWebApp
-    }
+    Telegram: { WebApp: TelegramWebApp }
   }
 }
