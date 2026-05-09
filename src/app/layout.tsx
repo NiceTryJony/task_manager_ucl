@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next'
 import { Bricolage_Grotesque, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
+import { ErrorBoundary } from '@/components/ErrorBoundary'
 
 const bricolage = Bricolage_Grotesque({
   subsets: ['latin'],
@@ -35,7 +36,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <script src="https://telegram.org/js/telegram-web-app.js" />
       </head>
       <body className="bg-bg-base text-text-primary antialiased">
-        {children}
+          <ErrorBoundary>       {/* ← добавить */}
+            {children}
+          </ErrorBoundary>      {/* ← добавить */}
       </body>
     </html>
   )

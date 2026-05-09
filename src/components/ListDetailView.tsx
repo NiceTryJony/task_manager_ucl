@@ -26,6 +26,7 @@ import { ContextMenu, type ContextMenuItem } from '@/components/ContextMenu'
 import { Confetti }        from '@/components/Confetti'
 import type { Task, TaskStatus, Priority, MemberRole } from '@/types'
 import { toast } from 'sonner'
+import { useMemo } from 'react'
 
 interface Props { onBack: () => void }
 
@@ -68,8 +69,10 @@ export function ListDetailView({ onBack }: Props) {
   const pageRef    = useRef<HTMLDivElement>(null)
   const listRef    = useRef<HTMLDivElement>(null)
   const searchRef  = useRef<HTMLInputElement>(null)
-  const pullStartY = useRef(0)
-  const wasDone    = useRef(false)
+  const pullStartY      = useRef(0)
+  const wasDone         = useRef(false)
+  const fetchDebounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const abortRef         = useRef<AbortController>()
 
   const allTasks      = tasks[activeListId!] ?? []
   const activeTasks   = allTasks.filter(t => !t.archived)
@@ -95,8 +98,12 @@ export function ListDetailView({ onBack }: Props) {
     return a.position - b.position
   })
 
-  const doneCount  = activeTasks.filter(t => t.status === 'done').length
-  const totalCount = activeTasks.length
+  // const doneCount  = activeTasks.filter(t => t.status === 'done').length
+  // const totalCount = activeTasks.length
+  const { doneCount, totalCount } = useMemo(() => ({
+    doneCount:  activeTasks.filter(t => t.status === 'done').length,
+    totalCount: activeTasks.length,
+  }), [activeTasks])
   const progress   = totalCount ? Math.round((doneCount / totalCount) * 100) : 0
   const isViewer   = myRole === 'viewer'
 
@@ -114,6 +121,8 @@ export function ListDetailView({ onBack }: Props) {
     setSortKey('position')
     setSearchQuery('')
     setShowSearch(false)
+    setShowSort(false)      // ← сортировка тоже должна сбрасываться
+    setContextMenu(null)    // ← контекстное меню могло остаться открытым
     wasDone.current = false
   }, [activeListId])
 
@@ -170,53 +179,71 @@ export function ListDetailView({ onBack }: Props) {
     }
   }, [])
 
-  // ── Fetch + realtime ───────────────────────────────────────
+  // СТАЛО
   useEffect(() => {
-    if (!activeListId || !user) return
-    fetchTasks()
+      if (!activeListId || !user) return
+      fetchTasks()
 
-    const channel = supabase
-      .channel(`tasks-${activeListId}`)
-      .on('postgres_changes' as any, {
-        event: '*', schema: 'public', table: 'tasks',
-        filter: `list_id=eq.${activeListId}`,
-      }, fetchTasks)
-      .on('postgres_changes' as any, {
-        event: '*', schema: 'public', table: 'subtasks',
-      }, fetchTasks)
-      .subscribe((status: string) => setIsOnline(status === 'SUBSCRIBED'))
+      const debouncedFetch = () => {
+        clearTimeout(fetchDebounceRef.current)
+        fetchDebounceRef.current = setTimeout(() => fetchTasks(false), 300)
+      }
 
-    return () => { supabase.removeChannel(channel) }
-  }, [activeListId, user])
+      const channel = supabase
+        .channel(`tasks-${activeListId}`)
+        .on('postgres_changes' as any, {
+          event: '*', schema: 'public', table: 'tasks',
+          filter: `list_id=eq.${activeListId}`,
+        }, debouncedFetch)
+        .on('postgres_changes' as any, {
+          event: '*', schema: 'public', table: 'subtasks',
+        }, debouncedFetch)
+        .subscribe((status: string) => setIsOnline(status === 'SUBSCRIBED'))
+
+      return () => {
+        supabase.removeChannel(channel)
+        clearTimeout(fetchDebounceRef.current)
+        abortRef.current?.abort()
+      }
+    }, [activeListId, user])
+
 
   async function fetchTasks(showAnim = true) {
-    const [res, resA] = await Promise.all([
-      fetch(`/api/tasks?listId=${activeListId}&userId=${user?.id ?? 0}`),
-      fetch(`/api/tasks?listId=${activeListId}&userId=${user?.id ?? 0}&archived=true`),
-    ])
-    const [data, dataA] = await Promise.all([res.json(), resA.json()])
+      abortRef.current?.abort()
+      abortRef.current = new AbortController()
 
-    const combined = [...(data.tasks ?? []), ...(dataA.tasks ?? [])]
-    setTasks(activeListId!, combined)
-    setLoading(false)
+      try {
+        const [res, resA] = await Promise.all([
+          fetch(`/api/tasks?listId=${activeListId}&userId=${user?.id ?? 0}`, { signal: abortRef.current.signal }),
+          fetch(`/api/tasks?listId=${activeListId}&userId=${user?.id ?? 0}&archived=true`, { signal: abortRef.current.signal }),
+        ])
+        const [data, dataA] = await Promise.all([res.json(), resA.json()])
 
-    if (showAnim) {
-      requestAnimationFrame(() => {
-        const cards = listRef.current?.querySelectorAll('.task-item')
-        if (cards?.length) {
-          gsap.fromTo(cards,
-            { x: -14, opacity: 0 },
-            { x: 0, opacity: 1, duration: 0.26, stagger: 0.04, ease: 'power2.out' }
-          )
+        const combined = [...(data.tasks ?? []), ...(dataA.tasks ?? [])]
+        setTasks(activeListId!, combined)
+        setLoading(false)
+
+        if (showAnim) {
+          requestAnimationFrame(() => {
+            const cards = listRef.current?.querySelectorAll('.task-item')
+            if (cards?.length) {
+              gsap.fromTo(cards,
+                { x: -14, opacity: 0 },
+                { x: 0, opacity: 1, duration: 0.26, stagger: 0.04, ease: 'power2.out' }
+              )
+            }
+          })
         }
-      })
-    }
 
-    const active_    = data.tasks ?? []
-    const allDone    = active_.length > 0 && active_.every((t: Task) => t.status === 'done')
-    if (allDone && !wasDone.current) { setShowConfetti(true); haptic.success() }
-    wasDone.current  = allDone
-  }
+        const active_    = data.tasks ?? []
+        const allDone    = active_.length > 0 && active_.every((t: Task) => t.status === 'done')
+        if (allDone && !wasDone.current) { setShowConfetti(true); haptic.success() }
+        wasDone.current  = allDone
+
+      } catch (e: any) {
+        if (e.name === 'AbortError') return
+      }
+    }
 
   function handleBack() {
     haptic.light()
@@ -303,23 +330,31 @@ export function ListDetailView({ onBack }: Props) {
   }
 
   // ── Drag reorder (owner/editor only) ──────────────────────
+  // СТАЛО
   async function handleDragEnd(event: DragEndEvent) {
-    if (isViewer) return
-    const { active, over } = event
-    if (!over || active.id === over.id) return
-    const curr      = tasks[activeListId!] ?? []
-    const oldIdx    = curr.findIndex(t => t.id === active.id)
-    const newIdx    = curr.findIndex(t => t.id === over.id)
-    const reordered = arrayMove(curr, oldIdx, newIdx)
-    reorderTasks(activeListId!, reordered); haptic.select()
-    await Promise.all(reordered.map((t, i) =>
-      fetch('/api/tasks', {
-        method:  'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ taskId: t.id, userId: user?.id ?? 0, position: i }),
-      })
-    ))
-  }
+      if (isViewer) return
+      const { active, over } = event
+      if (!over || active.id === over.id) return
+      const curr      = tasks[activeListId!] ?? []
+      const oldIdx    = curr.findIndex(t => t.id === active.id)
+      const newIdx    = curr.findIndex(t => t.id === over.id)
+      const reordered = arrayMove(curr, oldIdx, newIdx)
+      reorderTasks(activeListId!, reordered)
+      haptic.select()
+      try {
+        const results = await Promise.all(reordered.map((t, i) =>
+          fetch('/api/tasks', {
+            method:  'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ taskId: t.id, userId: user?.id ?? 0, position: i }),
+          })
+        ))
+        if (results.some(r => !r.ok)) throw new Error('partial failure')
+      } catch {
+        toast.error('Reorder failed — restoring')
+        reorderTasks(activeListId!, curr) // откат к исходному порядку
+      }
+    }
 
   // ── Context menu ───────────────────────────────────────────
   function getContextItems(task: Task): ContextMenuItem[] {

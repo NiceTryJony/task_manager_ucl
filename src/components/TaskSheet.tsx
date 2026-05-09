@@ -273,10 +273,14 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
         }
         toast.success('Task created!')
       }
-    } finally {
-      setSaving(false)
-    }
-    onSaved()
+      } catch {
+        toast.error('Не удалось сохранить — проверь соединение')
+        setSaving(false)
+        return   // не закрываем sheet при ошибке
+      } finally {
+        setSaving(false)
+      }
+      onSaved()
   }
 
   const subDone    = subtasks.filter(s => s.completed).length

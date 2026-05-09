@@ -94,9 +94,22 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted, onShare }
     setShowEdit(false)
   }
 
-  async function handleDelete(e: React.MouseEvent) {
+async function handleDelete(e: React.MouseEvent) {
     e.stopPropagation()
     setShowMenu(false)
+
+    const confirmed = await new Promise<boolean>(resolve => {
+      if (window?.Telegram?.WebApp?.showConfirm) {
+        window.Telegram.WebApp.showConfirm(
+          `Удалить список "${list.title}" и все задачи в нём?`,
+          resolve
+        )
+      } else {
+        resolve(window.confirm(`Удалить список "${list.title}"?`))
+      }
+    })
+    if (!confirmed) return
+
     setDeleting(true)
     if (cardRef.current) {
       await gsap.to(cardRef.current, {

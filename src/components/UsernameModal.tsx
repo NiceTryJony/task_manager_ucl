@@ -54,17 +54,22 @@ export function UsernameModal({ onIdentified }: Props) {
 
   // Debounce username lookup to show new/existing mode hint
   useEffect(() => {
-    const clean = username.trim().replace(/^@/, '').toLowerCase()
-    if (validateUsername(clean) !== null) { setMode(null); return }
+      const clean = username.trim().replace(/^@/, '').toLowerCase()
+      if (validateUsername(clean) !== null) { setMode(null); return }
 
-    const t = setTimeout(async () => {
-      const res  = await fetch(`/api/users/search?q=${encodeURIComponent(clean)}&userId=0`)
-      const data = await res.json()
-      setMode(data.user ? 'existing' : 'new')
-    }, 600)
+      const t = setTimeout(async () => {
+        const res  = await fetch(`/api/users/search?q=${encodeURIComponent(clean)}&userId=0`)
+        const data = await res.json()
+        if (data.user) {
+          setMode('existing')
+          setFirstName(data.user.first_name) // ← единственное добавление
+        } else {
+          setMode('new')
+        }
+      }, 600)
 
-    return () => clearTimeout(t)
-  }, [username])
+      return () => clearTimeout(t)
+    }, [username])
 
   const cleanUn   = username.trim().replace(/^@/, '')
   const pinFull   = pin.join('')
