@@ -23,18 +23,18 @@ export async function GET(req: NextRequest) {
     .eq('list_id', task.list_id).eq('user_id', userId).single()
   if (!member) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  // Fetch history entries
+  // Fetch history — include all new columns
   const { data: history, error } = await db
     .from('task_history')
-    .select('id, field, old_value, new_value, created_at, user_id')
+    .select('id, action_type, field, old_value, new_value, meta, created_at, user_id')
     .eq('task_id', taskId)
     .order('created_at', { ascending: false })
-    .limit(50)
+    .limit(100)
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   if (!history?.length) return NextResponse.json({ history: [] })
 
-  // Fetch user names
+  // Enrich with user info
   const userIds = [...new Set(history.map(h => h.user_id))]
   const { data: users } = await db
     .from('users').select('id, first_name, username').in('id', userIds)
@@ -42,7 +42,13 @@ export async function GET(req: NextRequest) {
 
   const enriched = history.map(h => ({
     ...h,
-    user: usersMap.get(h.user_id) ?? { id: h.user_id, first_name: `User ${h.user_id}`, username: null },
+    // Normalise action_type for rows created before the migration
+    action_type: (h.action_type ?? 'field_change') as string,
+    user: usersMap.get(h.user_id) ?? {
+      id:         h.user_id,
+      first_name: `User ${h.user_id}`,
+      username:   null,
+    },
   }))
 
   return NextResponse.json({ history: enriched })

@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { gsap } from 'gsap'
 import {
   X, Plus, Trash2, Clock, Calendar, AlignLeft, Flag,
-  CheckSquare, GripVertical, History, ChevronDown, ChevronUp, User,
+  CheckSquare, GripVertical, User,
 } from 'lucide-react'
 import {
   DndContext, closestCenter, PointerSensor, TouchSensor,
@@ -16,7 +16,8 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { PRIORITY_CONFIG, cn } from '@/lib/utils'
-import type { Priority, Task, TaskHistory } from '@/types'
+import type { Priority, Task } from '@/types'
+import { TaskHistoryPanel } from '@/components/TaskHistoryPanel'
 import { toast } from 'sonner'
 
 interface Props {
@@ -27,7 +28,6 @@ interface Props {
   onSaved: () => void
 }
 
-// Simple flat type for local subtask state
 interface LocalSubtask {
   id?:       string
   title:     string
@@ -43,10 +43,6 @@ const PRIORITIES: Priority[] = ['low', 'medium', 'high', 'urgent']
 const PRIORITY_ICONS: Record<Priority, string> = {
   low: '○', medium: '◑', high: '●', urgent: '⚠',
 }
-const FIELD_LABELS: Record<string, string> = {
-  title: 'Title', description: 'Notes', priority: 'Priority',
-  status: 'Status', due_at: 'Due date', archived: 'Archived',
-}
 
 function getUserTimezone() {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone } catch { return 'UTC' }
@@ -59,18 +55,6 @@ function formatInTz(isoStr: string, tz: string) {
       hour: '2-digit', minute: '2-digit',
     })
   } catch { return isoStr }
-}
-
-function timeAgo(isoStr: string) {
-  const diff  = Date.now() - new Date(isoStr).getTime()
-  const mins  = Math.floor(diff / 60000)
-  const hours = Math.floor(mins / 60)
-  const days  = Math.floor(hours / 24)
-  if (mins  < 1)  return 'just now'
-  if (mins  < 60) return `${mins}m ago`
-  if (hours < 24) return `${hours}h ago`
-  if (days  < 7)  return `${days}d ago`
-  return new Date(isoStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
 // ── Sortable subtask row ───────────────────────────────────────
@@ -98,7 +82,6 @@ function SortableSubtaskRow({ sub, idx, onToggle, onDelete }: SubtaskRowProps) {
   return (
     <div ref={setNodeRef} style={style}>
       <div className="flex items-start gap-2.5 px-3 py-2 bg-bg-card rounded-[12px] border border-bg-border/60 group">
-        {/* Drag handle */}
         <button
           {...attributes} {...listeners}
           className="text-text-dim mt-0.5 flex-shrink-0 touch-none cursor-grab active:cursor-grabbing py-0.5"
@@ -106,8 +89,6 @@ function SortableSubtaskRow({ sub, idx, onToggle, onDelete }: SubtaskRowProps) {
         >
           <GripVertical size={13} />
         </button>
-
-        {/* Checkbox */}
         <button
           onClick={onToggle}
           className={cn('custom-checkbox flex-shrink-0 mt-0.5', sub.completed ? 'checked' : 'unchecked')}
@@ -118,7 +99,6 @@ function SortableSubtaskRow({ sub, idx, onToggle, onDelete }: SubtaskRowProps) {
             </svg>
           )}
         </button>
-
         <div className="flex-1 min-w-0">
           <span className={cn(
             'text-sm leading-snug block',
@@ -134,8 +114,6 @@ function SortableSubtaskRow({ sub, idx, onToggle, onDelete }: SubtaskRowProps) {
             </span>
           )}
         </div>
-
-        {/* Delete */}
         <button
           onClick={onDelete}
           className="opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 flex-shrink-0 w-6 h-6 flex items-center justify-center rounded-lg text-text-dim hover:text-danger hover:bg-danger/10 transition-all"
@@ -164,12 +142,9 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
       creator:   s.creator ?? null,
     })) ?? []
   )
-  const [newSubtask,  setNewSubtask]  = useState('')
-  const [saving,      setSaving]      = useState(false)
-  const [showHistory, setShowHistory] = useState(false)
-  const [history,     setHistory]     = useState<TaskHistory[]>([])
-  const [loadingHist, setLoadingHist] = useState(false)
-  const [viewerTz]                    = useState(getUserTimezone)
+  const [newSubtask, setNewSubtask] = useState('')
+  const [saving,     setSaving]     = useState(false)
+  const [viewerTz]                  = useState(getUserTimezone)
 
   const sheetRef   = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
@@ -181,7 +156,6 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
     useSensor(TouchSensor,   { activationConstraint: { delay: 180, tolerance: 6 } })
   )
 
-  // Parse existing due_at
   useEffect(() => {
     const raw = task?.due_at ?? task?.due_date
     if (!raw) return
@@ -192,7 +166,6 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
     } catch {}
   }, [])
 
-  // Entrance animation
   useEffect(() => {
     gsap.fromTo(overlayRef.current, { opacity: 0 }, { opacity: 1, duration: 0.2 })
     gsap.fromTo(sheetRef.current,   { y: '100%' },  { y: 0, duration: 0.32, ease: 'power3.out' })
@@ -210,17 +183,13 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
     return new Date(s).toISOString()
   }
 
-  // ── Subtask DnD reorder ────────────────────────────────────
   async function handleSubtaskDragEnd(event: DragEndEvent) {
     const { active, over } = event
     if (!over || active.id === over.id) return
-
-    const oldIdx = subtasks.findIndex((s, i) => (s.id ?? `new-${i}`) === active.id)
-    const newIdx = subtasks.findIndex((s, i) => (s.id ?? `new-${i}`) === over.id)
+    const oldIdx    = subtasks.findIndex((s, i) => (s.id ?? `new-${i}`) === active.id)
+    const newIdx    = subtasks.findIndex((s, i) => (s.id ?? `new-${i}`) === over.id)
     const reordered = arrayMove(subtasks, oldIdx, newIdx)
     setSubtasks(reordered)
-
-    // Persist positions for saved subtasks only
     if (isEdit) {
       await Promise.all(
         reordered
@@ -243,22 +212,6 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
     subtaskRef.current?.focus()
   }
 
-  // ── History ────────────────────────────────────────────────
-  async function handleLoadHistory() {
-    if (showHistory) { setShowHistory(false); return }
-    if (history.length) { setShowHistory(true); return }
-    if (!task?.id) return
-    setLoadingHist(true)
-    try {
-      const res  = await fetch(`/api/tasks/history?taskId=${task.id}&userId=${userId}`)
-      const data = await res.json()
-      setHistory(data.history ?? [])
-    } catch {}
-    setLoadingHist(false)
-    setShowHistory(true)
-  }
-
-  // ── Save ───────────────────────────────────────────────────
   async function handleSave() {
     if (!title.trim()) {
       titleRef.current?.focus()
@@ -266,7 +219,6 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
       return
     }
     setSaving(true)
-
     try {
       if (isEdit) {
         await fetch('/api/tasks', {
@@ -278,7 +230,6 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
             due_at: buildDueAt(), creator_tz: getUserTimezone(),
           }),
         })
-
         for (const s of subtasks) {
           if (!s.id) {
             await fetch('/api/tasks/subtasks', {
@@ -294,8 +245,6 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
             })
           }
         }
-
-        // Remove deleted subtasks
         const keptIds = new Set(subtasks.filter(s => s.id).map(s => s.id))
         for (const orig of task!.subtasks ?? []) {
           if (!keptIds.has(orig.id)) {
@@ -330,9 +279,9 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
     onSaved()
   }
 
-  const subDone  = subtasks.filter(s => s.completed).length
-  const subTotal = subtasks.length
-  const subPct   = subTotal > 0 ? Math.round((subDone / subTotal) * 100) : 0
+  const subDone    = subtasks.filter(s => s.completed).length
+  const subTotal   = subtasks.length
+  const subPct     = subTotal > 0 ? Math.round((subDone / subTotal) * 100) : 0
   const subtaskIds = subtasks.map((s, i) => s.id ?? `new-${i}`)
 
   const existingDueAt = task?.due_at
@@ -530,69 +479,9 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
             </div>
           </div>
 
-          {/* Edit History — edit mode only */}
+          {/* ── Edit History — edit mode only ─────────────────── */}
           {isEdit && (
-            <div>
-              <button
-                onClick={handleLoadHistory}
-                className="w-full flex items-center justify-between px-3 py-2.5 bg-bg-card rounded-xl border border-bg-border/60 text-sm text-text-secondary hover:bg-bg-hover transition-colors"
-              >
-                <span className="flex items-center gap-2">
-                  <History size={14} />
-                  Edit History
-                  {history.length > 0 && (
-                    <span className="text-xs bg-bg-hover px-1.5 py-0.5 rounded-full">{history.length}</span>
-                  )}
-                </span>
-                {loadingHist
-                  ? <div className="w-3 h-3 border-2 border-text-dim border-t-accent rounded-full animate-spin" />
-                  : showHistory ? <ChevronUp size={14} /> : <ChevronDown size={14} />
-                }
-              </button>
-
-              {showHistory && (
-                <div className="mt-2 space-y-1.5">
-                  {history.length === 0 ? (
-                    <p className="text-xs text-text-dim text-center py-3">No changes recorded yet</p>
-                  ) : (
-                    history.map(h => (
-                      <div key={h.id} className="px-3 py-2.5 bg-bg-card rounded-xl border border-bg-border/60">
-                        <div className="flex items-center justify-between mb-1">
-                          <span className="text-xs font-semibold text-text-primary flex items-center gap-1.5">
-                            <span className="w-5 h-5 rounded-full bg-accent/20 text-accent flex items-center justify-center text-[9px] font-bold flex-shrink-0">
-                              {h.user.first_name[0]?.toUpperCase()}
-                            </span>
-                            {h.user.first_name}
-                            {h.user.username && (
-                              <span className="text-text-dim font-normal">@{h.user.username}</span>
-                            )}
-                          </span>
-                          <span className="text-[10px] text-text-dim">{timeAgo(h.created_at)}</span>
-                        </div>
-                        <div className="text-xs text-text-secondary pl-7">
-                          Changed{' '}
-                          <span className="text-text-primary font-medium">
-                            {FIELD_LABELS[h.field] ?? h.field}
-                          </span>
-                          {h.old_value != null && h.new_value != null && (
-                            <span className="text-text-dim">
-                              {' '}from{' '}
-                              <span className="line-through text-danger/70">
-                                {h.old_value === 'null' ? 'none' : h.old_value}
-                              </span>
-                              {' '}to{' '}
-                              <span className="text-emerald">
-                                {h.new_value === 'null' ? 'none' : h.new_value}
-                              </span>
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
+            <TaskHistoryPanel taskId={task!.id} userId={userId} />
           )}
 
         </div>

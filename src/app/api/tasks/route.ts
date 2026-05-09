@@ -82,6 +82,14 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  // Log creation
+  await db.from('task_history').insert({
+    task_id:     task.id,
+    user_id:     userId,
+    action_type: 'task_created',
+    new_value:   title,
+  }).catch(() => {})
+
   if (due_at) {
     await db.from('notifications').insert({
       user_id: userId,
@@ -118,19 +126,20 @@ export async function PATCH(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Log history for tracked fields
+  // Log history for tracked fields — now includes action_type
   const historyEntries = TRACKED_FIELDS
     .filter(f => f in updates && String(updates[f] ?? '') !== String(task[f] ?? ''))
     .map(f => ({
-      task_id:   taskId,
-      user_id:   userId,
-      field:     f,
-      old_value: task[f] != null ? String(task[f]) : null,
-      new_value: updates[f] != null ? String(updates[f]) : null,
+      task_id:     taskId,
+      user_id:     userId,
+      action_type: 'field_change',
+      field:       f,
+      old_value:   task[f] != null ? String(task[f]) : null,
+      new_value:   updates[f] != null ? String(updates[f]) : null,
     }))
 
   if (historyEntries.length) {
-    await db.from('task_history').insert(historyEntries)
+    await db.from('task_history').insert(historyEntries).catch(() => {})
   }
 
   return NextResponse.json({ task: updated })

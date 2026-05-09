@@ -2,6 +2,15 @@ export type Priority   = 'low' | 'medium' | 'high' | 'urgent'
 export type TaskStatus = 'todo' | 'in_progress' | 'done'
 export type MemberRole = 'owner' | 'editor' | 'viewer'
 
+export type HistoryActionType =
+  | 'field_change'
+  | 'subtask_added'
+  | 'subtask_deleted'
+  | 'subtask_toggled'
+  | 'subtask_renamed'
+  | 'subtask_reordered'
+  | 'task_created'
+
 export interface TgUser {
   id:          number
   username?:   string
@@ -46,7 +55,6 @@ export interface Subtask {
   position:    number
   created_by?: number
   created_at:  string
-  // enriched server-side
   creator?: {
     id:         number
     first_name: string
@@ -72,14 +80,22 @@ export interface Task {
   subtasks?:    Subtask[]
 }
 
+export interface HistoryMeta {
+  subtask_title?: string
+  subtask_id?:    string
+  [key: string]:  unknown
+}
+
 export interface TaskHistory {
-  id:         string
-  task_id:    string
-  user_id:    number
-  field:      string
-  old_value?: string | null
-  new_value?: string | null
-  created_at: string
+  id:          string
+  task_id:     string
+  user_id:     number
+  action_type: HistoryActionType
+  field?:      string | null
+  old_value?:  string | null
+  new_value?:  string | null
+  meta?:       HistoryMeta | null
+  created_at:  string
   user: {
     id:         number
     first_name: string
