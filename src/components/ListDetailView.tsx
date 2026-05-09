@@ -580,61 +580,60 @@ export function ListDetailView({ onBack }: Props) {
 
       {/* Task list */}
       
-      <div className="flex-1 relative">
-        {/* Overlay блокирует интеракции во время сохранения */}
+      <div className="flex-1 relative min-h-0">
         {isPending && (
-        <div className="absolute inset-0 z-20 bg-bg-base/30 backdrop-blur-[1px] rounded-none pointer-events-auto" />
-      )}
-        <div
-        ref={listRef}
-        className="h-full scrollable px-4 pb-24"
-        onTouchStart={onTouchStart}
-        onTouchMove={onTouchMove}
-        onTouchEnd={onTouchEnd}
-      >
-        {loading ? (
-          <div className="space-y-2 mt-2">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-16 skeleton rounded-2xl" style={{ animationDelay: ${i * 80}ms }} />
-            ))}
-          </div>
-        ) : sorted.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-48 text-center animate-fade-up">
-            <p className="text-text-dim text-sm">
-              {searchQuery         ? 'No tasks match your search'
-                : filter === 'archived' ? 'Nothing archived'
-                : 'No tasks here'}
-            </p>
-            {!searchQuery && filter !== 'archived' && !isViewer && (
-              <button onClick={() => setShowCreate(true)} className="mt-3 text-accent text-sm font-medium">
-                + Add one
-              </button>
-            )}
-          </div>
-        ) : (
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCenter}
-            onDragEnd={handleDragEnd}
-          >
-            <SortableContext items={sorted.map(t => t.id)} strategy={verticalListSortingStrategy}>
-              <div className="space-y-2 mt-2">
-                {sorted.map(task => (
-                  <SortableTaskCard
-                    key={task.id}
-                    task={task}
-                    isViewer={isViewer}
-                    onToggle={() => handleStatusToggle(task)}
-                    onOpen={() => isViewer ? setViewerTask(task) : setActiveTask(task)}
-                    onLongPress={(x, y) => { setContextMenu({ task, x, y }); haptic.medium() }}
-                  />
-                ))}
-              </div>
-            </SortableContext>
-          </DndContext>
+          <div className="absolute inset-0 z-20 bg-bg-base/30 backdrop-blur-[1px] pointer-events-auto" />
         )}
+        <div
+          ref={listRef}
+          className="h-full scrollable px-4 pb-24"
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
+        >
+          {loading ? (
+            <div className="space-y-2 mt-2">
+              {[...Array(4)].map((_, i) => (
+                <div key={i} className="h-16 skeleton rounded-2xl" style={{ animationDelay: `${i * 80}ms` }} />
+              ))}
+            </div>
+          ) : sorted.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-48 text-center animate-fade-up">
+              <p className="text-text-dim text-sm">
+                {searchQuery         ? 'No tasks match your search'
+                  : filter === 'archived' ? 'Nothing archived'
+                  : 'No tasks here'}
+              </p>
+              {!searchQuery && filter !== 'archived' && !isViewer && (
+                <button onClick={() => setShowCreate(true)} className="mt-3 text-accent text-sm font-medium">
+                  + Add one
+                </button>
+              )}
+            </div>
+          ) : (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext items={sorted.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                <div className="space-y-2 mt-2">
+                  {sorted.map(task => (
+                    <SortableTaskCard
+                      key={task.id}
+                      task={task}
+                      isViewer={isViewer}
+                      onToggle={() => handleStatusToggle(task)}
+                      onOpen={() => isViewer ? setViewerTask(task) : setActiveTask(task)}
+                      onLongPress={(x, y) => { setContextMenu({ task, x, y }); haptic.medium() }}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+          )}
+        </div>
       </div>
-    </div>
 
       {/* FAB — hidden for viewers */}
 
