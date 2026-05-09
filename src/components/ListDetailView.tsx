@@ -17,13 +17,13 @@ import { useTelegram } from '@/hooks/useTelegram'
 import { PRIORITY_CONFIG, cn } from '@/lib/utils'
 import {
   ArrowLeft, Plus, GripVertical,
-  Archive, Search, X, SortAsc,
+  Search, X, SortAsc,
   Calendar, CheckCircle2, Eye,
 } from 'lucide-react'
-import { TaskSheet }         from '@/components/TaskSheet'
-import { ViewerTaskSheet }   from '@/components/ViewerTaskSheet'
+import { TaskSheet }       from '@/components/TaskSheet'
+import { ViewerTaskSheet } from '@/components/ViewerTaskSheet'
 import { ContextMenu, type ContextMenuItem } from '@/components/ContextMenu'
-import { Confetti }          from '@/components/Confetti'
+import { Confetti }        from '@/components/Confetti'
 import type { Task, TaskStatus, Priority, MemberRole } from '@/types'
 import { toast } from 'sonner'
 
@@ -50,21 +50,20 @@ export function ListDetailView({ onBack }: Props) {
   } = useTaskStore()
   const list = lists.find(l => l.id === activeListId)
 
-  const [myRole,       setMyRole]      = useState<MemberRole>('viewer')
-  const [filter,       setFilter]      = useState<FilterKey>('all')
-  const [sortKey,      setSortKey]     = useState<SortKey>('position')
-  const [loading,      setLoading]     = useState(true)
-  const [searchQuery,  setSearchQuery] = useState('')
-  const [showSearch,   setShowSearch]  = useState(false)
-  const [showSort,     setShowSort]    = useState(false)
-  const [activeTask,   setActiveTask]  = useState<Task | null>(null)
-  const [showCreate,   setShowCreate]  = useState(false)
-  const [isOnline,     setIsOnline]    = useState(true)
-  const [showConfetti, setShowConfetti] = useState(false)
-  const [contextMenu,  setContextMenu] = useState<{ task: Task; x: number; y: number } | null>(null)
-  const [isPulling,    setIsPulling]   = useState(false)
-  // Viewer opens task in read-only sheet
-  const [viewerTask,   setViewerTask]  = useState<Task | null>(null)
+  const [myRole,        setMyRole]       = useState<MemberRole>('viewer')
+  const [filter,        setFilter]       = useState<FilterKey>('all')
+  const [sortKey,       setSortKey]      = useState<SortKey>('position')
+  const [loading,       setLoading]      = useState(true)
+  const [searchQuery,   setSearchQuery]  = useState('')
+  const [showSearch,    setShowSearch]   = useState(false)
+  const [showSort,      setShowSort]     = useState(false)
+  const [activeTask,    setActiveTask]   = useState<Task | null>(null)
+  const [showCreate,    setShowCreate]   = useState(false)
+  const [isOnline,      setIsOnline]     = useState(true)
+  const [showConfetti,  setShowConfetti] = useState(false)
+  const [contextMenu,   setContextMenu]  = useState<{ task: Task; x: number; y: number } | null>(null)
+  const [isPulling,     setIsPulling]    = useState(false)
+  const [viewerTask,    setViewerTask]   = useState<Task | null>(null)
 
   const pageRef    = useRef<HTMLDivElement>(null)
   const listRef    = useRef<HTMLDivElement>(null)
@@ -86,12 +85,12 @@ export function ListDetailView({ onBack }: Props) {
 
   const sorted = [...searched].sort((a, b) => {
     if (sortKey === 'due_at') {
-      const da = a.due_at ?? a.due_date ?? ''
+      const da  = a.due_at ?? a.due_date ?? ''
       const db_ = b.due_at ?? b.due_date ?? ''
       if (!da) return 1; if (!db_) return -1
       return da.localeCompare(db_)
     }
-    if (sortKey === 'priority') return PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]
+    if (sortKey === 'priority')   return PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority]
     if (sortKey === 'created_at') return b.created_at.localeCompare(a.created_at)
     return a.position - b.position
   })
@@ -99,13 +98,24 @@ export function ListDetailView({ onBack }: Props) {
   const doneCount  = activeTasks.filter(t => t.status === 'done').length
   const totalCount = activeTasks.length
   const progress   = totalCount ? Math.round((doneCount / totalCount) * 100) : 0
-
-  const isViewer = myRole === 'viewer'
+  const isViewer   = myRole === 'viewer'
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor,   { activationConstraint: { delay: 200, tolerance: 8 } })
   )
+
+  // ── Reset loading when switching lists ─────────────────────
+  // Without this, navigating back and reopening a list shows
+  // stale content without a loading indicator.
+  useEffect(() => {
+    setLoading(true)
+    setFilter('all')
+    setSortKey('position')
+    setSearchQuery('')
+    setShowSearch(false)
+    wasDone.current = false
+  }, [activeListId])
 
   // ── Fetch role ─────────────────────────────────────────────
   useEffect(() => {
@@ -205,7 +215,7 @@ export function ListDetailView({ onBack }: Props) {
     const active_    = data.tasks ?? []
     const allDone    = active_.length > 0 && active_.every((t: Task) => t.status === 'done')
     if (allDone && !wasDone.current) { setShowConfetti(true); haptic.success() }
-    wasDone.current = allDone
+    wasDone.current  = allDone
   }
 
   function handleBack() {
@@ -222,7 +232,7 @@ export function ListDetailView({ onBack }: Props) {
   function onTouchStart(e: React.TouchEvent) { pullStartY.current = e.touches[0].clientY }
   function onTouchMove(e: React.TouchEvent) {
     const delta = e.touches[0].clientY - pullStartY.current
-    if (!(listRef.current) || (listRef.current).scrollTop > 0 || delta < 40) return
+    if (!listRef.current || listRef.current.scrollTop > 0 || delta < 40) return
     setIsPulling(true)
   }
   async function onTouchEnd() {
@@ -235,20 +245,20 @@ export function ListDetailView({ onBack }: Props) {
 
   // ── Status toggle ──────────────────────────────────────────
   async function handleStatusToggle(task: Task) {
-    if (isViewer) return // viewers cannot toggle task status
+    if (isViewer) return
     const next: TaskStatus = task.status === 'done' ? 'todo' : 'done'
     updateTask(task.id, { status: next })
     if (next === 'done') haptic.success(); else haptic.medium()
     await fetch('/api/tasks', {
-      method: 'PATCH',
+      method:  'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ taskId: task.id, userId: user?.id ?? 0, status: next }),
     })
-    const updated = (tasks[activeListId!] ?? []).map(t =>
+    const updated  = (tasks[activeListId!] ?? []).map(t =>
       t.id === task.id ? { ...t, status: next } : t
     )
-    const activeDone = updated.filter(t => !t.archived)
-    if (activeDone.length > 0 && activeDone.every(t => t.status === 'done')) {
+    const allDone  = updated.filter(t => !t.archived).every(t => t.status === 'done')
+    if (updated.filter(t => !t.archived).length > 0 && allDone) {
       setShowConfetti(true); haptic.success()
     }
   }
@@ -257,7 +267,7 @@ export function ListDetailView({ onBack }: Props) {
   async function handleArchive(task: Task) {
     updateTask(task.id, { archived: true }); haptic.medium()
     await fetch('/api/tasks', {
-      method: 'PATCH',
+      method:  'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ taskId: task.id, userId: user?.id ?? 0, archived: true }),
     })
@@ -267,7 +277,7 @@ export function ListDetailView({ onBack }: Props) {
   async function handleUnarchive(task: Task) {
     updateTask(task.id, { archived: false }); haptic.medium()
     await fetch('/api/tasks', {
-      method: 'PATCH',
+      method:  'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ taskId: task.id, userId: user?.id ?? 0, archived: false }),
     })
@@ -286,7 +296,7 @@ export function ListDetailView({ onBack }: Props) {
   async function handlePriorityChange(task: Task, priority: Priority) {
     updateTask(task.id, { priority }); haptic.select()
     await fetch('/api/tasks', {
-      method: 'PATCH',
+      method:  'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ taskId: task.id, userId: user?.id ?? 0, priority }),
     })
@@ -297,26 +307,24 @@ export function ListDetailView({ onBack }: Props) {
     if (isViewer) return
     const { active, over } = event
     if (!over || active.id === over.id) return
-    const curr    = tasks[activeListId!] ?? []
-    const oldIdx  = curr.findIndex(t => t.id === active.id)
-    const newIdx  = curr.findIndex(t => t.id === over.id)
+    const curr      = tasks[activeListId!] ?? []
+    const oldIdx    = curr.findIndex(t => t.id === active.id)
+    const newIdx    = curr.findIndex(t => t.id === over.id)
     const reordered = arrayMove(curr, oldIdx, newIdx)
     reorderTasks(activeListId!, reordered); haptic.select()
     await Promise.all(reordered.map((t, i) =>
       fetch('/api/tasks', {
-        method: 'PATCH',
+        method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ taskId: t.id, userId: user?.id ?? 0, position: i }),
       })
     ))
   }
 
-  // ── Context menu — viewer sees only "View" ─────────────────
+  // ── Context menu ───────────────────────────────────────────
   function getContextItems(task: Task): ContextMenuItem[] {
     if (isViewer) {
-      return [
-        { label: 'View Task', icon: '👁', onClick: () => setViewerTask(task) },
-      ]
+      return [{ label: 'View Task', icon: '👁', onClick: () => setViewerTask(task) }]
     }
 
     const statusItem: ContextMenuItem = task.status !== 'done'
@@ -328,10 +336,10 @@ export function ListDetailView({ onBack }: Props) {
       : { label: 'Archive', icon: '📦', onClick: () => handleArchive(task)   }
 
     return [
-      { label: 'Edit',    icon: '✏️',  onClick: () => setActiveTask(task) },
+      { label: 'Edit',   icon: '✏️',  onClick: () => setActiveTask(task) },
       statusItem,
       archiveItem,
-      { label: 'Delete',  icon: '🗑️', color: 'text-danger', onClick: () => handleDelete(task) },
+      { label: 'Delete', icon: '🗑️', color: 'text-danger', onClick: () => handleDelete(task) },
     ]
   }
 
@@ -360,7 +368,6 @@ export function ListDetailView({ onBack }: Props) {
                 'w-1.5 h-1.5 rounded-full flex-shrink-0 transition-colors duration-500',
                 isOnline ? 'bg-emerald' : 'bg-danger animate-pulse'
               )} />
-              {/* Viewer badge */}
               {isViewer && (
                 <span className="flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-text-dim/20 text-text-secondary flex-shrink-0">
                   <Eye size={9} /> View only
@@ -447,8 +454,8 @@ export function ListDetailView({ onBack }: Props) {
         {/* Filter tabs */}
         <div className="flex gap-1 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none' }}>
           {STATUS_TABS.map(tab => {
-            const count = tab.key === 'all' ? activeTasks.length
-              : tab.key === 'archived' ? archivedTasks.length
+            const count = tab.key === 'all'      ? activeTasks.length
+              : tab.key === 'archived'            ? archivedTasks.length
               : activeTasks.filter(t => t.status === tab.key).length
             return (
               <button key={tab.key}
@@ -509,7 +516,7 @@ export function ListDetailView({ onBack }: Props) {
         ) : sorted.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-center animate-fade-up">
             <p className="text-text-dim text-sm">
-              {searchQuery ? 'No tasks match your search'
+              {searchQuery         ? 'No tasks match your search'
                 : filter === 'archived' ? 'Nothing archived'
                 : 'No tasks here'}
             </p>
@@ -533,13 +540,7 @@ export function ListDetailView({ onBack }: Props) {
                     task={task}
                     isViewer={isViewer}
                     onToggle={() => handleStatusToggle(task)}
-                    onOpen={() => {
-                      if (isViewer) {
-                        setViewerTask(task)
-                      } else {
-                        setActiveTask(task)
-                      }
-                    }}
+                    onOpen={() => isViewer ? setViewerTask(task) : setActiveTask(task)}
                     onLongPress={(x, y) => { setContextMenu({ task, x, y }); haptic.medium() }}
                   />
                 ))}
@@ -594,6 +595,7 @@ export function ListDetailView({ onBack }: Props) {
 }
 
 // ── Sortable Task Card ─────────────────────────────────────────
+
 interface CardProps {
   task:        Task
   isViewer:    boolean
@@ -655,20 +657,14 @@ function SortableTaskCard({ task, isViewer, onToggle, onOpen, onLongPress }: Car
     }, 500)
   }
 
-  function handleTouchEnd() {
-    clearTimeout(longPressTimer.current)
-  }
-
-  function handleClick() {
-    if (didLongPress.current) return
-    onOpen()
-  }
+  function handleTouchEnd() { clearTimeout(longPressTimer.current) }
+  function handleClick()    { if (!didLongPress.current) onOpen() }
 
   return (
     <div ref={setNodeRef} style={style} id={`task-${task.id}`} className="task-item">
       <div className={cn(
         'card flex items-start overflow-hidden',
-        isDone && 'opacity-55',
+        isDone     && 'opacity-55',
         isArchived && 'opacity-40',
         isDragging && 'shadow-glow',
       )}>
@@ -679,7 +675,7 @@ function SortableTaskCard({ task, isViewer, onToggle, onOpen, onLongPress }: Car
         />
 
         <div className="flex items-start gap-2.5 p-3.5 flex-1 min-w-0">
-          {/* Drag handle — hidden for viewers */}
+          {/* Drag handle */}
           {!isViewer ? (
             <button
               {...attributes} {...listeners}
@@ -691,7 +687,7 @@ function SortableTaskCard({ task, isViewer, onToggle, onOpen, onLongPress }: Car
             <Eye size={13} className="text-text-dim mt-1 flex-shrink-0 opacity-40" />
           )}
 
-          {/* Checkbox — disabled for viewer */}
+          {/* Checkbox */}
           <button
             onClick={isViewer ? undefined : onToggle}
             className={cn(
@@ -718,7 +714,9 @@ function SortableTaskCard({ task, isViewer, onToggle, onOpen, onLongPress }: Car
               {task.title}
             </p>
             {task.description && !isDone && (
-              <p className="text-xs text-text-dim mt-0.5 truncate">{task.description}</p>
+              <p className="text-xs text-text-dim mt-0.5 truncate">
+                <MentionText text={task.description} />
+              </p>
             )}
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5">
               <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', priority.color, priority.bg)}>
@@ -743,5 +741,20 @@ function SortableTaskCard({ task, isViewer, onToggle, onOpen, onLongPress }: Car
         </div>
       </div>
     </div>
+  )
+}
+
+// ── Inline mention highlight ────────────────────────────────────
+// Renders @username tokens in accent color inside description previews.
+function MentionText({ text }: { text: string }) {
+  const parts = text.split(/(@[a-zA-Z0-9_]+)/g)
+  return (
+    <>
+      {parts.map((part, i) =>
+        /^@[a-zA-Z0-9_]+$/.test(part)
+          ? <span key={i} className="text-accent font-medium">{part}</span>
+          : <span key={i}>{part}</span>
+      )}
+    </>
   )
 }
