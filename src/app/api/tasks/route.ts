@@ -83,12 +83,14 @@ export async function POST(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
   // Log creation
-  await db.from('task_history').insert({
-    task_id:     task.id,
-    user_id:     userId,
-    action_type: 'task_created',
-    new_value:   title,
-  }).catch(() => {})
+  try {
+      await db.from('task_history').insert({
+        task_id:     task.id,
+        user_id:     userId,
+        action_type: 'task_created',
+        new_value:   title,
+      })
+    } catch {}
 
   if (due_at) {
     await db.from('notifications').insert({
@@ -139,8 +141,8 @@ export async function PATCH(req: NextRequest) {
     }))
 
   if (historyEntries.length) {
-    await db.from('task_history').insert(historyEntries).catch(() => {})
-  }
+      try { await db.from('task_history').insert(historyEntries) } catch {}
+    }
 
   return NextResponse.json({ task: updated })
 }
