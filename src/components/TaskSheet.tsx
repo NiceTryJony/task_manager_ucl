@@ -19,6 +19,8 @@ import { PRIORITY_CONFIG, cn } from '@/lib/utils'
 import type { Priority, Task } from '@/types'
 import { TaskHistoryPanel } from '@/components/TaskHistoryPanel'
 import { toast } from 'sonner'
+import { SaveBanner } from '@/components/ui/SaveBanner'
+import { usePending } from '@/hooks/usePending'
 
 interface Props {
   listId:  string
@@ -144,6 +146,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
   )
   const [newSubtask, setNewSubtask] = useState('')
   const [saving,     setSaving]     = useState(false)
+  const { run, isPending } = usePending()
   const [viewerTz]                  = useState(getUserTimezone)
 
   const sheetRef   = useRef<HTMLDivElement>(null)
@@ -320,7 +323,18 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
         </div>
 
         {/* Scrollable body */}
-        <div className="flex-1 scrollable px-4 py-4 space-y-5">
+        <div className="flex-1 relative">
+          {saving && (
+            <div className="absolute inset-0 z-10 bg-bg-surface/60 backdrop-blur-[2px] rounded-t-3xl pointer-events-auto flex items-center justify-center">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-8 h-8 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
+                <p className="text-sm text-text-secondary font-medium">
+                  {isEdit ? 'Saving changes...' : 'Creating task...'}
+                </p>
+              </div>
+            </div>
+          )}
+          <div className="scrollable px-4 py-4 space-y-5 h-full">
 
           {/* Title */}
           <div>
@@ -488,6 +502,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
             <TaskHistoryPanel taskId={task!.id} userId={userId} />
           )}
 
+        </div>
         </div>
 
         {/* Footer */}

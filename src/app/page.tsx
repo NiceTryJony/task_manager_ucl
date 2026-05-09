@@ -15,6 +15,7 @@ import { Plus, Sparkles, Settings } from 'lucide-react'
 import { gsap } from 'gsap'
 import type { TaskList } from '@/types'
 import { Toaster } from 'sonner'
+import { SaveBanner } from '@/components/ui/SaveBanner'
 
 export default function HomePage() {
   const { user, isReady, haptic, needsIdentify, setIdentity } = useTelegram()
@@ -120,6 +121,7 @@ export default function HomePage() {
 
   return (
     <div className="page-container">
+      <SaveBanner /> 
       <Toaster position="top-center" theme="dark" />
 
       {isReady && needsIdentify && (

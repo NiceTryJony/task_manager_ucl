@@ -27,6 +27,7 @@ import { Confetti }        from '@/components/Confetti'
 import type { Task, TaskStatus, Priority, MemberRole } from '@/types'
 import { toast } from 'sonner'
 import { useMemo } from 'react'
+import { usePending } from '@/hooks/usePending'
 
 interface Props { onBack: () => void }
 
@@ -106,6 +107,7 @@ export function ListDetailView({ onBack }: Props) {
   }), [activeTasks])
   const progress   = totalCount ? Math.round((doneCount / totalCount) * 100) : 0
   const isViewer   = myRole === 'viewer'
+  const { run, isPending } = usePending()
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -272,61 +274,103 @@ export function ListDetailView({ onBack }: Props) {
 
   // ── Status toggle ──────────────────────────────────────────
   async function handleStatusToggle(task: Task) {
-    if (isViewer) return
+    if (isViewer || isPending) return
     const next: TaskStatus = task.status === 'done' ? 'todo' : 'done'
     updateTask(task.id, { status: next })
     if (next === 'done') haptic.success(); else haptic.medium()
-    await fetch('/api/tasks', {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ taskId: task.id, userId: user?.id ?? 0, status: next }),
-    })
-    const updated  = (tasks[activeListId!] ?? []).map(t =>
-      t.id === task.id ? { ...t, status: next } : t
+
+    const ok = await run(() =>
+      fetch('/api/tasks', {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId: task.id, userId: user?.id ?? 0, status: next }),
+      }).then(r => { if (!r.ok) throw new Error(); return r })
     )
-    const allDone  = updated.filter(t => !t.archived).every(t => t.status === 'done')
-    if (updated.filter(t => !t.archived).length > 0 && allDone) {
-      setShowConfetti(true); haptic.success()
+    if (!ok) {
+      updateTask(task.id, { status: task.status }) // откат
+      toast.error('Failed to change status')
+    } else {
+      const updated = (tasks[activeListId!] ?? []).map(t =>
+        t.id === task.id ? { ...t, status: next } : t
+      )
+      const allDone = updated.filter(t => !t.archived).every(t => t.status === 'done')
+      if (updated.filter(t => !t.archived).length > 0 && allDone) {
+        setShowConfetti(true); haptic.success()
+      }
     }
   }
 
   // ── Archive / delete ───────────────────────────────────────
   async function handleArchive(task: Task) {
+    if (isPending) return
     updateTask(task.id, { archived: true }); haptic.medium()
-    await fetch('/api/tasks', {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ taskId: task.id, userId: user?.id ?? 0, archived: true }),
-    })
-    toast.success('Archived')
+    const ok = await run(() =>
+      fetch('/api/tasks', {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId: task.id, userId: user?.id ?? 0, archived: true }),
+      }).then(r => { if (!r.ok) throw new Error(); return r })
+    )
+    if (!ok) {
+      updateTask(task.id, { archived: false })
+      toast.error('Failed to archive')
+    } else {
+      toast.success('Archived')
+    }
   }
 
   async function handleUnarchive(task: Task) {
+    if (isPending) return
     updateTask(task.id, { archived: false }); haptic.medium()
-    await fetch('/api/tasks', {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ taskId: task.id, userId: user?.id ?? 0, archived: false }),
-    })
-    toast.success('Restored')
+    const ok = await run(() =>
+      fetch('/api/tasks', {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId: task.id, userId: user?.id ?? 0, archived: false }),
+      }).then(r => { if (!r.ok) throw new Error(); return r })
+    )
+    if (!ok) {
+      updateTask(task.id, { archived: true })
+      toast.error('Could not be restored')
+    } else {
+      toast.success('Restored')
+    }
   }
 
+// ЗАМЕНИТЬ handleDelete
   async function handleDelete(task: Task) {
+    if (isPending) return
     removeTask(task.id, task.list_id); haptic.heavy()
-    toast('Task deleted', {
-      action: { label: 'Undo', onClick: () => fetchTasks(false) },
-      duration: 4000,
-    })
-    await fetch(`/api/tasks?taskId=${task.id}&userId=${user?.id ?? 0}`, { method: 'DELETE' })
+    const ok = await run(() =>
+      fetch(`/api/tasks?taskId=${task.id}&userId=${user?.id ?? 0}`, { method: 'DELETE' })
+        .then(r => { if (!r.ok) throw new Error(); return r })
+    )
+    if (!ok) {
+      fetchTasks(false) // восстановить если ошибка
+      toast.error('Failed to delete a task')
+    } else {
+      toast('Task deleted', {
+        action: { label: 'Cancel', onClick: () => fetchTasks(false) },
+        duration: 4000,
+      })
+    }
   }
 
+// ЗАМЕНИТЬ handlePriorityChange
   async function handlePriorityChange(task: Task, priority: Priority) {
+    if (isPending) return
     updateTask(task.id, { priority }); haptic.select()
-    await fetch('/api/tasks', {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ taskId: task.id, userId: user?.id ?? 0, priority }),
-    })
+    const ok = await run(() =>
+      fetch('/api/tasks', {
+        method:  'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ taskId: task.id, userId: user?.id ?? 0, priority }),
+      }).then(r => { if (!r.ok) throw new Error(); return r })
+    )
+    if (!ok) {
+      updateTask(task.id, { priority: task.priority })
+      toast.error('Не удалось изменить приоритет')
+    }
   }
 
   // ── Drag reorder (owner/editor only) ──────────────────────
@@ -535,9 +579,15 @@ export function ListDetailView({ onBack }: Props) {
       </div>
 
       {/* Task list */}
-      <div
+      
+      <div className="flex-1 relative">
+        {/* Overlay блокирует интеракции во время сохранения */}
+        {isPending && (
+        <div className="absolute inset-0 z-20 bg-bg-base/30 backdrop-blur-[1px] rounded-none pointer-events-auto" />
+      )}
+        <div
         ref={listRef}
-        className="flex-1 scrollable px-4 pb-24"
+        className="h-full scrollable px-4 pb-24"
         onTouchStart={onTouchStart}
         onTouchMove={onTouchMove}
         onTouchEnd={onTouchEnd}
@@ -545,7 +595,7 @@ export function ListDetailView({ onBack }: Props) {
         {loading ? (
           <div className="space-y-2 mt-2">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-16 skeleton rounded-2xl" style={{ animationDelay: `${i * 80}ms` }} />
+              <div key={i} className="h-16 skeleton rounded-2xl" style={{ animationDelay: ${i * 80}ms }} />
             ))}
           </div>
         ) : sorted.length === 0 ? (
@@ -584,14 +634,25 @@ export function ListDetailView({ onBack }: Props) {
           </DndContext>
         )}
       </div>
+    </div>
 
       {/* FAB — hidden for viewers */}
+
       {!isViewer && !(typeof window !== 'undefined' && window?.Telegram?.WebApp?.MainButton?.isVisible) && (
         <button
-          onClick={() => { setShowCreate(true); haptic.light() }}
-          className="fixed bottom-6 right-4 w-14 h-14 rounded-2xl bg-accent text-white flex items-center justify-center shadow-glow z-40 active:scale-90 transition-transform duration-150"
+          onClick={() => { if (isPending) return; setShowCreate(true); haptic.light() }}
+          disabled={isPending}
+          className={cn(
+            'fixed bottom-6 right-4 w-14 h-14 rounded-2xl bg-accent text-white',
+            'flex items-center justify-center shadow-glow z-40',
+            'active:scale-90 transition-all duration-150',
+            isPending && 'opacity-40 cursor-not-allowed'
+          )}
         >
-          <Plus size={24} strokeWidth={2.5} />
+          {isPending
+            ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            : <Plus size={24} strokeWidth={2.5} />
+          }
         </button>
       )}
 

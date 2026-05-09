@@ -6,6 +6,10 @@ interface TaskStore {
   tasks:       Record<string, Task[]>  // keyed by listId
   activeListId: string | null
   userId:      number | null
+  pendingOps:       number
+  lastSaveError:    boolean
+  incrementPending: () => void
+  decrementPending: (hasError?: boolean) => void
 
   setUserId:      (id: number) => void
   setLists:       (lists: TaskList[]) => void
@@ -26,6 +30,17 @@ export const useTaskStore = create<TaskStore>((set) => ({
   tasks:        {},
   activeListId: null,
   userId:       null,
+  pendingOps:    0,
+  lastSaveError: false,
+
+  incrementPending: () =>
+    set(s => ({ pendingOps: s.pendingOps + 1, lastSaveError: false })),
+
+  decrementPending: (hasError = false) =>
+    set(s => ({
+      pendingOps:    Math.max(0, s.pendingOps - 1),
+      lastSaveError: hasError,
+    })),
 
   setUserId: (id) => set({ userId: id }),
 
