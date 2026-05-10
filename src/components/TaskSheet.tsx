@@ -130,7 +130,7 @@ function SortableSubtaskRow({ sub, idx, userId, isEdit, onToggle, onRename, onDe
         {/* Drag handle — крупнее для пальца */}
         <button
           {...attributes} {...listeners}
-          className="text-text-dim flex-shrink-0 touch-none cursor-grab active:cursor-grabbing p-1 -ml-1 rounded-lg hover:bg-bg-hover transition-colors"
+          className="text-text-dim flex-shrink-0 cursor-grab active:cursor-grabbing p-1 -ml-1 rounded-lg hover:bg-bg-hover transition-colors touch-manipulation"
           tabIndex={-1}
         >
           <GripVertical size={15} />
@@ -239,10 +239,14 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
   const titleRef   = useRef<HTMLInputElement>(null)
   const subtaskRef = useRef<HTMLInputElement>(null)
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor,   { activationConstraint: { delay: 250, tolerance: 8 } })
-  )
+const sensors = useSensors(
+  useSensor(TouchSensor, {
+    activationConstraint: {
+      delay: 180,
+      tolerance: 12,
+    },
+  })
+)
 
   // Инициализация дат из task
   useEffect(() => {
