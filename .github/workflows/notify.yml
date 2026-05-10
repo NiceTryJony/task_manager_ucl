@@ -1,0 +1,39 @@
+name: Push Notifications
+
+on:
+  schedule:
+    # Каждые 5 минут (UTC).
+    # ⚠ GitHub может задерживать выполнение на 1-10 мин при высокой нагрузке —
+    #   это нормально для уведомлений, но не подходит для систем реального времени.
+    - cron: '*/5 * * * *'
+
+  # Ручной запуск для отладки: Actions → Push Notifications → Run workflow
+  workflow_dispatch:
+
+jobs:
+  notify:
+    name: Send queued notifications
+    runs-on: ubuntu-latest
+    timeout-minutes: 2        # убиваем зависший job через 2 минуты
+
+    steps:
+      - name: Call src/app/api/cron/notify
+        run: |
+          # Сохраняем тело ответа и HTTP-статус раздельно
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
+            --max-time 30 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            -H "Accept: application/json" \
+            "${{ secrets.APP_URL }}/api/cron/notify")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')   # всё кроме последней строки
+
+          echo "Status : $HTTP_CODE"
+          echo "Response: $BODY"
+
+          # Завершаем job с ошибкой при любом не-200 статусе
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "::error::Unexpected status code: $HTTP_CODE"
+            exit 1
+          fi
