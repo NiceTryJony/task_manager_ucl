@@ -123,19 +123,19 @@ export async function GET(req: NextRequest) {
     creatorsMap = new Map((creators ?? []).map(u => [u.id, u]))
   }
 
-  const enriched = (tasks ?? []).map(t => ({
-    ...t,
-    subtasks: (t.subtasks ?? []).map((s: any) => ({
-      ...s,
-      creator: s.created_by ? (creatorsMap.get(s.created_by) ?? null) : null,
-    })),
-  }))
+  // const enriched = (tasks ?? []).map(t => ({
+  //   ...t,
+  //   subtasks: (t.subtasks ?? []).map((s: any) => ({
+  //     ...s,
+  //     creator: s.created_by ? (creatorsMap.get(s.created_by) ?? null) : null,
+  //   })),
+  // }))
 
 
   const assignedIds = [
     ...new Set((tasks ?? []).map((t: any) => t.assigned_to).filter(Boolean))
   ] as number[]
-  
+
   let assignedMap = new Map<number, { id: number; first_name: string; username?: string | null }>()
   if (assignedIds.length) {
     const { data: assignedUsers } = await db
