@@ -102,7 +102,7 @@ function SortableSubtaskRow({ sub, idx, onToggle, onDelete }: SubtaskRowProps) {
             </svg>
           )}
         </button>
-        <div className="flex-1 min-w-0 min-h-0 relative overflow-hidden">
+        <div className="flex-1 min-w-0">
           <span className={cn(
             'text-sm leading-snug block',
             sub.completed ? 'line-through text-text-dim' : 'text-text-primary'
