@@ -428,8 +428,10 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
     <div className="fixed inset-0 z-50 flex items-end">
       <div ref={overlayRef} className="absolute inset-0 sheet-overlay" onClick={close} />
 
-      <div ref={sheetRef} className="relative w-full bg-bg-surface rounded-t-3xl border-t border-bg-border z-10 max-h-[92dvh] flex flex-col">
-
+      <div
+        ref={sheetRef}
+        className="relative w-full h-[92dvh] bg-bg-surface rounded-t-3xl border-t border-bg-border z-10 flex flex-col overflow-hidden"
+      >
         {/* Handle */}
         <div className="flex justify-center pt-3 pb-0 flex-shrink-0">
           <div className="w-9 h-1 bg-bg-border rounded-full" />
@@ -456,12 +458,27 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
           </button>
         </div>
 
-        {/* Scrollable body */}
-        <div className="flex-1 min-h-0 relative">
+        {/* Scrollable content */}
+        <div
+          className="
+            relative
+            flex-1
+            overflow-y-auto
+            overflow-x-hidden
+            overscroll-contain
+            touch-pan-y
+            px-4
+            py-4
+            space-y-5
+          "
+          style={{
+            WebkitOverflowScrolling: 'touch',
+          }}
+        >
 
           {/* Overlay сохранения */}
           {saving && (
-            <div className="absolute inset-0 z-10 bg-bg-surface/70 backdrop-blur-[2px] rounded-t-3xl pointer-events-auto flex items-center justify-center">
+            <div className="absolute inset-0 z-10 bg-bg-surface/70 backdrop-blur-[2px] pointer-events-auto flex items-center justify-center">
               <div className="flex flex-col items-center gap-3">
                 <div className="w-8 h-8 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
                 <p className="text-sm text-text-secondary font-medium">
@@ -471,7 +488,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
             </div>
           )}
 
-          <div className="scrollable px-4 py-4 space-y-5 h-full pb-24 overflow-y-auto">
+          <div className="scrollable px-4 py-4 space-y-5 pb-24">
 
             {/* Title */}
             <div>
