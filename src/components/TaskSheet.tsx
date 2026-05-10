@@ -476,7 +476,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
             {subTotal > 0 && (
               <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleSubtaskDragEnd}>
                 <SortableContext items={subtaskIds} strategy={verticalListSortingStrategy}>
-                  <div className="space-y-1.5 mb-3">
+                  <div className="space-y-1.5 mb-3 overflow-y-auto overscroll-contain" style={{ maxHeight: '280px', scrollbarWidth: 'none' }}>
                     {subtasks.map((sub, idx) => (
                       <SortableSubtaskRow
                         key={sub.id ?? `new-${idx}`}
