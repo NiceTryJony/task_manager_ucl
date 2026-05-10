@@ -327,7 +327,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
         </div>
 
         {/* Scrollable body */}
-        <div className="flex-1 relative">
+        <div className="flex-1 relative min-h-0">
           {saving && (
             <div className="absolute inset-0 z-10 bg-bg-surface/60 backdrop-blur-[2px] rounded-t-3xl pointer-events-auto flex items-center justify-center">
               <div className="flex flex-col items-center gap-3">

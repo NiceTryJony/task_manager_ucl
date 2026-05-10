@@ -68,19 +68,19 @@ async function notifyMentions(
   }
 }
 
-if (assigned_to && assigned_to !== userId) {
-  const { data: author } = await db
-    .from('users').select('first_name').eq('id', userId).single()
+// if (assigned_to && assigned_to !== userId) {
+//   const { data: author } = await db
+//     .from('users').select('first_name').eq('id', userId).single()
  
-  await db.from('notifications').insert({
-    user_id: assigned_to,
-    task_id: task.id,
-    type:    'assigned',
-    message: `📌 ${author?.first_name ?? 'Someone'} assigned you a task: "<b>${
-      task.title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    }</b>"`,
-  })
-}
+//   await db.from('notifications').insert({
+//     user_id: assigned_to,
+//     task_id: task.id,
+//     type:    'assigned',
+//     message: `📌 ${author?.first_name ?? 'Someone'} assigned you a task: "<b>${
+//       task.title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+//     }</b>"`,
+//   })
+// }
 
 
 // ── GET ────────────────────────────────────────────────────────
