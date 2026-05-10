@@ -137,7 +137,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
   const [priority,    setPriority]    = useState<Priority>(task?.priority ?? 'medium')
   const [dueDate,     setDueDate]     = useState('')
   const [dueTime,     setDueTime]     = useState('')
-  const [assignedTo, setAssignedTo] = useState<number | null>(task?.assigned_to ?? null)
+  const [assignedTo,  setAssignedTo]  = useState<number | null>(task?.assigned_to ?? null)
   const [subtasks,    setSubtasks]    = useState<LocalSubtask[]>(
     task?.subtasks?.map(s => ({
       id:        s.id,
@@ -280,14 +280,14 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
         }
         toast.success('Task created!')
       }
-      } catch {
-        toast.error('Не удалось сохранить — проверь соединение')
-        setSaving(false)
-        return   // не закрываем sheet при ошибке
-      } finally {
-        setSaving(false)
-      }
-      onSaved()
+    } catch {
+      toast.error('Не удалось сохранить — проверь соединение')
+      setSaving(false)
+      return
+    } finally {
+      setSaving(false)
+    }
+    onSaved()
   }
 
   const subDone    = subtasks.filter(s => s.completed).length
@@ -303,8 +303,10 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
     <div className="fixed inset-0 z-50 flex items-end">
       <div ref={overlayRef} className="absolute inset-0 sheet-overlay" onClick={close} />
 
-      <div ref={sheetRef} className="relative w-full bg-bg-surface rounded-t-3xl border-t border-bg-border z-10 max-h-[92dvh] flex flex-col">
-
+      <div
+        ref={sheetRef}
+        className="relative w-full bg-bg-surface rounded-t-3xl border-t border-bg-border z-10 max-h-[92dvh] flex flex-col"
+      >
         {/* Handle */}
         <div className="flex justify-center pt-3 pb-0 flex-shrink-0">
           <div className="w-9 h-1 bg-bg-border rounded-full" />
@@ -321,13 +323,27 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
               {isEdit ? 'Edit' : 'Create'}
             </span>
           </div>
-          <button onClick={close} className="w-8 h-8 flex items-center justify-center rounded-[10px] bg-bg-hover text-text-secondary">
+          <button
+            onClick={close}
+            className="w-8 h-8 flex items-center justify-center rounded-[10px] bg-bg-hover text-text-secondary"
+          >
             <X size={16} />
           </button>
         </div>
 
-        {/* Scrollable body */}
-        <div className="flex-1 relative min-h-0 overflow-hidden">
+        {/*
+          ── Scrollable body ──────────────────────────────────────
+          flex-1 min-h-0: позволяет flex-элементу сжиматься ниже
+                          размера контента (без этого скролл не работает)
+          relative:       нужен для absolute-оверлея сохранения
+          Внутренний div: absolute inset-0 overflow-y-auto — самый
+                          надёжный способ скроллить в flex-контейнере,
+                          т.к. явно занимает ровно то пространство,
+                          которое выделил родитель, и скроллит внутри него
+        */}
+        <div className="flex-1 min-h-0 relative">
+
+          {/* Saving overlay */}
           {saving && (
             <div className="absolute inset-0 z-10 bg-bg-surface/60 backdrop-blur-[2px] rounded-t-3xl pointer-events-auto flex items-center justify-center">
               <div className="flex flex-col items-center gap-3">
@@ -338,183 +354,206 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
               </div>
             </div>
           )}
-          <div className="scrollable px-4 py-4 space-y-5 h-full">
 
-          {/* Title */}
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-widest">
-                <AlignLeft size={12} /> Title
+          {/* Scrollable content */}
+          <div className="absolute inset-0 overflow-y-auto overscroll-contain px-4 py-4 space-y-5">
+
+            {/* Title */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-widest">
+                  <AlignLeft size={12} /> Title
+                </label>
+                <span className={cn('text-[11px] tabular-nums', title.length > 180 ? 'text-amber' : 'text-text-dim')}>
+                  {title.length} / 200
+                </span>
+              </div>
+              <input
+                ref={titleRef}
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && handleSave()}
+                placeholder="What needs to be done?"
+                className="input-field text-[15px] font-semibold"
+                maxLength={200}
+              />
+            </div>
+
+            {/* Notes */}
+            <div>
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2">
+                <AlignLeft size={12} /> Notes
+                <span className="text-text-dim font-normal normal-case tracking-normal ml-1">optional</span>
               </label>
-              <span className={cn('text-[11px] tabular-nums', title.length > 180 ? 'text-amber' : 'text-text-dim')}>
-                {title.length} / 200
-              </span>
+              <textarea
+                value={description}
+                onChange={e => setDescription(e.target.value)}
+                placeholder="Add a description or notes…"
+                rows={2}
+                className="input-field text-sm resize-none leading-relaxed"
+                maxLength={1000}
+              />
             </div>
-            <input
-              ref={titleRef}
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && handleSave()}
-              placeholder="What needs to be done?"
-              className="input-field text-[15px] font-semibold"
-              maxLength={200}
-            />
-          </div>
 
-          {/* Notes */}
-          <div>
-            <label className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2">
-              <AlignLeft size={12} /> Notes
-              <span className="text-text-dim font-normal normal-case tracking-normal ml-1">optional</span>
-            </label>
-            <textarea
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              placeholder="Add a description or notes…"
-              rows={2}
-              className="input-field text-sm resize-none leading-relaxed"
-              maxLength={1000}
-            />
-          </div>
+            {/* Priority */}
+            <div>
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2.5">
+                <Flag size={12} /> Priority
+              </label>
+              <div className="grid grid-cols-4 gap-2">
+                {PRIORITIES.map(p => {
+                  const cfg    = PRIORITY_CONFIG[p]
+                  const active = priority === p
+                  return (
+                    <button
+                      key={p}
+                      onClick={() => setPriority(p)}
+                      className={cn(
+                        'flex flex-col items-center gap-1 py-2.5 px-1 rounded-[14px] transition-all duration-150 border text-xs font-semibold',
+                        active
+                          ? `${cfg.color} ${cfg.bg} border-current/30 scale-[1.03]`
+                          : 'text-text-secondary bg-bg-card border-bg-border hover:bg-bg-hover'
+                      )}
+                    >
+                      <span className="text-base leading-none">{PRIORITY_ICONS[p]}</span>
+                      {cfg.label}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
 
-          {/* Priority */}
-          <div>
-            <label className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2.5">
-              <Flag size={12} /> Priority
-            </label>
-            <div className="grid grid-cols-4 gap-2">
-              {PRIORITIES.map(p => {
-                const cfg    = PRIORITY_CONFIG[p]
-                const active = priority === p
-                return (
-                  <button key={p} onClick={() => setPriority(p)}
-                    className={cn(
-                      'flex flex-col items-center gap-1 py-2.5 px-1 rounded-[14px] transition-all duration-150 border text-xs font-semibold',
-                      active
-                        ? `${cfg.color} ${cfg.bg} border-current/30 scale-[1.03]`
-                        : 'text-text-secondary bg-bg-card border-bg-border hover:bg-bg-hover'
-                    )}
+            {/* Due date */}
+            <div>
+              <label className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2.5">
+                <Calendar size={12} /> Due Date & Time
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="date"
+                  value={dueDate}
+                  onChange={e => setDueDate(e.target.value)}
+                  className="input-field text-sm flex-1 min-w-0"
+                  style={{ colorScheme: 'dark' }}
+                />
+                <div className="relative flex-shrink-0">
+                  <input
+                    type="time"
+                    value={dueTime}
+                    onChange={e => setDueTime(e.target.value)}
+                    className="input-field text-sm pr-9"
+                    style={{ colorScheme: 'dark', width: 118 }}
+                  />
+                  <button
+                    onClick={() => {
+                      const now = new Date()
+                      setDueTime(`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`)
+                      if (!dueDate) setDueDate(now.toISOString().split('T')[0])
+                    }}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-accent hover:text-accent-hover transition-colors"
+                    title="Use current time"
                   >
-                    <span className="text-base leading-none">{PRIORITY_ICONS[p]}</span>
-                    {cfg.label}
+                    <Clock size={14} />
                   </button>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Due date */}
-          <div>
-            <label className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2.5">
-              <Calendar size={12} /> Due Date & Time
-            </label>
-            <div className="flex gap-2">
-              <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)}
-                className="input-field text-sm flex-1 min-w-0" style={{ colorScheme: 'dark' }} />
-              <div className="relative flex-shrink-0">
-                <input type="time" value={dueTime} onChange={e => setDueTime(e.target.value)}
-                  className="input-field text-sm pr-9" style={{ colorScheme: 'dark', width: 118 }} />
+                </div>
+              </div>
+              {dueDate && (
                 <button
-                  onClick={() => {
-                    const now = new Date()
-                    setDueTime(`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`)
-                    if (!dueDate) setDueDate(now.toISOString().split('T')[0])
-                  }}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-accent hover:text-accent-hover transition-colors"
-                  title="Use current time"
+                  onClick={() => { setDueDate(''); setDueTime('') }}
+                  className="mt-1.5 text-xs text-text-dim hover:text-danger transition-colors flex items-center gap-1"
                 >
-                  <Clock size={14} />
+                  <X size={10} /> Clear date
+                </button>
+              )}
+              <p className="text-[11px] text-text-dim mt-2">🌍 <span className="text-text-secondary">{viewerTz}</span></p>
+              {showDualTime && (
+                <div className="mt-2 bg-bg-card rounded-xl p-3 border border-bg-border/60 space-y-2">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-text-secondary">🗓 Creator · {creatorTz.split('/').pop()?.replace('_', ' ')}</span>
+                    <span className="font-medium text-text-primary">{formatInTz(existingDueAt!, creatorTz)}</span>
+                  </div>
+                  <div className="h-px bg-bg-border/60" />
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="text-accent">📍 Your time · {viewerTz.split('/').pop()?.replace('_', ' ')}</span>
+                    <span className="font-medium text-accent">{formatInTz(existingDueAt!, viewerTz)}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Assignee */}
+            <AssigneePicker
+              listId={listId}
+              userId={userId}
+              assignedTo={assignedTo}
+              onChange={setAssignedTo}
+            />
+
+            {/* Subtasks with DnD */}
+            <div>
+              <div className="flex items-center justify-between mb-2.5">
+                <label className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-widest">
+                  <CheckSquare size={12} /> Subtasks
+                </label>
+                {subTotal > 0 && <span className="text-[11px] text-text-dim">{subDone}/{subTotal} done</span>}
+              </div>
+
+              {subTotal > 0 && (
+                <div className="h-[2px] bg-bg-hover rounded-full overflow-hidden mb-3">
+                  <div
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{ width: `${subPct}%`, background: subPct === 100 ? '#34D399' : '#7B6EF6' }}
+                  />
+                </div>
+              )}
+
+              {subTotal > 0 && (
+                <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleSubtaskDragEnd}>
+                  <SortableContext items={subtaskIds} strategy={verticalListSortingStrategy}>
+                    <div className="space-y-1.5 mb-3">
+                      {subtasks.map((sub, idx) => (
+                        <SortableSubtaskRow
+                          key={sub.id ?? `new-${idx}`}
+                          sub={sub}
+                          idx={idx}
+                          onToggle={() => setSubtasks(prev =>
+                            prev.map((s, i) => i === idx ? { ...s, completed: !s.completed } : s)
+                          )}
+                          onDelete={() => setSubtasks(prev => prev.filter((_, i) => i !== idx))}
+                        />
+                      ))}
+                    </div>
+                  </SortableContext>
+                </DndContext>
+              )}
+
+              <div className="flex gap-2">
+                <input
+                  ref={subtaskRef}
+                  value={newSubtask}
+                  onChange={e => setNewSubtask(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSubtaskLocal() } }}
+                  placeholder="Add subtask… (Enter ↵)"
+                  className="input-field text-sm py-2 flex-1"
+                />
+                <button
+                  onClick={addSubtaskLocal}
+                  disabled={!newSubtask.trim()}
+                  className="w-10 h-10 flex items-center justify-center rounded-[12px] bg-accent disabled:opacity-35 flex-shrink-0 hover:bg-accent-hover transition-colors active:scale-95"
+                >
+                  <Plus size={18} className="text-white" strokeWidth={2.5} />
                 </button>
               </div>
             </div>
-            {dueDate && (
-              <button onClick={() => { setDueDate(''); setDueTime('') }}
-                className="mt-1.5 text-xs text-text-dim hover:text-danger transition-colors flex items-center gap-1">
-                <X size={10} /> Clear date
-              </button>
+
+            {/* Edit History — edit mode only */}
+            {isEdit && (
+              <TaskHistoryPanel taskId={task!.id} userId={userId} />
             )}
-            <p className="text-[11px] text-text-dim mt-2">🌍 <span className="text-text-secondary">{viewerTz}</span></p>
-            {showDualTime && (
-              <div className="mt-2 bg-bg-card rounded-xl p-3 border border-bg-border/60 space-y-2">
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-text-secondary">🗓 Creator · {creatorTz.split('/').pop()?.replace('_', ' ')}</span>
-                  <span className="font-medium text-text-primary">{formatInTz(existingDueAt!, creatorTz)}</span>
-                </div>
-                <div className="h-px bg-bg-border/60" />
-                <div className="flex justify-between items-center text-xs">
-                  <span className="text-accent">📍 Your time · {viewerTz.split('/').pop()?.replace('_', ' ')}</span>
-                  <span className="font-medium text-accent">{formatInTz(existingDueAt!, viewerTz)}</span>
-                </div>
-              </div>
-            )}
+
+            {/* Bottom spacer so last item isn't hidden behind footer */}
+            <div className="h-2" />
           </div>
-
-          <AssigneePicker
-            listId={listId}
-            userId={userId}
-            assignedTo={assignedTo}
-            onChange={setAssignedTo}
-          />
-
-
-          {/* Subtasks with DnD */}
-          <div>
-            <div className="flex items-center justify-between mb-2.5">
-              <label className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-widest">
-                <CheckSquare size={12} /> Subtasks
-              </label>
-              {subTotal > 0 && <span className="text-[11px] text-text-dim">{subDone}/{subTotal} done</span>}
-            </div>
-
-            {subTotal > 0 && (
-              <div className="h-[2px] bg-bg-hover rounded-full overflow-hidden mb-3">
-                <div className="h-full rounded-full transition-all duration-500"
-                  style={{ width: `${subPct}%`, background: subPct === 100 ? '#34D399' : '#7B6EF6' }} />
-              </div>
-            )}
-
-            {subTotal > 0 && (
-              <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleSubtaskDragEnd}>
-                <SortableContext items={subtaskIds} strategy={verticalListSortingStrategy}>
-                  <div className="space-y-1.5 mb-3">
-                    {subtasks.map((sub, idx) => (
-                      <SortableSubtaskRow
-                        key={sub.id ?? `new-${idx}`}
-                        sub={sub}
-                        idx={idx}
-                        onToggle={() => setSubtasks(prev =>
-                          prev.map((s, i) => i === idx ? { ...s, completed: !s.completed } : s)
-                        )}
-                        onDelete={() => setSubtasks(prev => prev.filter((_, i) => i !== idx))}
-                      />
-                    ))}
-                  </div>
-                </SortableContext>
-              </DndContext>
-            )}
-
-            <div className="flex gap-2">
-              <input
-                ref={subtaskRef}
-                value={newSubtask}
-                onChange={e => setNewSubtask(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSubtaskLocal() } }}
-                placeholder="Add subtask… (Enter ↵)"
-                className="input-field text-sm py-2 flex-1"
-              />
-              <button onClick={addSubtaskLocal} disabled={!newSubtask.trim()}
-                className="w-10 h-10 flex items-center justify-center rounded-[12px] bg-accent disabled:opacity-35 flex-shrink-0 hover:bg-accent-hover transition-colors active:scale-95">
-                <Plus size={18} className="text-white" strokeWidth={2.5} />
-              </button>
-            </div>
-          </div>
-
-          {/* ── Edit History — edit mode only ─────────────────── */}
-          {isEdit && (
-            <TaskHistoryPanel taskId={task!.id} userId={userId} />
-          )}
-
-        </div>
         </div>
 
         {/* Footer */}
