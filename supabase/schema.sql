@@ -33,7 +33,7 @@ create table if not exists list_members (
   list_id    uuid not null references task_lists(id) on delete cascade,
   user_id    bigint not null references users(id) on delete cascade,
   role       text not null check (role in ('owner','editor','viewer')) default 'editor',
-  invited_by bigint references users(id),
+  invited_by bigint references users(id) on delete set null,   -- ← было без on delete
   joined_at  timestamptz not null default now(),
   primary key (list_id, user_id)
 );
@@ -42,7 +42,7 @@ create table if not exists list_members (
 create table if not exists tasks (
   id          uuid primary key default gen_random_uuid(),
   list_id     uuid not null references task_lists(id) on delete cascade,
-  created_by  bigint not null references users(id),
+  created_by  bigint references users(id) on delete set null,  -- ← было not null без on delete
   title       text not null check (char_length(title) >= 1 and char_length(title) <= 200),
   description text check (char_length(description) <= 2000),
   status      text not null check (status in ('todo','in_progress','done')) default 'todo',
@@ -51,6 +51,7 @@ create table if not exists tasks (
   due_at      timestamptz,                   -- ← добавлено (v2)
   creator_tz  text not null default 'UTC',   -- ← добавлено (v2)
   archived    boolean not null default false, -- ← добавлено (v2)
+  assigned_to bigint references users(id) on delete set null,  -- ← добавлено (v2)
   position    int not null default 0,
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
@@ -60,7 +61,7 @@ create table if not exists tasks (
 create table if not exists subtasks (
   id         uuid primary key default gen_random_uuid(),
   task_id    uuid not null references tasks(id) on delete cascade,
-  created_by bigint references users(id),    -- ← добавлено (v2)
+  created_by bigint references users(id) on delete set null,   -- ← было без on delete
   title      text not null check (char_length(title) >= 1 and char_length(title) <= 300),
   completed  boolean not null default false,
   position   int not null default 0,
@@ -72,7 +73,7 @@ create table if not exists notifications (
   id         uuid primary key default gen_random_uuid(),
   user_id    bigint not null references users(id) on delete cascade,
   task_id    uuid references tasks(id) on delete cascade,
-  type       text not null check (type in ('due_soon','overdue','shared','assigned','mention')), -- ← 'mention' добавлен (v2)
+  type       text not null check (type in ('due_soon','overdue','shared','assigned','mention')),
   message    text not null check (char_length(message) >= 1 and char_length(message) <= 1000),
   sent       boolean not null default false,
   created_at timestamptz not null default now()
@@ -82,7 +83,7 @@ create table if not exists notifications (
 create table if not exists task_history (
   id          uuid primary key default gen_random_uuid(),
   task_id     uuid not null references tasks(id) on delete cascade,
-  user_id     bigint not null references users(id),
+  user_id     bigint references users(id) on delete cascade,   -- ← было без on delete
   action_type text not null default 'field_change' check (action_type in (
     'field_change',
     'task_created',
@@ -175,3 +176,34 @@ end $$;
 alter publication supabase_realtime add table tasks;
 alter publication supabase_realtime add table subtasks;
 alter publication supabase_realtime add table task_lists;
+
+-- ============================================================
+-- МИГРАЦИЯ для существующей БД
+-- Запустить один раз в Supabase SQL Editor если БД уже создана
+-- ============================================================
+
+-- tasks.created_by: снять NOT NULL, добавить ON DELETE SET NULL
+alter table tasks alter column created_by drop not null;
+alter table tasks drop constraint if exists tasks_created_by_fkey;
+alter table tasks add constraint tasks_created_by_fkey
+  foreign key (created_by) references users(id) on delete set null;
+
+-- tasks.assigned_to: добавить ON DELETE SET NULL
+alter table tasks drop constraint if exists tasks_assigned_to_fkey;
+alter table tasks add constraint tasks_assigned_to_fkey
+  foreign key (assigned_to) references users(id) on delete set null;
+
+-- subtasks.created_by: добавить ON DELETE SET NULL
+alter table subtasks drop constraint if exists subtasks_created_by_fkey;
+alter table subtasks add constraint subtasks_created_by_fkey
+  foreign key (created_by) references users(id) on delete set null;
+
+-- task_history.user_id: добавить ON DELETE CASCADE
+alter table task_history drop constraint if exists task_history_user_id_fkey;
+alter table task_history add constraint task_history_user_id_fkey
+  foreign key (user_id) references users(id) on delete cascade;
+
+-- list_members.invited_by: добавить ON DELETE SET NULL
+alter table list_members drop constraint if exists list_members_invited_by_fkey;
+alter table list_members add constraint list_members_invited_by_fkey
+  foreign key (invited_by) references users(id) on delete set null;
