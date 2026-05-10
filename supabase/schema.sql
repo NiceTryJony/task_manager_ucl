@@ -156,17 +156,20 @@ alter table task_history  enable row level security;
 
 -- Сервисный клиент обходит RLS — вся авторизация на уровне API routes
 do $$ begin
-  if not exists (
-    select 1 from pg_policies where tablename = 'users' and policyname = 'service role bypass'
-  ) then
-    create policy "service role bypass" on users         using (true) with check (true);
-    create policy "service role bypass" on task_lists    using (true) with check (true);
-    create policy "service role bypass" on list_members  using (true) with check (true);
-    create policy "service role bypass" on tasks         using (true) with check (true);
-    create policy "service role bypass" on subtasks      using (true) with check (true);
-    create policy "service role bypass" on notifications using (true) with check (true);
-    create policy "service role bypass" on task_history  using (true) with check (true);
-  end if;
+  if not exists (select 1 from pg_policies where tablename = 'users'         and policyname = 'service role bypass') then
+    create policy "service role bypass" on users         using (true) with check (true); end if;
+  if not exists (select 1 from pg_policies where tablename = 'task_lists'    and policyname = 'service role bypass') then
+    create policy "service role bypass" on task_lists    using (true) with check (true); end if;
+  if not exists (select 1 from pg_policies where tablename = 'list_members'  and policyname = 'service role bypass') then
+    create policy "service role bypass" on list_members  using (true) with check (true); end if;
+  if not exists (select 1 from pg_policies where tablename = 'tasks'         and policyname = 'service role bypass') then
+    create policy "service role bypass" on tasks         using (true) with check (true); end if;
+  if not exists (select 1 from pg_policies where tablename = 'subtasks'      and policyname = 'service role bypass') then
+    create policy "service role bypass" on subtasks      using (true) with check (true); end if;
+  if not exists (select 1 from pg_policies where tablename = 'notifications' and policyname = 'service role bypass') then
+    create policy "service role bypass" on notifications using (true) with check (true); end if;
+  if not exists (select 1 from pg_policies where tablename = 'task_history'  and policyname = 'service role bypass') then
+    create policy "service role bypass" on task_history  using (true) with check (true); end if;
 end $$;
 
 -- ============================================================

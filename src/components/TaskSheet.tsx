@@ -102,7 +102,7 @@ function SortableSubtaskRow({ sub, idx, onToggle, onDelete }: SubtaskRowProps) {
             </svg>
           )}
         </button>
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 min-h-0 relative overflow-hidden">
           <span className={cn(
             'text-sm leading-snug block',
             sub.completed ? 'line-through text-text-dim' : 'text-text-primary'
@@ -327,7 +327,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
         </div>
 
         {/* Scrollable body */}
-        <div className="flex-1 relative min-h-0">
+        <div className="flex-1 relative min-h-0 overflow-hidden">
           {saving && (
             <div className="absolute inset-0 z-10 bg-bg-surface/60 backdrop-blur-[2px] rounded-t-3xl pointer-events-auto flex items-center justify-center">
               <div className="flex flex-col items-center gap-3">
