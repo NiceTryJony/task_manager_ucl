@@ -98,3 +98,8 @@
 .stagger > *:nth-child(4){animation-delay:165ms}
 .stagger > *:nth-child(5){animation-delay:220ms}
 .stagger > *:nth-child(6){animation-delay:275ms}
+
+.scrollable-dnd {
+  touch-action: auto;
+}
+
