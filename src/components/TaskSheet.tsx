@@ -457,7 +457,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
         </div>
 
         {/* Scrollable body */}
-        <div className="flex-1 relative min-h-0 overflow-hidden">
+        <div className="flex-1 relative min-h-0">
 
           {/* Overlay сохранения */}
           {saving && (
