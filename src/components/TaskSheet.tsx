@@ -21,6 +21,7 @@ import { TaskHistoryPanel } from '@/components/TaskHistoryPanel'
 import { toast } from 'sonner'
 import { SaveBanner } from '@/components/ui/SaveBanner'
 import { usePending } from '@/hooks/usePending'
+import { AssigneePicker } from '@/components/AssigneePicker'
 
 interface Props {
   listId:  string
@@ -136,6 +137,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
   const [priority,    setPriority]    = useState<Priority>(task?.priority ?? 'medium')
   const [dueDate,     setDueDate]     = useState('')
   const [dueTime,     setDueTime]     = useState('')
+  const [assignedTo, setAssignedTo] = useState<number | null>(task?.assigned_to ?? null)
   const [subtasks,    setSubtasks]    = useState<LocalSubtask[]>(
     task?.subtasks?.map(s => ({
       id:        s.id,
@@ -231,6 +233,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
             taskId: task!.id, userId,
             title: title.trim(), description, priority,
             due_at: buildDueAt(), creator_tz: getUserTimezone(),
+            assigned_to: assignedTo,
           }),
         })
         for (const s of subtasks) {
@@ -262,6 +265,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
           body: JSON.stringify({
             listId, userId, title: title.trim(), description, priority,
             due_at: buildDueAt(), creator_tz: getUserTimezone(),
+            assigned_to: assignedTo,
           }),
         })
         const data = await res.json()
@@ -444,6 +448,14 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
               </div>
             )}
           </div>
+
+          <AssigneePicker
+            listId={listId}
+            userId={userId}
+            assignedTo={assignedTo}
+            onChange={setAssignedTo}
+          />
+
 
           {/* Subtasks with DnD */}
           <div>

@@ -817,6 +817,15 @@ function SortableTaskCard({ task, isViewer, onToggle, onOpen, onLongPress }: Car
               <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', priority.color, priority.bg)}>
                 {priority.label}
               </span>
+              {/* ↓ ДОБАВИТЬ */}
+              {task.assigned_user && (
+                <span className="text-xs text-text-secondary flex items-center gap-1">
+                  <div className="w-4 h-4 rounded-full bg-accent/20 text-accent flex items-center justify-center text-[9px] font-bold flex-shrink-0">
+                    {task.assigned_user.first_name[0]?.toUpperCase()}
+                  </div>
+                  {task.assigned_user.first_name.split(' ')[0]}
+                </span>
+              )}
               {dueAt && (
                 <span className={cn('text-xs flex items-center gap-1',
                   dueOverdue ? 'text-danger' : dueUrgent ? 'text-amber' : 'text-text-secondary')}>

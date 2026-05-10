@@ -73,6 +73,12 @@ export interface Task {
   due_at?:      string
   creator_tz?:  string
   archived?:    boolean
+  assigned_to?:   number | null
+  assigned_user?: {
+    id:         number
+    first_name: string
+    username?:  string | null
+  } | null
   position:     number
   created_by:   number
   created_at:   string

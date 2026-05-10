@@ -68,6 +68,21 @@ async function notifyMentions(
   }
 }
 
+if (assigned_to && assigned_to !== userId) {
+  const { data: author } = await db
+    .from('users').select('first_name').eq('id', userId).single()
+ 
+  await db.from('notifications').insert({
+    user_id: assigned_to,
+    task_id: task.id,
+    type:    'assigned',
+    message: `📌 ${author?.first_name ?? 'Someone'} assigned you a task: "<b>${
+      task.title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    }</b>"`,
+  })
+}
+
+
 // ── GET ────────────────────────────────────────────────────────
 
 export async function GET(req: NextRequest) {
@@ -116,6 +131,30 @@ export async function GET(req: NextRequest) {
     })),
   }))
 
+
+  const assignedIds = [
+    ...new Set((tasks ?? []).map((t: any) => t.assigned_to).filter(Boolean))
+  ] as number[]
+  
+  let assignedMap = new Map<number, { id: number; first_name: string; username?: string | null }>()
+  if (assignedIds.length) {
+    const { data: assignedUsers } = await db
+      .from('users')
+      .select('id, first_name, username')
+      .in('id', assignedIds)
+    assignedMap = new Map((assignedUsers ?? []).map(u => [u.id, u]))
+  }
+  
+  const enriched = (tasks ?? []).map(t => ({
+    ...t,
+    subtasks: (t.subtasks ?? []).map((s: any) => ({
+      ...s,
+      creator: s.created_by ? (creatorsMap.get(s.created_by) ?? null) : null,
+    })),
+    assigned_user: t.assigned_to ? (assignedMap.get(t.assigned_to) ?? null) : null,
+  }))
+
+
   return NextResponse.json({ tasks: enriched })
 }
 
@@ -123,7 +162,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const { listId, userId, title, description, priority, due_at, creator_tz } = body
+  const { listId, userId, title, description, priority, due_at, creator_tz, assigned_to } = body
+
 
   if (!listId || userId == null || !title) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
@@ -154,6 +194,7 @@ export async function POST(req: NextRequest) {
       creator_tz:  creator_tz ?? 'UTC',
       position:    (last?.position ?? -1) + 1,
       created_by:  userId,
+      assigned_to: assigned_to ?? null,
     })
     .select().single()
 
@@ -241,6 +282,29 @@ export async function PATCH(req: NextRequest) {
   if (historyEntries.length) {
     try { await db.from('task_history').insert(historyEntries) } catch {}
   }
+
+  const assigneeChanged =
+    'assigned_to' in updates &&
+    updates.assigned_to !== task.assigned_to &&
+    updates.assigned_to != null &&
+    updates.assigned_to !== userId
+  
+  if (assigneeChanged) {
+    const { data: author } = await db
+      .from('users').select('first_name').eq('id', userId).single()
+  
+    await db.from('notifications').insert({
+      user_id: updates.assigned_to,
+      task_id: taskId,
+      type:    'assigned',
+      message: `📌 ${author?.first_name ?? 'Someone'} assigned you to "<b>${
+        updated.title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      }</b>"`,
+    })
+  }
+
+
+
 
   // Notify newly-mentioned users when description changes
   const descriptionChanged = 'description' in updates
