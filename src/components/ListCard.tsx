@@ -208,78 +208,81 @@ async function handleDelete(e: React.MouseEvent) {
   // ── Normal card ────────────────────────────────────────────
   return (
     <div ref={cardRef} className="relative">
-      <div
-        onClick={handleCardClick}
-        className="card p-4 cursor-pointer hover:bg-bg-hover active:bg-bg-hover overflow-hidden"
-      >
+      <div className="card-shell">
         <div
-          className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full"
-          style={{ background: list.color }}
-        />
-
-        <div className="flex items-start gap-3 pl-2">
+          onClick={handleCardClick}
+          className="card p-4 cursor-pointer hover:bg-bg-hover active:bg-bg-hover overflow-hidden"
+        >
           <div
-            className="w-11 h-11 rounded-[14px] flex items-center justify-center text-xl flex-shrink-0"
-            style={{ background: `${list.color}18` }}
-          >
-            {list.emoji}
-          </div>
+            className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full"
+            style={{ background: list.color }}
+          />
 
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1 mb-1">
-              <h3 className="font-semibold text-[15px] leading-snug truncate flex-1 text-text-primary">
-                {list.title}
-              </h3>
-              <button
-                ref={btnRef}
-                onClick={toggleMenu}
-                className={cn(
-                  'flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-[10px]',
-                  'transition-all duration-150 -mr-1',
-                  showMenu
-                    ? 'bg-bg-border text-text-secondary'
-                    : 'text-text-dim hover:bg-bg-hover hover:text-text-secondary'
-                )}
-              >
-                <MoreVertical size={15} />
-              </button>
+          <div className="flex items-start gap-3 pl-2">
+            <div
+              className="w-11 h-11 rounded-[14px] flex items-center justify-center text-xl flex-shrink-0"
+              style={{ background: `${list.color}18` }}
+            >
+              {list.emoji}
             </div>
 
-            <div className="flex items-center gap-2 text-xs text-text-secondary">
-              <span>{list.task_count ?? 0} task{list.task_count !== 1 ? 's' : ''}</span>
-              {(list.done_count ?? 0) > 0 && (
-                <>
-                  <span className="text-text-dim">·</span>
-                  <span className="flex items-center gap-1 text-emerald">
-                    <CheckCircle2 size={11} />
-                    {list.done_count} done
-                  </span>
-                </>
-              )}
-              {isAllDone && (
-                <>
-                  <span className="text-text-dim">·</span>
-                  <span className="font-semibold text-emerald">100%</span>
-                </>
-              )}
-            </div>
-
-            {(list.task_count ?? 0) > 0 && (
-              <div className="mt-2.5 h-[3px] bg-bg-hover rounded-full overflow-hidden">
-                <div
-                  className="h-full rounded-full transition-all duration-700"
-                  style={{
-                    width:      `${progress}%`,
-                    background: isAllDone
-                      ? 'linear-gradient(90deg,#34D399,#10B981)'
-                      : list.color,
-                  }}
-                />
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-1 mb-1">
+                <h3 className="font-semibold text-[15px] leading-snug truncate flex-1 text-text-primary">
+                  {list.title}
+                </h3>
+                <button
+                  ref={btnRef}
+                  onClick={toggleMenu}
+                  className={cn(
+                    'flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-[10px]',
+                    'transition-all duration-150 -mr-1',
+                    showMenu
+                      ? 'bg-bg-border text-text-secondary'
+                      : 'text-text-dim hover:bg-bg-hover hover:text-text-secondary'
+                  )}
+                >
+                  <MoreVertical size={15} />
+                </button>
               </div>
-            )}
+
+              <div className="flex items-center gap-2 text-xs text-text-secondary">
+                <span>{list.task_count ?? 0} task{list.task_count !== 1 ? 's' : ''}</span>
+                {(list.done_count ?? 0) > 0 && (
+                  <>
+                    <span className="text-text-dim">·</span>
+                    <span className="flex items-center gap-1 text-emerald">
+                      <CheckCircle2 size={11} />
+                      {list.done_count} done
+                    </span>
+                  </>
+                )}
+                {isAllDone && (
+                  <>
+                    <span className="text-text-dim">·</span>
+                    <span className="font-semibold text-emerald">100%</span>
+                  </>
+                )}
+              </div>
+
+              {(list.task_count ?? 0) > 0 && (
+                <div className="mt-2.5 h-[3px] bg-bg-hover rounded-full overflow-hidden">
+                  <div
+                    className="h-full rounded-full transition-all duration-700"
+                    style={{
+                      width:      `${progress}%`,
+                      background: isAllDone
+                        ? 'linear-gradient(90deg,#34D399,#10B981)'
+                        : list.color,
+                    }}
+                  />
+                </div>
+              )}
+            </div>
           </div>
         </div>
       </div>
+
 
       {/* Dropdown menu */}
       {showMenu && (

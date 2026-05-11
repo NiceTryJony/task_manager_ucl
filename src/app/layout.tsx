@@ -35,7 +35,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${bricolage.variable} ${jetbrains.variable}`}>
+    <html lang="en" className={`${roboto.variable} ${bricolage.variable} ${jetbrains.variable}`}>
       <head>
         <script src="https://telegram.org/js/telegram-web-app.js" />
       </head>

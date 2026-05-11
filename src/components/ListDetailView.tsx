@@ -757,93 +757,96 @@ function SortableTaskCard({ task, isViewer, onToggle, onOpen, onLongPress }: Car
 
   return (
     <div ref={setNodeRef} style={style} id={`task-${task.id}`} className="task-item">
-      <div className={cn(
-        'card flex items-start overflow-hidden',
-        isDone     && 'opacity-55',
-        isArchived && 'opacity-40',
-        isDragging && 'shadow-glow',
-      )}>
-        {/* Priority stripe */}
-        <div
-          className="w-1 self-stretch flex-shrink-0 rounded-l-2xl"
-          style={{ background: priority.dot, opacity: isDone ? 0.4 : 1 }}
-        />
+      <div className="card-shell">
+        <div className={cn(
+          'card flex items-start overflow-hidden',
+          isDone     && 'opacity-55',
+          isArchived && 'opacity-40',
+          isDragging && 'shadow-glow',
+        )}>
+          {/* Priority stripe */}
+          <div
+            className="w-1 self-stretch flex-shrink-0 rounded-l-2xl"
+            style={{ background: priority.dot, opacity: isDone ? 0.4 : 1 }}
+          />
 
-        <div className="flex items-start gap-2.5 p-3.5 flex-1 min-w-0">
-          {/* Drag handle */}
-          {!isViewer ? (
+          <div className="flex items-start gap-2.5 p-3.5 flex-1 min-w-0">
+            {/* Drag handle */}
+            {!isViewer ? (
+              <button
+                {...attributes} {...listeners}
+                className="text-text-dim mt-0.5 flex-shrink-0 touch-none cursor-grab active:cursor-grabbing"
+              >
+                <GripVertical size={15} />
+              </button>
+            ) : (
+              <Eye size={13} className="text-text-dim mt-1 flex-shrink-0 opacity-40" />
+            )}
+
+            {/* Checkbox */}
             <button
-              {...attributes} {...listeners}
-              className="text-text-dim mt-0.5 flex-shrink-0 touch-none cursor-grab active:cursor-grabbing"
+              onClick={isViewer ? undefined : onToggle}
+              className={cn(
+                'custom-checkbox mt-0.5',
+                isDone ? 'checked' : 'unchecked',
+                isViewer && 'opacity-60 cursor-default'
+              )}
             >
-              <GripVertical size={15} />
+              {isDone && (
+                <svg width="11" height="9" viewBox="0 0 11 9" fill="none">
+                  <path d="M1 4L4 7L10 1" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
             </button>
-          ) : (
-            <Eye size={13} className="text-text-dim mt-1 flex-shrink-0 opacity-40" />
-          )}
 
-          {/* Checkbox */}
-          <button
-            onClick={isViewer ? undefined : onToggle}
-            className={cn(
-              'custom-checkbox mt-0.5',
-              isDone ? 'checked' : 'unchecked',
-              isViewer && 'opacity-60 cursor-default'
-            )}
-          >
-            {isDone && (
-              <svg width="11" height="9" viewBox="0 0 11 9" fill="none">
-                <path d="M1 4L4 7L10 1" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            )}
-          </button>
-
-          {/* Content */}
-          <button
-            onTouchStart={handleTouchStart}
-            onTouchEnd={handleTouchEnd}
-            onClick={handleClick}
-            className="flex-1 min-w-0 text-left"
-          >
-            <p className={cn('text-sm font-medium leading-snug', isDone && 'line-through text-text-secondary')}>
-              {task.title}
-            </p>
-            {task.description && !isDone && (
-              <p className="text-xs text-text-dim mt-0.5 truncate">
-                <MentionText text={task.description} />
+            {/* Content */}
+            <button
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
+              onClick={handleClick}
+              className="flex-1 min-w-0 text-left"
+            >
+              <p className={cn('text-sm font-medium leading-snug', isDone && 'line-through text-text-secondary')}>
+                {task.title}
               </p>
-            )}
-            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5">
-              <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', priority.color, priority.bg)}>
-                {priority.label}
-              </span>
-              {/* ↓ ДОБАВИТЬ */}
-              {task.assigned_user && (
-                <span className="text-xs text-text-secondary flex items-center gap-1">
-                  <div className="w-4 h-4 rounded-full bg-accent/20 text-accent flex items-center justify-center text-[9px] font-bold flex-shrink-0">
-                    {task.assigned_user.first_name[0]?.toUpperCase()}
-                  </div>
-                  {task.assigned_user.first_name.split(' ')[0]}
-                </span>
+              {task.description && !isDone && (
+                <p className="text-xs text-text-dim mt-0.5 truncate">
+                  <MentionText text={task.description} />
+                </p>
               )}
-              {dueAt && (
-                <span className={cn('text-xs flex items-center gap-1',
-                  dueOverdue ? 'text-danger' : dueUrgent ? 'text-amber' : 'text-text-secondary')}>
-                  <Calendar size={11} />
-                  {dueLabel}
-                  {dueLocalLabel && <span className="text-accent ml-0.5">· {dueLocalLabel}</span>}
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5">
+                <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', priority.color, priority.bg)}>
+                  {priority.label}
                 </span>
-              )}
-              {subTotal > 0 && (
-                <span className="text-xs text-text-secondary flex items-center gap-1">
-                  <CheckCircle2 size={11} />{subDone}/{subTotal}
-                </span>
-              )}
-              {isArchived && <span className="text-xs text-text-dim">📦 archived</span>}
-            </div>
-          </button>
+                {/* ↓ ДОБАВИТЬ */}
+                {task.assigned_user && (
+                  <span className="text-xs text-text-secondary flex items-center gap-1">
+                    <div className="w-4 h-4 rounded-full bg-accent/20 text-accent flex items-center justify-center text-[9px] font-bold flex-shrink-0">
+                      {task.assigned_user.first_name[0]?.toUpperCase()}
+                    </div>
+                    {task.assigned_user.first_name.split(' ')[0]}
+                  </span>
+                )}
+                {dueAt && (
+                  <span className={cn('text-xs flex items-center gap-1',
+                    dueOverdue ? 'text-danger' : dueUrgent ? 'text-amber' : 'text-text-secondary')}>
+                    <Calendar size={11} />
+                    {dueLabel}
+                    {dueLocalLabel && <span className="text-accent ml-0.5">· {dueLocalLabel}</span>}
+                  </span>
+                )}
+                {subTotal > 0 && (
+                  <span className="text-xs text-text-secondary flex items-center gap-1">
+                    <CheckCircle2 size={11} />{subDone}/{subTotal}
+                  </span>
+                )}
+                {isArchived && <span className="text-xs text-text-dim">📦 archived</span>}
+              </div>
+            </button>
+          </div>
         </div>
       </div>
+
     </div>
   )
 }
