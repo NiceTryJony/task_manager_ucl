@@ -8,38 +8,13 @@ const config: Config = {
   ],
   theme: {
     extend: {
-      fontFamily: {
-        sans: ['var(--font-bricolage)', 'system-ui', 'sans-serif'],
-        mono: ['var(--font-mono)', 'monospace'],
-      },
+      fontFamily: { sans:['Roboto','system-ui','sans-serif'] },
       colors: {
-        bg: {
-          base:    '#0C0C13',
-          surface: '#141421',
-          card:    '#1A1A2A',
-          hover:   '#1F1F30',
-          border:  'rgba(255,255,255,0.07)',
-        },
-        accent: {
-          DEFAULT: '#7B6EF6',
-          dim:     '#7B6EF620',
-          hover:   '#8F84F8',
-        },
-        pink:  '#F472B6',
-        emerald: '#34D399',
-        amber:   '#FBBF24',
-        danger:  '#F87171',
-        text: {
-          primary:   '#F0EFF8',
-          secondary: '#8884A8',
-          dim:       '#4E4B6A',
-        },
+        bg: { base:'#000', surface:'#000', card:'rgba(0,0,0,0.75)', hover:'rgba(255,255,255,0.04)', border:'rgba(255,255,255,0.10)' },
+        accent: { DEFAULT:'#00F0FF', dim:'rgba(0,240,255,0.12)', hover:'#33F4FF' },
+        text: { primary:'#FFFFFF', secondary:'rgba(255,255,255,0.45)', dim:'rgba(255,255,255,0.2)' },
       },
-      borderRadius: {
-        xl:  '16px',
-        '2xl': '20px',
-        '3xl': '28px',
-      },
+      borderRadius: { sm:'14px', xl:'19px', '2xl':'24px', '3xl':'42px', full:'9999px' },
       backgroundImage: {
         'glass': 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)',
       },

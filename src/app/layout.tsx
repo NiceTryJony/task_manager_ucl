@@ -2,6 +2,10 @@ import type { Metadata, Viewport } from 'next'
 import { Bricolage_Grotesque, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
+import { Roboto } from 'next/font/google'
+
+
+const roboto = Roboto({ subsets:['latin'], weight:['300','400','500'], variable:'--font-roboto' })
 
 const bricolage = Bricolage_Grotesque({
   subsets: ['latin'],

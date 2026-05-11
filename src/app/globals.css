@@ -1,4 +1,4 @@
-@tailwind base;
+/* @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
@@ -102,4 +102,294 @@
 .scrollable-dnd {
   touch-action: auto;
 }
+ */
 
+
+
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    box-sizing: border-box;
+  }
+
+  html, body {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
+
+  body {
+    background: #000000;
+    color: #FFFFFF;
+    font-weight: 300;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── Scrollbar ───────────────────────────── */
+  ::-webkit-scrollbar { width: 3px; height: 3px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb {
+    background: rgba(0, 240, 255, 0.18);
+    border-radius: 9999px;
+  }
+
+  /* ── Autofill ────────────────────────────── */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus {
+    -webkit-text-fill-color: #FFFFFF;
+    -webkit-box-shadow: 0 0 0px 1000px #000000 inset;
+    transition: background-color 5000s ease-in-out 0s;
+  }
+
+  .no-select { user-select: none; -webkit-user-select: none; }
+}
+
+@layer components {
+
+  /* ── Glass utility ───────────────────────── */
+  .glass {
+    background: linear-gradient(
+      135deg,
+      rgba(255,255,255,0.06) 0%,
+      rgba(255,255,255,0.02) 100%
+    );
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 0.85px solid rgba(255,255,255,0.08);
+  }
+
+  /* ── Gradient border shell ───────────────── */
+  /*
+   * Wrap any .card with .card-shell to get the
+   * Vision Framework premium edge treatment:
+   * <div class="card-shell"><div class="card">…</div></div>
+   */
+  .card-shell {
+    background: linear-gradient(
+      135deg,
+      rgba(255,255,255,0.12) 0%,
+      rgba(255,255,255,0.04) 50%,
+      rgba(255,255,255,0.01) 100%
+    );
+    padding: 0.85px;
+    border-radius: 24px;
+    transition: transform 150ms ease, box-shadow 150ms ease;
+  }
+
+  /* ── Card ────────────────────────────────── */
+  .card {
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 23px;
+    border: none;
+    padding: 17.5px;
+    box-shadow: rgba(0,0,0,0.2) 0px 20px 40px -12px;
+    transition: transform 150ms ease;
+  }
+  .card:active { transform: scale(0.984); }
+
+  /* ── Buttons ─────────────────────────────── */
+  .btn-primary {
+    background: #FFFFFF;
+    color: #000000;
+    font-weight: 500;
+    font-size: 10px;
+    letter-spacing: 0.25px;
+    padding: 10.5px 21px;
+    border-radius: 9999px;
+    border: none;
+    @apply select-none;
+    transition:
+      opacity 150ms ease,
+      transform 150ms ease;
+  }
+  .btn-primary:hover  { opacity: 0.88; transform: translateY(-1px); }
+  .btn-primary:active { transform: scale(0.93); opacity: 0.75; }
+
+  .btn-ghost {
+    color: rgba(255,255,255,0.45);
+    border-radius: 14px;
+    padding: 8px 12px;
+    @apply select-none;
+    transition: color 150ms ease, background 150ms ease, transform 120ms ease;
+  }
+  .btn-ghost:hover  {
+    color: #FFFFFF;
+    background: rgba(255,255,255,0.05);
+  }
+  .btn-ghost:active { transform: scale(0.92); }
+
+  /* ── Input ───────────────────────────────── */
+  .input-field {
+    background: rgba(255,255,255,0.04);
+    border: 0.85px solid rgba(255,255,255,0.10);
+    border-radius: 14px;
+    padding: 10.5px 14px;
+    color: #FFFFFF;
+    font-weight: 300;
+    font-size: 10.5px;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    width: 100%;
+    outline: none;
+    transition: border-color 150ms ease, box-shadow 150ms ease;
+  }
+  .input-field::placeholder {
+    color: rgba(255,255,255,0.22);
+    font-weight: 300;
+  }
+  .input-field:focus {
+    border-color: rgba(0,240,255,0.38);
+    box-shadow: 0 0 0 3px rgba(0,240,255,0.06);
+    background: rgba(0,240,255,0.03);
+  }
+
+  /* ── Skeleton ────────────────────────────── */
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      rgba(255,255,255,0.03) 25%,
+      rgba(255,255,255,0.07) 50%,
+      rgba(255,255,255,0.03) 75%
+    );
+    background-size: 200px 100%;
+    animation: shimmer 1.6s ease-in-out infinite;
+  }
+
+  /* ── Page layout ─────────────────────────── */
+  .page-container {
+    height: 100dvh;
+    padding-top: var(--safe-top);
+    padding-bottom: var(--safe-bottom);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  /* ── Checkbox ────────────────────────────── */
+  .custom-checkbox {
+    width: 18px;
+    height: 18px;
+    border-radius: 9999px;          /* pill — Vision Framework */
+    border: 0.85px solid rgba(255,255,255,0.2);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    transition:
+      background  0.18s cubic-bezier(0.34,1.56,0.64,1),
+      border-color 0.18s ease,
+      transform   0.18s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  .custom-checkbox:active { transform: scale(0.85); }
+
+  .custom-checkbox.checked {
+    background: rgba(0,240,255,0.15);
+    border-color: #00F0FF;
+    transform: scale(1.06);
+  }
+  .custom-checkbox.unchecked {
+    border-color: rgba(255,255,255,0.18);
+  }
+  .custom-checkbox.unchecked:hover {
+    border-color: rgba(0,240,255,0.4);
+    background: rgba(0,240,255,0.05);
+  }
+
+  /* ── Sheet overlay ───────────────────────── */
+  .sheet-overlay {
+    background: rgba(0,0,0,0.72);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+}
+
+@layer utilities {
+
+  /* ── Gradient text ───────────────────────── */
+  .text-gradient {
+    background: linear-gradient(135deg, #00F0FF 0%, #0A45FF 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* ── Scroll ──────────────────────────────── */
+  .scrollable {
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+
+  .scrollable-dnd { touch-action: auto; }
+
+  /* ── Page enter ──────────────────────────── */
+  .page-enter {
+    animation: page-slide-in 0.32s cubic-bezier(0.32,0.72,0,1) forwards;
+  }
+}
+
+/* ── Keyframes ─────────────────────────────── */
+@keyframes shimmer {
+  from { background-position: -200px 0; }
+  to   { background-position: calc(200px + 100%) 0; }
+}
+
+@keyframes page-slide-in {
+  from { transform: translateX(32px); opacity: 0; }
+  to   { transform: translateX(0);    opacity: 1; }
+}
+
+@keyframes fade-up {
+  from { transform: translateY(12px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+@keyframes scale-pop {
+  0%   { transform: scale(0.88); opacity: 0; }
+  70%  { transform: scale(1.04); opacity: 1; }
+  100% { transform: scale(1);    opacity: 1; }
+}
+
+@keyframes float {
+  0%,100% { transform: translateY(0px);  }
+  50%     { transform: translateY(-6px); }
+}
+
+@keyframes slide-up {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* pulse-glow — cyan instead of violet */
+@keyframes pulse-glow {
+  0%,100% { box-shadow: 0 0 0 0   rgba(0,240,255,0);    }
+  50%     { box-shadow: 0 0 14px 3px rgba(0,240,255,0.2); }
+}
+
+/* ── Animation helpers ─────────────────────── */
+.animate-fade-up    { animation: fade-up    0.3s  ease-out                            forwards; }
+.animate-scale-pop  { animation: scale-pop  0.35s cubic-bezier(0.34,1.56,0.64,1)     forwards; }
+.animate-float      { animation: float      3s    ease-in-out                         infinite; }
+.animate-pulse-glow { animation: pulse-glow 2s    ease-in-out                         infinite; }
+
+/* ── Stagger ───────────────────────────────── */
+.stagger > *:nth-child(1) { animation-delay:   0ms; }
+.stagger > *:nth-child(2) { animation-delay:  55ms; }
+.stagger > *:nth-child(3) { animation-delay: 110ms; }
+.stagger > *:nth-child(4) { animation-delay: 165ms; }
+.stagger > *:nth-child(5) { animation-delay: 220ms; }
+.stagger > *:nth-child(6) { animation-delay: 275ms; }
