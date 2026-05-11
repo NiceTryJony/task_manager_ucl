@@ -105,7 +105,85 @@
  */
 
 
+ 
 
+
+/* ═══════════════════════════════════════════
+   CSS VARIABLES — THEMES
+   ═══════════════════════════════════════════ */
+
+:root,
+[data-theme="dark"] {
+  --bg-base:      #000000;
+  --bg-surface:   #000000;
+  --bg-card:      rgba(0, 0, 0, 0.75);
+  --bg-hover:     rgba(255, 255, 255, 0.04);
+  --bg-border:    rgba(255, 255, 255, 0.10);
+
+  --c-accent:     #00F0FF;
+  --c-accent-h:   #33F4FF;
+  --c-accent-dim: rgba(0, 240, 255, 0.12);
+
+  --text-primary:   #FFFFFF;
+  --text-secondary: rgba(255, 255, 255, 0.70);
+  --text-dim:       rgba(255, 255, 255, 0.42);
+
+  --c-emerald:  #34D399;
+  --c-amber:    #FBBF24;
+  --c-pink:     #F472B6;
+  --c-danger:   #F87171;
+
+  --scrollbar-thumb:  rgba(0, 240, 255, 0.18);
+  --overlay-bg:       rgba(0, 0, 0, 0.72);
+  --autofill-bg:      #000000;
+  --autofill-text:    #FFFFFF;
+  --btn-primary-bg:   #FFFFFF;
+  --btn-primary-fg:   #000000;
+  --shadow-card:      0 1px 1px rgba(0,0,0,0.3), 0 4px 16px rgba(0,0,0,0.4);
+  --skeleton-from:    rgba(255,255,255,0.03);
+  --skeleton-mid:     rgba(255,255,255,0.07);
+  --card-shell-grad:  linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.04) 50%, rgba(255,255,255,0.01) 100%);
+  --glass-bg:         linear-gradient(135deg, rgba(255,255,255,0.06) 0%, rgba(255,255,255,0.02) 100%);
+  --input-focus-border: rgba(0,240,255,0.38);
+  --input-focus-ring:   rgba(0,240,255,0.06);
+  --input-focus-bg:     rgba(0,240,255,0.03);
+}
+
+[data-theme="light"] {
+  --bg-base:      #F2F2F7;
+  --bg-surface:   #FFFFFF;
+  --bg-card:      rgba(255, 255, 255, 0.90);
+  --bg-hover:     rgba(0, 0, 0, 0.05);
+  --bg-border:    rgba(0, 0, 0, 0.12);
+
+  --c-accent:     #007AFF;
+  --c-accent-h:   #0066DD;
+  --c-accent-dim: rgba(0, 122, 255, 0.12);
+
+  --text-primary:   #1C1C1E;
+  --text-secondary: rgba(0, 0, 0, 0.60);
+  --text-dim:       rgba(0, 0, 0, 0.38);
+
+  --c-emerald:  #059669;
+  --c-amber:    #D97706;
+  --c-pink:     #DB2777;
+  --c-danger:   #DC2626;
+
+  --scrollbar-thumb:  rgba(0, 122, 255, 0.25);
+  --overlay-bg:       rgba(0, 0, 0, 0.50);
+  --autofill-bg:      #FFFFFF;
+  --autofill-text:    #1C1C1E;
+  --btn-primary-bg:   #007AFF;
+  --btn-primary-fg:   #FFFFFF;
+  --shadow-card:      0 1px 2px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.10);
+  --skeleton-from:    rgba(0,0,0,0.03);
+  --skeleton-mid:     rgba(0,0,0,0.07);
+  --card-shell-grad:  linear-gradient(135deg, rgba(0,0,0,0.10) 0%, rgba(0,0,0,0.03) 50%, rgba(0,0,0,0.01) 100%);
+  --glass-bg:         linear-gradient(135deg, rgba(0,0,0,0.04) 0%, rgba(0,0,0,0.01) 100%);
+  --input-focus-border: rgba(0,122,255,0.50);
+  --input-focus-ring:   rgba(0,122,255,0.08);
+  --input-focus-bg:     rgba(0,122,255,0.03);
+}
 
 @tailwind base;
 @tailwind components;
@@ -130,8 +208,8 @@
   }
 
   body {
-    background: #000000;
-    color: #FFFFFF;
+    background: var(--bg-base);    /* было: #000000 */
+    color: var(--text-primary);
     font-weight: 300;
     -webkit-font-smoothing: antialiased;
   }
@@ -140,7 +218,7 @@
   ::-webkit-scrollbar { width: 3px; height: 3px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb {
-    background: rgba(0, 240, 255, 0.18);
+    background: var(--scrollbar-thumb);
     border-radius: 9999px;
   }
 
@@ -148,8 +226,8 @@
   input:-webkit-autofill,
   input:-webkit-autofill:hover,
   input:-webkit-autofill:focus {
-    -webkit-text-fill-color: #FFFFFF;
-    -webkit-box-shadow: 0 0 0px 1000px #000000 inset;
+    -webkit-text-fill-color: var(--autofill-text);
+    -webkit-box-shadow: 0 0 0px 1000px var(--autofill-bg) inset;
     transition: background-color 5000s ease-in-out 0s;
   }
 
@@ -160,11 +238,7 @@
 
   /* ── Glass utility ───────────────────────── */
   .glass {
-    background: linear-gradient(
-      135deg,
-      rgba(255,255,255,0.06) 0%,
-      rgba(255,255,255,0.02) 100%
-    );
+    background: var(--glass-bg);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border: 0.85px solid rgba(255,255,255,0.08);
@@ -177,12 +251,7 @@
    * <div class="card-shell"><div class="card">…</div></div>
    */
   .card-shell {
-    background: linear-gradient(
-      135deg,
-      rgba(255,255,255,0.12) 0%,
-      rgba(255,255,255,0.04) 50%,
-      rgba(255,255,255,0.01) 100%
-    );
+    background: var(--card-shell-grad);
     padding: 0.85px;
     border-radius: 24px;
     transition: transform 150ms ease, box-shadow 150ms ease;
@@ -190,21 +259,21 @@
 
   /* ── Card ────────────────────────────────── */
   .card {
-    background: rgba(0, 0, 0, 0.75);
+    background: var(--bg-card);
+    box-shadow: var(--shadow-card);
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border-radius: 23px;
     border: none;
     padding: 17.5px;
-    box-shadow: rgba(0,0,0,0.2) 0px 20px 40px -12px;
     transition: transform 150ms ease;
   }
   .card:active { transform: scale(0.984); }
 
   /* ── Buttons ─────────────────────────────── */
   .btn-primary {
-    background: #FFFFFF;
-    color: #000000;
+    background: var(--btn-primary-bg);
+    color:      var(--btn-primary-fg);
     font-weight: 500;
     font-size: 10px;
     letter-spacing: 0.25px;
@@ -234,11 +303,12 @@
 
   /* ── Input ───────────────────────────────── */
   .input-field {
-    background: rgba(255,255,255,0.04);
-    border: 0.85px solid rgba(255,255,255,0.10);
+    background:   var(--bg-hover);
+    border-color: var(--bg-border);  /* вместо rgba(...) */
+    color:        var(--text-primary);
+    border: 0.85px solid;
     border-radius: 14px;
     padding: 10.5px 14px;
-    color: #FFFFFF;
     font-weight: 300;
     font-size: 10.5px;
     backdrop-filter: blur(12px);
@@ -252,18 +322,18 @@
     font-weight: 300;
   }
   .input-field:focus {
-    border-color: rgba(0,240,255,0.38);
-    box-shadow: 0 0 0 3px rgba(0,240,255,0.06);
-    background: rgba(0,240,255,0.03);
+    border-color: var(--input-focus-border);
+    box-shadow:   0 0 0 3px var(--input-focus-ring);
+    background:   var(--input-focus-bg);
   }
 
   /* ── Skeleton ────────────────────────────── */
   .skeleton {
     background: linear-gradient(
       90deg,
-      rgba(255,255,255,0.03) 25%,
-      rgba(255,255,255,0.07) 50%,
-      rgba(255,255,255,0.03) 75%
+      var(--skeleton-from) 25%,
+      var(--skeleton-mid)  50%,
+      var(--skeleton-from) 75%
     );
     background-size: 200px 100%;
     animation: shimmer 1.6s ease-in-out infinite;
@@ -297,21 +367,21 @@
   .custom-checkbox:active { transform: scale(0.85); }
 
   .custom-checkbox.checked {
-    background: rgba(0,240,255,0.15);
-    border-color: #00F0FF;
+    background:   var(--c-accent-dim);   /* было: rgba(0,240,255,0.15) */
+    border-color: var(--c-accent);
     transform: scale(1.06);
   }
   .custom-checkbox.unchecked {
     border-color: rgba(255,255,255,0.18);
   }
   .custom-checkbox.unchecked:hover {
-    border-color: rgba(0,240,255,0.4);
-    background: rgba(0,240,255,0.05);
+    border-color: rgba(var(--c-accent), 0.4);  /* упрощённо — можно оставить без изменений */
+    background: var(--c-accent-dim);
   }
 
   /* ── Sheet overlay ───────────────────────── */
   .sheet-overlay {
-    background: rgba(0,0,0,0.72);
+    background: var(--overlay-bg);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
   }

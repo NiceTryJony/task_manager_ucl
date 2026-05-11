@@ -28,18 +28,27 @@ import type { Task, TaskStatus, Priority, MemberRole } from '@/types'
 import { toast } from 'sonner'
 import { useMemo } from 'react'
 import { usePending } from '@/hooks/usePending'
+import { Sun, Moon } from 'lucide-react'
+import { useTheme }  from '@/lib/theme-context'
+import { useI18n }   from '@/lib/i18n-context'
+
+
+
 
 interface Props { onBack: () => void }
 
 type SortKey   = 'position' | 'due_at' | 'priority' | 'created_at'
 type FilterKey = TaskStatus | 'all' | 'archived'
 
+const { theme, toggleTheme } = useTheme()
+const { t } = useI18n()
+
 const STATUS_TABS: { key: FilterKey; label: string }[] = [
-  { key: 'all',         label: 'All'        },
-  { key: 'todo',        label: 'To Do'      },
-  { key: 'in_progress', label: 'Doing'      },
-  { key: 'done',        label: 'Done'       },
-  { key: 'archived',    label: '📦 Archive' },
+  { key: 'all',         label: t('filter_all')     },
+  { key: 'todo',        label: t('filter_todo')    },
+  { key: 'in_progress', label: t('filter_doing')   },
+  { key: 'done',        label: t('filter_done')    },
+  { key: 'archived',    label: t('filter_archive') },
 ]
 
 const PRIORITY_ORDER: Record<Priority, number> = { urgent: 0, high: 1, medium: 2, low: 3 }
@@ -458,6 +467,18 @@ export function ListDetailView({ onBack }: Props) {
             )}
           </div>
 
+          {/* Theme toggle — перед Search */}
+          <button
+            onClick={toggleTheme}
+            className={cn('btn-ghost p-2', 'transition-colors')}
+            title={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
+          >
+            {theme === 'dark'
+              ? <Sun  size={17} className="text-amber" />
+              : <Moon size={17} />
+            }
+          </button>
+
           <button
             onClick={() => {
               setShowSearch(!showSearch)
@@ -483,7 +504,7 @@ export function ListDetailView({ onBack }: Props) {
               ref={searchRef}
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              placeholder="Search tasks…"
+              placeholder={t('searchPlaceholder')}
               className="input-field pl-9 pr-9 py-2.5 text-sm"
             />
             {searchQuery && (
@@ -499,10 +520,10 @@ export function ListDetailView({ onBack }: Props) {
         {showSort && (
           <div className="flex gap-1.5 mb-2 overflow-x-auto animate-fade-up">
             {([
-              { key: 'position',   label: 'Manual'   },
-              { key: 'due_at',     label: 'Due date' },
-              { key: 'priority',   label: 'Priority' },
-              { key: 'created_at', label: 'Newest'   },
+              { key: 'position',   label: t('sortManual')   },
+              { key: 'due_at',     label: t('sortDueDate')  },
+              { key: 'priority',   label: t('sortPriority') },
+              { key: 'created_at', label: t('sortNewest')   },
             ] as { key: SortKey; label: string }[]).map(s => (
               <button key={s.key} onClick={() => { setSortKey(s.key); haptic.select() }}
                 className={cn(

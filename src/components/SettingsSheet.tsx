@@ -6,6 +6,8 @@ import { X, User, Lock, Eye, EyeOff, Save, LogOut, AlertCircle, CheckCircle2 } f
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { LS_KEY_USER_ID, LS_KEY_USERNAME, LS_KEY_FIRST_NAME } from '@/hooks/useTelegram'
+import { useI18n } from '@/lib/i18n-context'
+import type { Lang } from '@/lib/i18n'
 
 interface Props {
   userId:    number
@@ -25,15 +27,19 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
   const [error,        setError]        = useState<string | null>(null)
   const [saving,       setSaving]       = useState(false)
   const [pinSection,   setPinSection]   = useState(false)
+  const { lang, setLang, t } = useI18n()
 
   const sheetRef   = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
+  
 
   const pinRefs = {
     current: [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)],
     new:     [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)],
     confirm: [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)],
   }
+
+  
 
   useEffect(() => {
     gsap.fromTo(overlayRef.current, { opacity: 0 }, { opacity: 1, duration: 0.2 })
@@ -297,6 +303,29 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
             <div className="flex justify-between text-sm">
               <span className="text-text-secondary">Username</span>
               <span className="text-text-primary">@{username}</span>
+            </div>
+          </div>
+
+          {/* Language */}
+          <div className="bg-bg-card rounded-2xl p-4 border border-bg-border space-y-3">
+            <p className="text-xs font-semibold text-text-secondary uppercase tracking-widest">
+              {t('language')}
+            </p>
+            <div className="flex gap-2">
+              {(['en', 'uk'] as Lang[]).map(l => (
+                <button
+                  key={l}
+                  onClick={() => setLang(l)}
+                  className={cn(
+                    'flex-1 py-2.5 rounded-xl text-sm font-medium transition-all',
+                    lang === l
+                      ? 'bg-accent text-white'
+                      : 'bg-bg-hover text-text-secondary hover:bg-bg-border'
+                  )}
+                >
+                  {l === 'en' ? '🇬🇧 English' : '🇺🇦 Українська'}
+                </button>
+              ))}
             </div>
           </div>
 

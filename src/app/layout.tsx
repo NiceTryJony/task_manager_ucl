@@ -3,6 +3,8 @@ import { Bricolage_Grotesque, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
 import { Roboto } from 'next/font/google'
+import { ThemeProvider } from '@/lib/theme-context'
+import { I18nProvider }  from '@/lib/i18n-context'
 
 
 const roboto = Roboto({ subsets:['latin'], weight:['300','400','500'], variable:'--font-roboto' })
@@ -37,12 +39,21 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${roboto.variable} ${bricolage.variable} ${jetbrains.variable}`}>
       <head>
+        {/* Убирает мигание при загрузке — тема применяется до рендера */}
+        <script dangerouslySetInnerHTML={{ __html: `
+          (function(){
+            var t=localStorage.getItem('taskflow_theme')||'dark';
+            document.documentElement.setAttribute('data-theme',t);
+          })();
+        `}} />
         <script src="https://telegram.org/js/telegram-web-app.js" />
       </head>
       <body className="bg-bg-base text-text-primary antialiased">
-          <ErrorBoundary>       {/* ← добавить */}
-            {children}
-          </ErrorBoundary>      {/* ← добавить */}
+        <ThemeProvider>
+          <I18nProvider>
+            <ErrorBoundary>{children}</ErrorBoundary>
+          </I18nProvider>
+        </ThemeProvider>
       </body>
     </html>
   )
