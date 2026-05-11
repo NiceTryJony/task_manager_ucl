@@ -17,7 +17,7 @@ export class ErrorBoundary extends Component<Props, State> {
     return (
       <div className="page-container items-center justify-center text-center px-6">
         <div className="text-4xl mb-4">⚠️</div>
-        <h2 className="text-lg font-bold mb-2">Что-то пошло не так</h2>
+        <h2 className="text-lg font-bold mb-2">Something went wrong</h2>
         <p className="text-text-secondary text-sm mb-6">{this.state.message}</p>
         <button
           className="btn-primary"
@@ -26,7 +26,7 @@ export class ErrorBoundary extends Component<Props, State> {
             window.location.reload()
           }}
         >
-          Перезагрузить
+          Reload
         </button>
       </div>
     )

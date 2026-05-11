@@ -101,11 +101,11 @@ async function handleDelete(e: React.MouseEvent) {
     const confirmed = await new Promise<boolean>(resolve => {
       if (window?.Telegram?.WebApp?.showConfirm) {
         window.Telegram.WebApp.showConfirm(
-          `Удалить список "${list.title}" и все задачи в нём?`,
+          `Delete list "${list.title}" and all its tasks?`,
           resolve
         )
       } else {
-        resolve(window.confirm(`Удалить список "${list.title}"?`))
+        resolve(window.confirm(`Delete list "${list.title}"?`))
       }
     })
     if (!confirmed) return

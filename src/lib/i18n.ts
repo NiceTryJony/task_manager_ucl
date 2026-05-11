@@ -74,6 +74,10 @@ export const translations = {
     close: 'Close', viewTask: 'View Task', cancel: 'Cancel',
     unassign: 'Unassign', assignedTo: 'Assigned to',
     language: 'Language', theme: 'Theme', dark: 'Dark', light: 'Light',
+    saved: 'Saved',
+    saveError: 'Error — changes not saved',
+    errorTitle: 'Something went wrong',
+    errorReload: 'Reload',
   },
   uk: {
     greeting: 'Привіт', tasksCompleted: 'завдань виконано',
@@ -140,6 +144,10 @@ export const translations = {
     close: 'Закрити', viewTask: 'Переглянути завдання', cancel: 'Скасувати',
     unassign: 'Зняти', assignedTo: 'Призначено',
     language: 'Мова', theme: 'Тема', dark: 'Темна', light: 'Світла',
+    saved: 'Збережено',
+    saveError: 'Помилка — зміни не збережено',
+    errorTitle: 'Щось пішло не так',
+    errorReload: 'Перезавантажити',
   },
 } as const
 
