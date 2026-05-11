@@ -40,20 +40,20 @@ interface Props { onBack: () => void }
 type SortKey   = 'position' | 'due_at' | 'priority' | 'created_at'
 type FilterKey = TaskStatus | 'all' | 'archived'
 
-const { theme, toggleTheme } = useTheme()
-const { t } = useI18n()
-
-const STATUS_TABS: { key: FilterKey; label: string }[] = [
-  { key: 'all',         label: t('filter_all')     },
-  { key: 'todo',        label: t('filter_todo')    },
-  { key: 'in_progress', label: t('filter_doing')   },
-  { key: 'done',        label: t('filter_done')    },
-  { key: 'archived',    label: t('filter_archive') },
-]
-
 const PRIORITY_ORDER: Record<Priority, number> = { urgent: 0, high: 1, medium: 2, low: 3 }
 
 export function ListDetailView({ onBack }: Props) {
+  
+  const { theme, toggleTheme } = useTheme()
+  const { t } = useI18n()
+
+  const STATUS_TABS: { key: FilterKey; label: string }[] = [
+    { key: 'all',         label: t('filter_all')     },
+    { key: 'todo',        label: t('filter_todo')    },
+    { key: 'in_progress', label: t('filter_doing')   },
+    { key: 'done',        label: t('filter_done')    },
+    { key: 'archived',    label: t('filter_archive') },
+  ]
   const { user, haptic } = useTelegram()
   const {
     lists, tasks, activeListId,
