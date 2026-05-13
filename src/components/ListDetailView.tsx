@@ -119,7 +119,11 @@ export function ListDetailView({ onBack }: Props) {
   // This is what we render — Swapy re-orders tasks visually
   // without touching React's key reconciliation.
   const slottedItems = useMemo(
-    () => utils.toSlottedItems(sorted, 'id', slotItemMap) as Array<{
+    () => utils.toSlottedItems(
+      sorted, 
+      'id', 
+      slotItemMap.filter((x): x is { slot: string; item: string } => x.item !== null)
+    ) as Array<{
       slotId: string
       itemId: string
       item:   Task
