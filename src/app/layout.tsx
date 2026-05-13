@@ -1,13 +1,15 @@
 import type { Metadata, Viewport } from 'next'
-import { Bricolage_Grotesque, JetBrains_Mono } from 'next/font/google'
+import { Bricolage_Grotesque, JetBrains_Mono, Roboto } from 'next/font/google'
 import './globals.css'
 import { ErrorBoundary } from '@/components/ErrorBoundary'
-import { Roboto } from 'next/font/google'
 import { ThemeProvider } from '@/lib/theme-context'
 import { I18nProvider }  from '@/lib/i18n-context'
 
-
-const roboto = Roboto({ subsets:['latin'], weight:['300','400','500'], variable:'--font-roboto' })
+const roboto = Roboto({
+  subsets: ['latin'],
+  weight: ['300', '400', '500'],
+  variable: '--font-roboto',
+})
 
 const bricolage = Bricolage_Grotesque({
   subsets: ['latin'],
@@ -33,7 +35,7 @@ export const viewport: Viewport = {
   maximumScale: 1,
   userScalable: false,
   themeColor: [
-    { media: '(prefers-color-scheme: dark)',  color: '#000000' },
+    { media: '(prefers-color-scheme: dark)',  color: '#0F1117' },
     { media: '(prefers-color-scheme: light)', color: '#EDE0D0' },
   ],
 }
@@ -42,11 +44,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={`${roboto.variable} ${bricolage.variable} ${jetbrains.variable}`}>
       <head>
-        {/* Убирает мигание при загрузке — тема применяется до рендера */}
+        {/*
+          Применяем тему ДО первого рендера — убирает мигание.
+          Заодно форсируем цвет адресной строки на мобильных.
+        */}
         <script dangerouslySetInnerHTML={{ __html: `
           (function(){
-            var t=localStorage.getItem('taskflow_theme')||'dark';
-            document.documentElement.setAttribute('data-theme',t);
+            var t = localStorage.getItem('taskflow_theme') || 'dark';
+            document.documentElement.setAttribute('data-theme', t);
+            // Обновляем meta theme-color динамически
+            var meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) {
+              meta.setAttribute('content', t === 'dark' ? '#0F1117' : '#EDE0D0');
+            }
           })();
         `}} />
         <script src="https://telegram.org/js/telegram-web-app.js" />

@@ -27,25 +27,30 @@ const config: Config = {
           secondary: 'var(--text-secondary)',
           dim:       'var(--text-dim)',
         },
-        // Цвета статусов/приоритетов — тоже тематические
         emerald: 'var(--c-emerald)',
         amber:   'var(--c-amber)',
         pink:    'var(--c-pink)',
         danger:  'var(--c-danger)',
       },
-      borderRadius: { sm:'14px', xl:'19px', '2xl':'24px', '3xl':'42px', full:'9999px' },
+      borderRadius: {
+        sm:    '14px',
+        xl:    '19px',
+        '2xl': '24px',
+        '3xl': '32px',
+        full:  '9999px',
+      },
       backgroundImage: {
-        glass: 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.02) 100%)',
+        glass: 'var(--glass-bg)',
       },
       boxShadow: {
-        card:     'var(--shadow-card)',
-        glow:     '0 0 20px rgba(123,110,246,0.25)',
-        'glow-sm':'0 0 10px rgba(123,110,246,0.15)',
+        card:      'var(--shadow-card)',
+        glow:      '0 0 20px rgba(129,115,245,0.22)',
+        'glow-sm': '0 0 10px rgba(129,115,245,0.14)',
       },
       keyframes: {
         'slide-up': {
           from: { transform: 'translateY(100%)', opacity: '0' },
-          to:   { transform: 'translateY(0)', opacity: '1' },
+          to:   { transform: 'translateY(0)',    opacity: '1' },
         },
         'fade-in': {
           from: { opacity: '0', transform: 'translateY(8px)' },
@@ -64,7 +69,7 @@ const config: Config = {
         'slide-up': 'slide-up 0.35s cubic-bezier(0.32, 0.72, 0, 1)',
         'fade-in':  'fade-in 0.3s ease-out',
         'scale-in': 'scale-in 0.2s ease-out',
-        shimmer:    'shimmer 1.6s ease-in-out infinite',
+        shimmer:    'shimmer 1.8s ease-in-out infinite',
       },
     },
   },
