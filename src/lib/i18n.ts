@@ -126,6 +126,11 @@ export const translations = {
     fieldSubtask: 'Subtask',
     // Value labels (history)
     valYes: 'Yes', valNo: 'No',
+    // ── Due date labels ───────────────────────────────────────
+    today: 'Today',
+    tomorrow: 'Tomorrow',
+    yesterday: 'Yesterday',
+    dOverdue: 'd overdue',
     // ── Language / theme ─────────────────────────────────────
     language: 'Language', theme: 'Theme', dark: 'Dark', light: 'Light',
     // ── Save banner ───────────────────────────────────────────
@@ -264,6 +269,11 @@ export const translations = {
     fieldSubtask: 'Підзавдання',
     // Value labels (history)
     valYes: 'Так', valNo: 'Ні',
+    // ── Due date labels ───────────────────────────────────────
+    today: 'Сьогодні',
+    tomorrow: 'Завтра',
+    yesterday: 'Вчора',
+    dOverdue: 'д прострочено',
     // ── Language / theme ──────────────────────────────────────
     language: 'Мова', theme: 'Тема', dark: 'Темна', light: 'Світла',
     // ── Save banner ───────────────────────────────────────────
