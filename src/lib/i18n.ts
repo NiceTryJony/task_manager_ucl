@@ -2,22 +2,22 @@ export type Lang = 'en' | 'uk'
 
 export const translations = {
   en: {
-    // Home
+    // ── Home ──────────────────────────────────────────────────
     greeting: 'Hey', tasksCompleted: 'tasks completed',
     noLists: 'No lists yet', noListsDesc: 'Create your first task list to get started',
     newList: 'New list', createList: 'Create a list',
-    // Filters
+    // ── Filters ───────────────────────────────────────────────
     filter_all: 'All', filter_todo: 'To Do', filter_doing: 'Doing',
     filter_done: 'Done', filter_archive: '📦 Archive',
-    // Sort
+    // ── Sort ──────────────────────────────────────────────────
     sortManual: 'Manual', sortDueDate: 'Due date',
     sortPriority: 'Priority', sortNewest: 'Newest',
-    // Search / misc
+    // ── Search / misc ─────────────────────────────────────────
     searchPlaceholder: 'Search tasks…', noTasksMatch: 'No tasks match your search',
     nothingArchived: 'Nothing archived', noTasksHere: 'No tasks here',
     addOne: '+ Add one', releaseToRefresh: 'Release to refresh',
     noConnection: 'No connection', retry: 'Retry', refreshed: 'Refreshed',
-    // Task sheet
+    // ── Task sheet ────────────────────────────────────────────
     newTask: 'New Task', editTask: 'Edit Task', taskTitle: 'Title',
     notes: 'Notes', notesOptional: 'optional', priority: 'Priority',
     dueDateTime: 'Due Date & Time', assignee: 'Assignee', subtasks: 'Subtasks',
@@ -33,16 +33,25 @@ export const translations = {
     failedToRestore: 'Could not be restored',
     reorderFailed: 'Reorder failed — restoring',
     archived: 'Archived', restored: 'Restored',
-    // Priorities
+    savingChanges: 'Saving changes…', creatingTaskStr: 'Creating task…',
+    useCurrentTime: 'Use current time',
+    creating2: 'Create',
+    // ── Priorities ────────────────────────────────────────────
     low: 'Low', medium: 'Medium', high: 'High', urgent: 'Urgent',
-    // Statuses
+    // ── Statuses ──────────────────────────────────────────────
     todo: 'To Do', inProgress: 'In Progress', done: 'Done',
-    // List card
+    // ── List card ─────────────────────────────────────────────
     edit: 'Edit', share: 'Share', delete: 'Delete', deleting: 'Deleting…',
-    // Create list
+    editList: 'Edit List',
+    tasksWord: 'tasks', taskWord: 'task',
+    // ── Create list ───────────────────────────────────────────
     newListTitle: 'New List', listName: 'List name…',
     icon: 'Icon', color: 'Color', creating: 'Creating…',
-    // Share
+    // ── Context menu ──────────────────────────────────────────
+    markAsDone: 'Mark as Done', markAsTodo: 'Mark as To Do',
+    failedStatus: 'Failed to change status',
+    newTaskBtn: '+ New Task',
+    // ── Share ─────────────────────────────────────────────────
     shareList: 'Share List', whoHasAccess: 'Who has access',
     inviteSomeone: 'Invite someone', typeUsername: 'type username…',
     notFound: 'Not found in database. User must open TaskFlow first.',
@@ -50,7 +59,19 @@ export const translations = {
     orShareAsText: 'or share as text', previewText: 'Preview', hideText: 'Hide',
     formattedText: 'formatted text', copyClipboard: 'Copy to clipboard',
     copied: 'Copied!', copyPasteHint: 'Paste anywhere — Telegram, Notion, Notes…',
-    // Settings
+    foundInDatabase: 'Found in database',
+    roleOwner: 'Owner', roleEditor: 'Editor', roleViewer: 'Viewer',
+    canEdit: 'Can edit', viewOnlyRole: 'View only',
+    roleUpdated: 'Role updated',
+    networkError: 'Network error',
+    copyFailed: 'Copy failed — select manually',
+    memberSingle: 'member', memberPlural: 'members',
+    myRoleLabel: 'my role',
+    invited: 'invited',
+    removed: 'removed',
+    exportFailed: 'Export failed',
+    noMembersDebug: 'No members loaded — check debug log',
+    // ── Settings ──────────────────────────────────────────────
     settings: 'Settings', profile: 'Profile', firstName: 'First Name',
     confirmWithPin: 'Confirm with PIN', currentPin: 'Current PIN',
     changePin: 'Change PIN', cancelPinChange: 'Cancel PIN change',
@@ -58,7 +79,18 @@ export const translations = {
     pinsMatch: 'PINs match', pinsNoMatch: 'PINs do not match',
     updatePin: 'Update PIN', saving: 'Saving…', saveName: 'Save Name',
     account: 'Account', userId: 'User ID', username: 'Username', signOut: 'Sign Out',
-    // Auth
+    nameRequired: 'Name is required',
+    nameEmpty: 'Name cannot be empty',
+    incorrectPin: 'Incorrect PIN',
+    incorrectCurrentPin: 'Incorrect current PIN',
+    enterCurrentPinConfirm: 'Enter current PIN to confirm changes',
+    enterCurrentPinShort: 'Enter current PIN',
+    enterNewPinShort: 'Enter new PIN',
+    nameUpdated: 'Name updated!',
+    pinChanged: 'PIN changed!',
+    signedOut: 'Signed out',
+    usernameChangeNote: 'Username cannot be changed to preserve your data.',
+    // ── Auth ──────────────────────────────────────────────────
     getStarted: 'Get started', welcomeBack: 'Welcome back!',
     createAccount: 'Create account', enterPinSignIn: 'Enter your PIN to sign in',
     choosePinProtect: 'Choose a PIN to protect your account',
@@ -68,30 +100,58 @@ export const translations = {
     pinProtects: 'PIN protects your account on new devices.',
     signIn: 'Sign In', continue: 'Continue',
     signingIn: 'Signing in…', creatingAccount: 'Creating account…',
-    // Misc
+    yourNamePlaceholder: 'Your name…',
+    nameLoadedFromAccount: 'Name loaded from your account',
+    yourPin: 'Your PIN', choosePin: 'Choose PIN',
+    validMin3: 'Minimum 3 characters',
+    validMax32: 'Maximum 32 characters',
+    validLetters: 'Letters, numbers and _ only',
+    enter4DigitPin: 'Enter 4-digit PIN',
+    // ── Viewer / read-only ────────────────────────────────────
     viewOnly: 'View only', readOnly: 'Read-only',
     viewOnlyHint: '👁 View-only access · subtasks can be toggled',
     close: 'Close', viewTask: 'View Task', cancel: 'Cancel',
     unassign: 'Unassign', assignedTo: 'Assigned to',
+    statusLabel: 'Status', dueLabel: 'Due',
+    subtasksDone: 'done',
+    // ── History ───────────────────────────────────────────────
+    justNow: 'just now', mAgo: 'm ago', hAgo: 'h ago', dAgo: 'd ago',
+    actionChangedField: 'Changed', actionAddedSubtask: 'Added subtask',
+    actionRemovedSubtask: 'Removed subtask', actionCompletedSubtask: 'Completed subtask',
+    actionUncompletedSubtask: 'Uncompleted subtask', actionRenamedSubtask: 'Renamed subtask',
+    actionReorderedSubtasks: 'Reordered subtasks', actionTaskCreated: 'Task created',
+    // Field labels (history)
+    fieldTitle: 'Title', fieldNotes: 'Notes', fieldPriority: 'Priority',
+    fieldStatus: 'Status', fieldDueDate: 'Due date', fieldArchived: 'Archived',
+    fieldSubtask: 'Subtask',
+    // Value labels (history)
+    valYes: 'Yes', valNo: 'No',
+    // ── Language / theme ─────────────────────────────────────
     language: 'Language', theme: 'Theme', dark: 'Dark', light: 'Light',
-    saved: 'Saved',
-    saveError: 'Error — changes not saved',
-    errorTitle: 'Something went wrong',
-    errorReload: 'Reload',
+    // ── Save banner ───────────────────────────────────────────
+    saved: 'Saved', saveError: 'Error — changes not saved',
+    // ── Error boundary ────────────────────────────────────────
+    errorTitle: 'Something went wrong', errorReload: 'Reload',
   },
+
   uk: {
+    // ── Home ──────────────────────────────────────────────────
     greeting: 'Привіт', tasksCompleted: 'завдань виконано',
     noLists: 'Поки що немає списків',
     noListsDesc: 'Створіть перший список завдань, щоб розпочати',
     newList: 'Новий список', createList: 'Створити список',
+    // ── Filters ───────────────────────────────────────────────
     filter_all: 'Всі', filter_todo: 'Зробити', filter_doing: 'В процесі',
     filter_done: 'Виконано', filter_archive: '📦 Архів',
+    // ── Sort ──────────────────────────────────────────────────
     sortManual: 'Вручну', sortDueDate: 'Термін',
     sortPriority: 'Пріоритет', sortNewest: 'Нові',
+    // ── Search / misc ─────────────────────────────────────────
     searchPlaceholder: 'Пошук завдань…', noTasksMatch: 'Завдань за запитом не знайдено',
     nothingArchived: 'Архів порожній', noTasksHere: 'Тут немає завдань',
     addOne: '+ Додати', releaseToRefresh: 'Відпустіть для оновлення',
     noConnection: 'Немає зʼєднання', retry: 'Повторити', refreshed: 'Оновлено',
+    // ── Task sheet ────────────────────────────────────────────
     newTask: 'Нове завдання', editTask: 'Редагування', taskTitle: 'Назва',
     notes: 'Нотатки', notesOptional: 'необовʼязково', priority: 'Пріоритет',
     dueDateTime: 'Дата та час виконання', assignee: 'Виконавець', subtasks: 'Підзавдання',
@@ -109,11 +169,25 @@ export const translations = {
     failedToRestore: 'Не вдалося відновити',
     reorderFailed: 'Помилка порядку — відновлення',
     archived: 'Архівовано', restored: 'Відновлено',
+    savingChanges: 'Збереження змін…', creatingTaskStr: 'Створення завдання…',
+    useCurrentTime: 'Поточний час',
+    creating2: 'Створити',
+    // ── Priorities ────────────────────────────────────────────
     low: 'Низький', medium: 'Середній', high: 'Високий', urgent: 'Терміново',
+    // ── Statuses ──────────────────────────────────────────────
     todo: 'Зробити', inProgress: 'В процесі', done: 'Виконано',
+    // ── List card ─────────────────────────────────────────────
     edit: 'Редагувати', share: 'Поділитися', delete: 'Видалити', deleting: 'Видалення…',
+    editList: 'Редагувати список',
+    tasksWord: 'завдань', taskWord: 'завдання',
+    // ── Create list ───────────────────────────────────────────
     newListTitle: 'Новий список', listName: 'Назва списку…',
     icon: 'Іконка', color: 'Колір', creating: 'Створення…',
+    // ── Context menu ──────────────────────────────────────────
+    markAsDone: 'Позначити виконаним', markAsTodo: 'Позначити незробленим',
+    failedStatus: 'Не вдалося змінити статус',
+    newTaskBtn: '+ Нове завдання',
+    // ── Share ─────────────────────────────────────────────────
     shareList: 'Поділитися списком', whoHasAccess: 'Хто має доступ',
     inviteSomeone: 'Запросити когось', typeUsername: 'введіть імʼя користувача…',
     notFound: 'Не знайдено. Користувач має спочатку відкрити TaskFlow.',
@@ -122,6 +196,19 @@ export const translations = {
     previewText: 'Переглянути', hideText: 'Сховати',
     formattedText: 'форматований текст', copyClipboard: 'Скопіювати в буфер',
     copied: 'Скопійовано!', copyPasteHint: 'Вставте будь-де — Telegram, Notion…',
+    foundInDatabase: 'Знайдено в базі',
+    roleOwner: 'Власник', roleEditor: 'Редактор', roleViewer: 'Глядач',
+    canEdit: 'Може редагувати', viewOnlyRole: 'Тільки перегляд',
+    roleUpdated: 'Роль оновлено',
+    networkError: 'Помилка мережі',
+    copyFailed: 'Помилка копіювання — виберіть вручну',
+    memberSingle: 'учасник', memberPlural: 'учасників',
+    myRoleLabel: 'моя роль',
+    invited: 'запрошено',
+    removed: 'видалено',
+    exportFailed: 'Помилка експорту',
+    noMembersDebug: 'Учасників не завантажено — перевірте лог',
+    // ── Settings ──────────────────────────────────────────────
     settings: 'Налаштування', profile: 'Профіль', firstName: 'Імʼя',
     confirmWithPin: 'Підтвердіть PIN-кодом', currentPin: 'Поточний PIN',
     changePin: 'Змінити PIN', cancelPinChange: 'Скасувати зміну PIN',
@@ -130,6 +217,18 @@ export const translations = {
     updatePin: 'Оновити PIN', saving: 'Збереження…', saveName: 'Зберегти імʼя',
     account: 'Акаунт', userId: 'ID користувача', username: 'Імʼя користувача',
     signOut: 'Вийти',
+    nameRequired: 'Потрібно вказати імʼя',
+    nameEmpty: 'Імʼя не може бути порожнім',
+    incorrectPin: 'Неправильний PIN',
+    incorrectCurrentPin: 'Неправильний поточний PIN',
+    enterCurrentPinConfirm: 'Введіть поточний PIN для підтвердження змін',
+    enterCurrentPinShort: 'Введіть поточний PIN',
+    enterNewPinShort: 'Введіть новий PIN',
+    nameUpdated: 'Імʼя оновлено!',
+    pinChanged: 'PIN змінено!',
+    signedOut: 'Вихід виконано',
+    usernameChangeNote: 'Імʼя користувача не можна змінити для збереження ваших даних.',
+    // ── Auth ──────────────────────────────────────────────────
     getStarted: 'Почати', welcomeBack: 'Ласкаво просимо!',
     createAccount: 'Створити акаунт', enterPinSignIn: 'Введіть PIN для входу',
     choosePinProtect: 'Оберіть PIN для захисту акаунту',
@@ -139,15 +238,38 @@ export const translations = {
     pinProtects: 'PIN захищає акаунт на нових пристроях.',
     signIn: 'Увійти', continue: 'Продовжити',
     signingIn: 'Вхід…', creatingAccount: 'Створення акаунту…',
+    yourNamePlaceholder: 'Ваше імʼя…',
+    nameLoadedFromAccount: 'Імʼя завантажено з вашого акаунту',
+    yourPin: 'Ваш PIN', choosePin: 'Оберіть PIN',
+    validMin3: 'Мінімум 3 символи',
+    validMax32: 'Максимум 32 символи',
+    validLetters: 'Лише літери, цифри та _',
+    enter4DigitPin: 'Введіть 4-значний PIN',
+    // ── Viewer / read-only ────────────────────────────────────
     viewOnly: 'Тільки перегляд', readOnly: 'Тільки читання',
     viewOnlyHint: '👁 Доступ тільки для перегляду · підзавдання можна перемикати',
     close: 'Закрити', viewTask: 'Переглянути завдання', cancel: 'Скасувати',
     unassign: 'Зняти', assignedTo: 'Призначено',
+    statusLabel: 'Статус', dueLabel: 'Термін',
+    subtasksDone: 'виконано',
+    // ── History ───────────────────────────────────────────────
+    justNow: 'щойно', mAgo: 'хв тому', hAgo: 'год тому', dAgo: 'д тому',
+    actionChangedField: 'Змінено', actionAddedSubtask: 'Додано підзавдання',
+    actionRemovedSubtask: 'Видалено підзавдання', actionCompletedSubtask: 'Завершено підзавдання',
+    actionUncompletedSubtask: 'Відновлено підзавдання', actionRenamedSubtask: 'Перейменовано підзавдання',
+    actionReorderedSubtasks: 'Переставлено підзавдання', actionTaskCreated: 'Завдання створено',
+    // Field labels (history)
+    fieldTitle: 'Назва', fieldNotes: 'Нотатки', fieldPriority: 'Пріоритет',
+    fieldStatus: 'Статус', fieldDueDate: 'Термін виконання', fieldArchived: 'Архів',
+    fieldSubtask: 'Підзавдання',
+    // Value labels (history)
+    valYes: 'Так', valNo: 'Ні',
+    // ── Language / theme ──────────────────────────────────────
     language: 'Мова', theme: 'Тема', dark: 'Темна', light: 'Світла',
-    saved: 'Збережено',
-    saveError: 'Помилка — зміни не збережено',
-    errorTitle: 'Щось пішло не так',
-    errorReload: 'Перезавантажити',
+    // ── Save banner ───────────────────────────────────────────
+    saved: 'Збережено', saveError: 'Помилка — зміни не збережено',
+    // ── Error boundary ────────────────────────────────────────
+    errorTitle: 'Щось пішло не так', errorReload: 'Перезавантажити',
   },
 } as const
 

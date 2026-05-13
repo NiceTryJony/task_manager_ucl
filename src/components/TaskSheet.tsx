@@ -21,6 +21,7 @@ import { TaskHistoryPanel } from '@/components/TaskHistoryPanel'
 import { toast } from 'sonner'
 import { usePending } from '@/hooks/usePending'
 import { AssigneePicker } from '@/components/AssigneePicker'
+import { useI18n } from '@/lib/i18n-context'
 
 interface Props {
   listId:  string
@@ -81,21 +82,15 @@ function SortableSubtaskRow({
   const inputRef              = useRef<HTMLInputElement>(null)
 
   const {
-    attributes,
-    listeners,
-    setNodeRef,
-    setActivatorNodeRef,
-    transform,
-    transition,
-    isDragging,
+    attributes, listeners, setNodeRef, setActivatorNodeRef,
+    transform, transition, isDragging,
   } = useSortable({ id: nodeId })
 
   const style = {
-    transform:  CSS.Transform.toString(transform),
-    transition: transition ?? 'transform 150ms ease',
-    opacity:    isDragging ? 0.5 : 1,
-    zIndex:     isDragging ? 10 : undefined,
-    // Prevent the entire row from capturing touch scroll
+    transform:   CSS.Transform.toString(transform),
+    transition:  transition ?? 'transform 150ms ease',
+    opacity:     isDragging ? 0.5 : 1,
+    zIndex:      isDragging ? 10 : undefined,
     touchAction: 'manipulation' as const,
   }
 
@@ -116,7 +111,7 @@ function SortableSubtaskRow({
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ subtaskId: sub.id, userId, title: trimmed }),
-      }).catch(() => toast.error('Failed to rename subtask'))
+      }).catch(() => {})
     }
   }
 
@@ -133,11 +128,6 @@ function SortableSubtaskRow({
           ? 'bg-bg-hover border-accent/30 shadow-[0_4px_16px_rgba(123,110,246,0.2)]'
           : 'bg-bg-card border-bg-border/60'
       )}>
-
-        {/*
-          Drag handle only — touch-none ensures ONLY this element
-          initiates drag; the rest of the row stays scrollable.
-        */}
         <button
           ref={setActivatorNodeRef}
           {...attributes}
@@ -149,7 +139,6 @@ function SortableSubtaskRow({
           <GripVertical size={15} />
         </button>
 
-        {/* Checkbox */}
         <button
           onClick={onToggle}
           className={cn(
@@ -165,7 +154,6 @@ function SortableSubtaskRow({
           )}
         </button>
 
-        {/* Title / inline editor */}
         <div className="flex-1 min-w-0">
           {editing ? (
             <div className="flex items-center gap-1.5">
@@ -212,7 +200,6 @@ function SortableSubtaskRow({
           )}
         </div>
 
-        {/* Delete */}
         <button
           onClick={onDelete}
           className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-text-dim hover:text-danger hover:bg-danger/10 active:scale-90 transition-all duration-150"
@@ -228,6 +215,7 @@ function SortableSubtaskRow({
 // ── Main component ─────────────────────────────────────────────
 
 export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
+  const { t } = useI18n()
   const isEdit = !!task
 
   const [title,       setTitle]       = useState(task?.title ?? '')
@@ -254,22 +242,12 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
   const titleRef   = useRef<HTMLInputElement>(null)
   const subtaskRef = useRef<HTMLInputElement>(null)
 
-  /*
-   * DnD sensors:
-   * — NO PointerSensor (it blocks scroll on mobile WebView)
-   * — TouchSensor with generous delay so scroll wins by default;
-   *   drag only activates when the user holds the HANDLE (touch-none)
-   */
   const sensors = useSensors(
     useSensor(TouchSensor, {
-      activationConstraint: {
-        delay:     250,   // ms hold before drag starts
-        tolerance: 8,     // px movement allowed during delay
-      },
+      activationConstraint: { delay: 250, tolerance: 8 },
     })
   )
 
-  // Init dates
   useEffect(() => {
     const raw = task?.due_at ?? task?.due_date
     if (!raw) return
@@ -280,7 +258,6 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
     } catch {}
   }, [])
 
-  // Open animation
   useEffect(() => {
     gsap.fromTo(overlayRef.current, { opacity: 0 }, { opacity: 1, duration: 0.2 })
     gsap.fromTo(sheetRef.current,   { y: '100%' },  { y: 0, duration: 0.32, ease: 'power3.out' })
@@ -320,11 +297,9 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
               body: JSON.stringify({ subtaskId: s.id, userId, position: i }),
             })
           )
-      ).catch(() => toast.error('Failed to save order'))
+      ).catch(() => {})
     }
   }
-
-  // ── Add subtask locally ────────────────────────────────────
 
   function addSubtaskLocal() {
     const trimmed = newSubtask.trim()
@@ -333,8 +308,6 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
     setNewSubtask('')
     subtaskRef.current?.focus()
   }
-
-  // ── Save ───────────────────────────────────────────────────
 
   async function handleSave() {
     if (!title.trim()) {
@@ -389,7 +362,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
           }
         }
 
-        toast.success('Task updated')
+        toast.success(t('taskUpdated'))
 
       } else {
         const res  = await fetch('/api/tasks', {
@@ -418,10 +391,10 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
           }
         }
 
-        toast.success('Task created!')
+        toast.success(t('taskCreated'))
       }
     } catch {
-      toast.error('Failed to save — check connection')
+      toast.error(t('failedToSave'))
       setSaving(false)
       return
     } finally {
@@ -430,8 +403,6 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
 
     onSaved()
   }
-
-  // ── Computed ───────────────────────────────────────────────
 
   const subDone    = subtasks.filter(s => s.completed).length
   const subTotal   = subtasks.length
@@ -449,24 +420,23 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
       <div
         ref={sheetRef}
         className="relative w-full h-[92dvh] bg-bg-surface rounded-t-3xl border-t border-bg-border z-10 flex flex-col"
-        // No overflow:hidden here — let the inner scroll container handle it
       >
-        {/* ── Handle ─────────────────────────────────────── */}
+        {/* Handle */}
         <div className="flex justify-center pt-3 flex-shrink-0">
           <div className="w-9 h-1 bg-bg-border rounded-full" />
         </div>
 
-        {/* ── Header ─────────────────────────────────────── */}
+        {/* Header */}
         <div className="flex-shrink-0 flex items-center justify-between px-4 pt-3 pb-3 border-b border-bg-border/60">
           <div className="flex items-center gap-2.5">
             <h2 className="text-[17px] font-bold text-text-primary">
-              {isEdit ? 'Edit Task' : 'New Task'}
+              {isEdit ? t('editTask') : t('newTask')}
             </h2>
             <span className={cn(
               'text-[11px] font-semibold px-2 py-0.5 rounded-lg',
               isEdit ? 'bg-amber/15 text-amber' : 'bg-accent/20 text-accent'
             )}>
-              {isEdit ? 'Edit' : 'Create'}
+              {isEdit ? t('edit') : t('creating2')}
             </span>
           </div>
           <button
@@ -477,41 +447,34 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
           </button>
         </div>
 
-        {/* ── SINGLE scroll container ──────────────────────
-            Rules:
-            1. Only ONE overflow-y:auto in the tree (this div).
-            2. touch-pan-y allows vertical swipe to scroll even
-               when DnD sensors are active.
-            3. overscroll-behavior:contain stops parent page bounce.
-            4. WebkitOverflowScrolling:touch = momentum on iOS.
-        ─────────────────────────────────────────────────── */}
+        {/* Scroll container */}
         <div
           className="flex-1 min-h-0 px-4 py-4 pb-28 space-y-5"
           style={{
-            overflowY:                  'auto',
-            overflowX:                  'hidden',
-            overscrollBehavior:         'contain',
-            WebkitOverflowScrolling:    'touch' as any,
-            touchAction:                'pan-y',
+            overflowY:               'auto',
+            overflowX:               'hidden',
+            overscrollBehavior:      'contain',
+            WebkitOverflowScrolling: 'touch' as any,
+            touchAction:             'pan-y',
           }}
         >
-          {/* Saving overlay (inside scroll so it covers content) */}
+          {/* Saving overlay */}
           {saving && (
             <div className="fixed inset-0 z-[60] bg-bg-surface/70 backdrop-blur-[2px] flex items-center justify-center pointer-events-auto">
               <div className="flex flex-col items-center gap-3">
                 <div className="w-8 h-8 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
                 <p className="text-sm text-text-secondary font-medium">
-                  {isEdit ? 'Saving changes...' : 'Creating task...'}
+                  {isEdit ? t('savingChanges') : t('creatingTaskStr')}
                 </p>
               </div>
             </div>
           )}
 
-          {/* ── Title ──────────────────────────────────── */}
+          {/* Title */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-widest">
-                <AlignLeft size={12} /> Title
+                <AlignLeft size={12} /> {t('taskTitle')}
               </label>
               <span className={cn('text-[11px] tabular-nums', title.length > 180 ? 'text-amber' : 'text-text-dim')}>
                 {title.length} / 200
@@ -522,32 +485,32 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
               value={title}
               onChange={e => setTitle(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSave()}
-              placeholder="What needs to be done?"
+              placeholder={t('whatToBeDone')}
               className="input-field text-[15px] font-semibold"
               maxLength={200}
             />
           </div>
 
-          {/* ── Notes ──────────────────────────────────── */}
+          {/* Notes */}
           <div>
             <label className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2">
-              <AlignLeft size={12} /> Notes
-              <span className="text-text-dim font-normal normal-case tracking-normal ml-1">optional</span>
+              <AlignLeft size={12} /> {t('notes')}
+              <span className="text-text-dim font-normal normal-case tracking-normal ml-1">{t('notesOptional')}</span>
             </label>
             <textarea
               value={description}
               onChange={e => setDescription(e.target.value)}
-              placeholder="Add a description or notes…"
+              placeholder={t('addDescription')}
               rows={2}
               className="input-field text-sm resize-none leading-relaxed"
               maxLength={1000}
             />
           </div>
 
-          {/* ── Priority ───────────────────────────────── */}
+          {/* Priority */}
           <div>
             <label className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2.5">
-              <Flag size={12} /> Priority
+              <Flag size={12} /> {t('priority')}
             </label>
             <div className="grid grid-cols-4 gap-2">
               {PRIORITIES.map(p => {
@@ -573,10 +536,10 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
             </div>
           </div>
 
-          {/* ── Due date ───────────────────────────────── */}
+          {/* Due date */}
           <div>
             <label className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2.5">
-              <Calendar size={12} /> Due Date & Time
+              <Calendar size={12} /> {t('dueDateTime')}
             </label>
             <div className="flex gap-2">
               <input
@@ -601,7 +564,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
                     if (!dueDate) setDueDate(now.toISOString().split('T')[0])
                   }}
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 text-accent hover:text-accent-hover transition-colors"
-                  title="Use current time"
+                  title={t('useCurrentTime')}
                   style={{ touchAction: 'manipulation' }}
                 >
                   <Clock size={14} />
@@ -613,7 +576,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
                 onClick={() => { setDueDate(''); setDueTime('') }}
                 className="mt-1.5 text-xs text-text-dim hover:text-danger transition-colors flex items-center gap-1"
               >
-                <X size={10} /> Clear date
+                <X size={10} /> {t('clearDate')}
               </button>
             )}
             <p className="text-[11px] text-text-dim mt-2">
@@ -632,7 +595,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
                 <div className="h-px bg-bg-border/60" />
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-accent">
-                    📍 Your time · {viewerTz.split('/').pop()?.replace('_', ' ')}
+                    📍 {viewerTz.split('/').pop()?.replace('_', ' ')}
                   </span>
                   <span className="font-medium text-accent">
                     {formatInTz(existingDueAt!, viewerTz)}
@@ -642,7 +605,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
             )}
           </div>
 
-          {/* ── Assignee ───────────────────────────────── */}
+          {/* Assignee */}
           <AssigneePicker
             listId={listId}
             userId={userId}
@@ -650,15 +613,15 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
             onChange={setAssignedTo}
           />
 
-          {/* ── Subtasks ───────────────────────────────── */}
+          {/* Subtasks */}
           <div>
             <div className="flex items-center justify-between mb-2.5">
               <label className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-widest">
-                <CheckSquare size={12} /> Subtasks
+                <CheckSquare size={12} /> {t('subtasks')}
               </label>
               {subTotal > 0 && (
                 <span className="text-[11px] text-text-dim tabular-nums">
-                  {subDone}/{subTotal} done
+                  {subDone}/{subTotal} {t('subtasksDone')}
                 </span>
               )}
             </div>
@@ -676,12 +639,6 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
             )}
 
             {subTotal > 0 && (
-              /*
-               * DnD context: touchAction:'none' is set ONLY on the drag handle
-               * via touch-none / style={{ touchAction:'none' }}.
-               * The parent scroll container keeps touchAction:'pan-y' so
-               * scrolling outside the handle works normally.
-               */
               <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
@@ -724,7 +681,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
                 onKeyDown={e => {
                   if (e.key === 'Enter') { e.preventDefault(); addSubtaskLocal() }
                 }}
-                placeholder="Add subtask… (Enter ↵)"
+                placeholder={t('addSubtask')}
                 className="input-field text-sm py-2 flex-1"
               />
               <button
@@ -738,18 +695,16 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
             </div>
           </div>
 
-          {/* ── Edit History ────────────────────────────── */}
+          {/* Edit History */}
           {isEdit && (
             <TaskHistoryPanel taskId={task!.id} userId={userId} />
           )}
-
         </div>
-        {/* END single scroll container */}
 
-        {/* ── Footer (fixed to sheet bottom, outside scroll) ── */}
+        {/* Footer */}
         <div className="flex-shrink-0 px-4 pt-3 pb-6 border-t border-bg-border/60 bg-bg-surface">
           {!title.trim() && (
-            <p className="text-xs text-text-dim text-center mb-2">Add a title to continue</p>
+            <p className="text-xs text-text-dim text-center mb-2">{t('addTitle')}</p>
           )}
           <button
             onClick={handleSave}
@@ -760,10 +715,10 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
             {saving ? (
               <span className="flex items-center justify-center gap-2">
                 <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                {isEdit ? 'Saving…' : 'Creating…'}
+                {isEdit ? t('saving') : t('creating')}
               </span>
             ) : (
-              isEdit ? 'Save Changes' : 'Create Task'
+              isEdit ? t('saveChanges') : t('createTask')
             )}
           </button>
         </div>

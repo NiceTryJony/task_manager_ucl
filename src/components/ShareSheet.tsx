@@ -9,6 +9,7 @@ import {
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { useI18n } from '@/lib/i18n-context'
 
 interface Props {
   listId:    string
@@ -34,13 +35,19 @@ interface FoundUser {
   username?:  string
 }
 
-const ROLE_CONFIG = {
-  owner:  { label: 'Owner',  icon: <Crown  size={12} />, color: 'text-amber',          bg: 'bg-amber/10'  },
-  editor: { label: 'Editor', icon: <Pencil size={12} />, color: 'text-accent',         bg: 'bg-accent/10' },
-  viewer: { label: 'Viewer', icon: <Eye    size={12} />, color: 'text-text-secondary', bg: 'bg-bg-hover'  },
+function useRoleConfig() {
+  const { t } = useI18n()
+  return {
+    owner:  { label: t('roleOwner'),  icon: <Crown  size={12} />, color: 'text-amber',          bg: 'bg-amber/10'  },
+    editor: { label: t('roleEditor'), icon: <Pencil size={12} />, color: 'text-accent',         bg: 'bg-accent/10' },
+    viewer: { label: t('roleViewer'), icon: <Eye    size={12} />, color: 'text-text-secondary', bg: 'bg-bg-hover'  },
+  }
 }
 
 export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
+  const { t } = useI18n()
+  const ROLE_CONFIG = useRoleConfig()
+
   const [members,        setMembers]        = useState<Member[]>([])
   const [myRole,         setMyRole]         = useState<'owner' | 'editor' | 'viewer'>('viewer')
   const [loadingMembers, setLoadingMembers] = useState(true)
@@ -63,7 +70,6 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
   const [loadingExp,   setLoadingExp]   = useState(false)
   const [copied,       setCopied]       = useState(false)
 
-  // ── Debug state ────────────────────────────────────────────
   const [showDebug,  setShowDebug]  = useState(false)
   const [debugLines, setDebugLines] = useState<string[]>([])
 
@@ -90,7 +96,6 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
     gsap.to(overlayRef.current, { opacity: 0, duration: 0.2, onComplete: onClose })
   }
 
-  // ── Fetch members ──────────────────────────────────────────
   async function fetchMembers() {
     setLoadingMembers(true)
     dbg(`fetchMembers → GET /api/lists/share?listId=${listId}&userId=${userId}`)
@@ -108,7 +113,6 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
     setLoadingMembers(false)
   }
 
-  // ── Autocomplete — debounced search in DB ──────────────────
   useEffect(() => {
     clearTimeout(searchTimeout.current)
     if (selectedUser) return
@@ -160,7 +164,6 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
     setTimeout(() => searchRef.current?.focus(), 50)
   }
 
-  // ── Invite ─────────────────────────────────────────────────
   async function handleInvite() {
     if (!selectedUser) return
     setInviting(true); setResult(null)
@@ -174,16 +177,15 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
     dbg(`invite ← status=${res.status} ok=${data.ok} err=${data.error ?? 'none'}`)
     setInviting(false)
     if (data.ok) {
-      toast.success(`${selectedUser.first_name} invited!`)
-      setResult({ ok: true, message: `${selectedUser.first_name} added as ${role}` })
+      toast.success(`${selectedUser.first_name} ${t('invited')}!`)
+      setResult({ ok: true, message: `${selectedUser.first_name} — ${role === 'editor' ? t('roleEditor') : t('roleViewer')}` })
       clearSelection()
       fetchMembers()
     } else {
-      setResult({ ok: false, message: data.error ?? 'Something went wrong' })
+      setResult({ ok: false, message: data.error ?? t('failedToSave') })
     }
   }
 
-  // ── Role change ────────────────────────────────────────────
   async function handleRoleChange(targetUserId: number, newRole: 'editor' | 'viewer') {
     setChangingRole(targetUserId); setOpenRoleMenu(null)
     await fetch('/api/lists/share', {
@@ -193,10 +195,9 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
     })
     setChangingRole(null)
     setMembers(prev => prev.map(m => m.user_id === targetUserId ? { ...m, role: newRole } : m))
-    toast.success('Role updated')
+    toast.success(t('roleUpdated'))
   }
 
-  // ── Remove ─────────────────────────────────────────────────
   async function handleRemove(targetUserId: number, name: string) {
     setRemovingId(targetUserId)
     await fetch(
@@ -205,10 +206,9 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
     )
     setRemovingId(null)
     setMembers(prev => prev.filter(m => m.user_id !== targetUserId))
-    toast.success(`${name} removed`)
+    toast.success(`${name} ${t('removed')}`)
   }
 
-  // ── Export ─────────────────────────────────────────────────
   async function handleLoadExport() {
     if (exportText) { setShowExport(v => !v); return }
     setLoadingExp(true)
@@ -219,7 +219,7 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
         dbg(`export FAIL: ${err.error}`)
-        toast.error(`Export failed: ${err.error}`)
+        toast.error(`${t('exportFailed')}: ${err.error}`)
         setLoadingExp(false)
         return
       }
@@ -229,7 +229,7 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
       setShowExport(true)
     } catch (e: any) {
       dbg(`export ERROR: ${e?.message}`)
-      toast.error('Network error')
+      toast.error(t('networkError'))
     }
     setLoadingExp(false)
   }
@@ -238,14 +238,15 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
     try {
       await navigator.clipboard.writeText(exportText)
       setCopied(true)
-      toast.success('Copied!')
+      toast.success(t('copied'))
       setTimeout(() => setCopied(false), 2500)
     } catch {
-      toast.error('Copy failed — select manually')
+      toast.error(t('copyFailed'))
     }
   }
 
   const canManage = myRole === 'owner' || myRole === 'editor'
+  const memberCount = members.length
 
   return (
     <div className="fixed inset-0 z-50 flex items-end">
@@ -258,9 +259,9 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
           <div className="w-10 h-1 bg-bg-border rounded-full mx-auto mb-4" />
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-lg font-bold">Share List</h2>
+              <h2 className="text-lg font-bold">{t('shareList')}</h2>
               <p className="text-xs text-text-secondary mt-0.5">
-                {members.length} member{members.length !== 1 ? 's' : ''} · my role: <span className="text-accent">{myRole}</span>
+                {memberCount} {memberCount === 1 ? t('memberSingle') : t('memberPlural')} · {t('myRoleLabel')}: <span className="text-accent">{ROLE_CONFIG[myRole].label}</span>
               </p>
             </div>
             <div className="flex items-center gap-1">
@@ -278,7 +279,7 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
 
         <div className="flex-1 scrollable px-4 py-4 space-y-5">
 
-          {/* ── Debug panel ───────────────────────────────── */}
+          {/* Debug panel */}
           {showDebug && (
             <div className="bg-[#0a0a14] border border-amber/20 rounded-2xl p-3 space-y-1">
               <div className="flex items-center justify-between mb-2">
@@ -301,10 +302,10 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
             </div>
           )}
 
-          {/* ── Members ───────────────────────────────────── */}
+          {/* Members */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs font-semibold text-text-secondary uppercase tracking-widest">Who has access</p>
+              <p className="text-xs font-semibold text-text-secondary uppercase tracking-widest">{t('whoHasAccess')}</p>
               <button onClick={fetchMembers} className="text-text-dim hover:text-accent transition-colors p-1">
                 <RefreshCw size={13} />
               </button>
@@ -317,7 +318,7 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
             ) : members.length === 0 ? (
               <div className="flex items-center gap-2 p-3 bg-bg-card border border-bg-border rounded-xl">
                 <AlertCircle size={14} className="text-amber flex-shrink-0" />
-                <span className="text-xs text-text-secondary">No members loaded — check debug log</span>
+                <span className="text-xs text-text-secondary">{t('noMembersDebug')}</span>
               </div>
             ) : (
               <div className="space-y-2">
@@ -368,7 +369,7 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
                           </span>
                         )}
                         {openRoleMenu === m.user_id && (
-                          <div className="absolute right-0 top-full mt-1 z-20 bg-bg-surface border border-bg-border rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.5)] overflow-hidden" style={{ minWidth: 120 }}>
+                          <div className="absolute right-0 top-full mt-1 z-20 bg-bg-surface border border-bg-border rounded-xl shadow-[0_8px_24px_rgba(0,0,0,0.5)] overflow-hidden" style={{ minWidth: 130 }}>
                             {(['editor', 'viewer'] as const).map(r => (
                               <button key={r} onClick={() => handleRoleChange(m.user_id, r)}
                                 className={cn('w-full flex items-center gap-2 px-3 py-2.5 text-xs font-medium transition-colors text-left',
@@ -394,20 +395,16 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
             )}
           </div>
 
-          {/* ── Invite ────────────────────────────────────── */}
+          {/* Invite */}
           {canManage && (
             <>
               <div className="flex items-center gap-3">
                 <div className="flex-1 h-px bg-bg-border/60" />
-                <span className="text-xs text-text-dim">Invite someone</span>
+                <span className="text-xs text-text-dim">{t('inviteSomeone')}</span>
                 <div className="flex-1 h-px bg-bg-border/60" />
               </div>
 
               <div className="space-y-3">
-                {/* Search input
-                    NOTE: autoComplete="off", autoCorrect="off", data-form-type="other"
-                    suppresses Telegram WebApp native contact suggestions
-                    which would appear as a duplicate unclikable overlay */}
                 <div className="relative">
                   <div className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-dim pointer-events-none z-10">
                     {searching
@@ -418,12 +415,8 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
                     ref={searchRef}
                     value={query}
                     onChange={e => { setQuery(e.target.value); setSelectedUser(null) }}
-                    placeholder="type username…"
-                    className={cn(
-                      'input-field pl-10 pr-9 text-sm',
-                      selectedUser && 'border-accent/50 bg-accent/5'
-                    )}
-                    // These attributes suppress Telegram's native contact overlay:
+                    placeholder={t('typeUsername')}
+                    className={cn('input-field pl-10 pr-9 text-sm', selectedUser && 'border-accent/50 bg-accent/5')}
                     autoComplete="off"
                     autoCorrect="off"
                     autoCapitalize="none"
@@ -438,16 +431,14 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
                   )}
                 </div>
 
-                {/* Suggestions — rendered OUTSIDE input wrapper to avoid overflow clipping */}
                 {showSuggest && suggestions.length > 0 && (
                   <div className="bg-bg-card border border-accent/25 rounded-2xl overflow-hidden">
                     <p className="text-[10px] text-text-dim px-3 pt-2 pb-1 uppercase tracking-widest font-semibold">
-                      Found in database
+                      {t('foundInDatabase')}
                     </p>
                     {suggestions.map((u, i) => (
                       <button
                         key={u.id}
-                        // Use onPointerDown instead of onClick to fire before blur
                         onPointerDown={e => { e.preventDefault(); selectUser(u) }}
                         className={cn(
                           'w-full flex items-center gap-3 px-3.5 py-3 text-left transition-colors hover:bg-bg-hover active:bg-bg-hover',
@@ -461,23 +452,18 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
                           <p className="text-sm font-medium">{u.first_name}</p>
                           {u.username && <p className="text-xs text-text-dim font-mono">@{u.username}</p>}
                         </div>
-                        <Check size={14} className="text-emerald flex-shrink-0 opacity-0 group-hover:opacity-100" />
                       </button>
                     ))}
                   </div>
                 )}
 
-                {/* No results */}
                 {!searching && query.trim().replace(/^@/, '').length >= 2 && suggestions.length === 0 && !selectedUser && (
                   <div className="flex items-center gap-2 p-3 bg-bg-card border border-bg-border rounded-xl">
                     <AlertCircle size={14} className="text-amber flex-shrink-0" />
-                    <span className="text-xs text-text-secondary">
-                      Not found in database. User must open TaskFlow first.
-                    </span>
+                    <span className="text-xs text-text-secondary">{t('notFound')}</span>
                   </div>
                 )}
 
-                {/* Selected user confirmation */}
                 {selectedUser && (
                   <div className="flex items-center gap-3 px-3.5 py-3 bg-accent/5 border border-accent/25 rounded-2xl">
                     <div className="w-9 h-9 rounded-full bg-accent/20 flex items-center justify-center text-accent font-bold text-sm flex-shrink-0">
@@ -491,7 +477,6 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
                   </div>
                 )}
 
-                {/* Role selector */}
                 <div className="flex gap-2">
                   {(['editor', 'viewer'] as const).map(r => (
                     <button key={r} onClick={() => setRole(r)}
@@ -503,7 +488,7 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
                       )}
                     >
                       {ROLE_CONFIG[r].icon}
-                      {r === 'editor' ? 'Can edit' : 'View only'}
+                      {r === 'editor' ? t('canEdit') : t('viewOnlyRole')}
                     </button>
                   ))}
                 </div>
@@ -522,16 +507,16 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
                   className="btn-primary w-full py-3.5 flex items-center justify-center gap-2 disabled:opacity-35"
                 >
                   {inviting ? <Loader2 size={17} className="animate-spin" /> : <UserPlus size={17} />}
-                  {inviting ? 'Inviting…' : selectedUser ? `Invite ${selectedUser.first_name}` : 'Select a user first'}
+                  {inviting ? t('inviting') : selectedUser ? `${t('inviteBtn')} ${selectedUser.first_name}` : t('selectUserFirst')}
                 </button>
               </div>
             </>
           )}
 
-          {/* ── Export as text ─────────────────────────────── */}
+          {/* Export as text */}
           <div className="flex items-center gap-3">
             <div className="flex-1 h-px bg-bg-border/60" />
-            <span className="text-xs text-text-dim">or share as text</span>
+            <span className="text-xs text-text-dim">{t('orShareAsText')}</span>
             <div className="flex-1 h-px bg-bg-border/60" />
           </div>
 
@@ -542,7 +527,7 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
               className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium bg-bg-card border border-bg-border hover:bg-bg-hover transition-colors text-text-secondary disabled:opacity-50"
             >
               {loadingExp ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />}
-              {showExport ? 'Hide' : 'Preview'} formatted text
+              {showExport ? t('hideText') : t('previewText')} {t('formattedText')}
               {showExport ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
             </button>
 
@@ -564,9 +549,9 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
                   )}
                 >
                   {copied ? <CheckCheck size={16} /> : <Copy size={16} />}
-                  {copied ? 'Copied!' : 'Copy to clipboard'}
+                  {copied ? t('copied') : t('copyClipboard')}
                 </button>
-                <p className="text-xs text-text-dim text-center">Paste anywhere — Telegram, Notion, Notes…</p>
+                <p className="text-xs text-text-dim text-center">{t('copyPasteHint')}</p>
               </div>
             )}
           </div>

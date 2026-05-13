@@ -16,10 +16,12 @@ import { gsap } from 'gsap'
 import type { TaskList } from '@/types'
 import { Toaster } from 'sonner'
 import { SaveBanner } from '@/components/ui/SaveBanner'
+import { useI18n } from '@/lib/i18n-context'
 
 export default function HomePage() {
   const { user, isReady, haptic, needsIdentify, setIdentity } = useTelegram()
   const { lists, setLists, setUserId, activeListId, setActiveList } = useTaskStore()
+  const { t } = useI18n()
 
   const [loading,      setLoading]      = useState(true)
   const [showCreate,   setShowCreate]   = useState(false)
@@ -72,7 +74,6 @@ export default function HomePage() {
     })
   }
 
-  // Realtime: refresh list counts when tasks change
   useEffect(() => {
     if (!uid) return
     const channel = supabase
@@ -121,7 +122,7 @@ export default function HomePage() {
 
   return (
     <div className="page-container">
-      <SaveBanner /> 
+      <SaveBanner />
       <Toaster position="top-center" theme="dark" />
 
       {isReady && needsIdentify && (
@@ -142,11 +143,11 @@ export default function HomePage() {
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">
-              Hey, {displayName || user?.first_name || 'there'} 👋
+              {t('greeting')}, {displayName || user?.first_name || 'there'} 👋
             </h1>
             {!loading && totalTasks > 0 && (
               <p className="text-text-secondary text-sm mt-0.5">
-                {doneTasks}/{totalTasks} tasks completed
+                {doneTasks}/{totalTasks} {t('tasksCompleted')}
               </p>
             )}
           </div>
@@ -154,7 +155,7 @@ export default function HomePage() {
             <button
               onClick={() => { setShowSettings(true); haptic.light() }}
               className="btn-ghost p-2"
-              aria-label="Settings"
+              aria-label={t('settings')}
             >
               <Settings size={18} />
             </button>
@@ -163,7 +164,7 @@ export default function HomePage() {
               className="btn-primary flex items-center gap-1.5 text-sm"
             >
               <Plus size={16} strokeWidth={2.5} />
-              New list
+              {t('newList')}
             </button>
           </div>
         </div>
@@ -222,14 +223,15 @@ export default function HomePage() {
 }
 
 function EmptyState({ onCreate }: { onCreate: () => void }) {
+  const { t } = useI18n()
   return (
     <div className="flex flex-col items-center justify-center h-64 text-center px-6">
       <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center mb-4 animate-float">
         <Sparkles size={28} className="text-accent" />
       </div>
-      <h2 className="text-lg font-semibold mb-1">No lists yet</h2>
-      <p className="text-text-secondary text-sm mb-6">Create your first task list to get started</p>
-      <button onClick={onCreate} className="btn-primary">Create a list</button>
+      <h2 className="text-lg font-semibold mb-1">{t('noLists')}</h2>
+      <p className="text-text-secondary text-sm mb-6">{t('noListsDesc')}</p>
+      <button onClick={onCreate} className="btn-primary">{t('createList')}</button>
     </div>
   )
 }

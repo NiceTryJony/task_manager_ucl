@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react'
 import { gsap } from 'gsap'
 import {
   DndContext, closestCenter, PointerSensor, TouchSensor,
@@ -16,9 +16,8 @@ import { useTaskStore } from '@/lib/store'
 import { useTelegram } from '@/hooks/useTelegram'
 import { PRIORITY_CONFIG, cn } from '@/lib/utils'
 import {
-  ArrowLeft, Plus, GripVertical,
-  Search, X, SortAsc,
-  Calendar, CheckCircle2, Eye,
+  ArrowLeft, Plus, GripVertical, Search, X, SortAsc,
+  Calendar, CheckCircle2, Eye, Sun, Moon,
 } from 'lucide-react'
 import { TaskSheet }       from '@/components/TaskSheet'
 import { ViewerTaskSheet } from '@/components/ViewerTaskSheet'
@@ -26,14 +25,9 @@ import { ContextMenu, type ContextMenuItem } from '@/components/ContextMenu'
 import { Confetti }        from '@/components/Confetti'
 import type { Task, TaskStatus, Priority, MemberRole } from '@/types'
 import { toast } from 'sonner'
-import { useMemo } from 'react'
 import { usePending } from '@/hooks/usePending'
-import { Sun, Moon } from 'lucide-react'
 import { useTheme }  from '@/lib/theme-context'
 import { useI18n }   from '@/lib/i18n-context'
-
-
-
 
 interface Props { onBack: () => void }
 
@@ -43,7 +37,6 @@ type FilterKey = TaskStatus | 'all' | 'archived'
 const PRIORITY_ORDER: Record<Priority, number> = { urgent: 0, high: 1, medium: 2, low: 3 }
 
 export function ListDetailView({ onBack }: Props) {
-  
   const { theme, toggleTheme } = useTheme()
   const { t } = useI18n()
 
@@ -54,6 +47,7 @@ export function ListDetailView({ onBack }: Props) {
     { key: 'done',        label: t('filter_done')    },
     { key: 'archived',    label: t('filter_archive') },
   ]
+
   const { user, haptic } = useTelegram()
   const {
     lists, tasks, activeListId,
@@ -61,26 +55,26 @@ export function ListDetailView({ onBack }: Props) {
   } = useTaskStore()
   const list = lists.find(l => l.id === activeListId)
 
-  const [myRole,        setMyRole]       = useState<MemberRole>('viewer')
-  const [filter,        setFilter]       = useState<FilterKey>('all')
-  const [sortKey,       setSortKey]      = useState<SortKey>('position')
-  const [loading,       setLoading]      = useState(true)
-  const [searchQuery,   setSearchQuery]  = useState('')
-  const [showSearch,    setShowSearch]   = useState(false)
-  const [showSort,      setShowSort]     = useState(false)
-  const [activeTask,    setActiveTask]   = useState<Task | null>(null)
-  const [showCreate,    setShowCreate]   = useState(false)
-  const [isOnline,      setIsOnline]     = useState(true)
-  const [showConfetti,  setShowConfetti] = useState(false)
-  const [contextMenu,   setContextMenu]  = useState<{ task: Task; x: number; y: number } | null>(null)
-  const [isPulling,     setIsPulling]    = useState(false)
-  const [viewerTask,    setViewerTask]   = useState<Task | null>(null)
+  const [myRole,       setMyRole]      = useState<MemberRole>('viewer')
+  const [filter,       setFilter]      = useState<FilterKey>('all')
+  const [sortKey,      setSortKey]     = useState<SortKey>('position')
+  const [loading,      setLoading]     = useState(true)
+  const [searchQuery,  setSearchQuery] = useState('')
+  const [showSearch,   setShowSearch]  = useState(false)
+  const [showSort,     setShowSort]    = useState(false)
+  const [activeTask,   setActiveTask]  = useState<Task | null>(null)
+  const [showCreate,   setShowCreate]  = useState(false)
+  const [isOnline,     setIsOnline]    = useState(true)
+  const [showConfetti, setShowConfetti]= useState(false)
+  const [contextMenu,  setContextMenu] = useState<{ task: Task; x: number; y: number } | null>(null)
+  const [isPulling,    setIsPulling]   = useState(false)
+  const [viewerTask,   setViewerTask]  = useState<Task | null>(null)
 
   const pageRef    = useRef<HTMLDivElement>(null)
   const listRef    = useRef<HTMLDivElement>(null)
   const searchRef  = useRef<HTMLInputElement>(null)
-  const pullStartY      = useRef(0)
-  const wasDone         = useRef(false)
+  const pullStartY       = useRef(0)
+  const wasDone          = useRef(false)
   const fetchDebounceRef = useRef<ReturnType<typeof setTimeout>>()
   const abortRef         = useRef<AbortController>()
 
@@ -108,14 +102,13 @@ export function ListDetailView({ onBack }: Props) {
     return a.position - b.position
   })
 
-  // const doneCount  = activeTasks.filter(t => t.status === 'done').length
-  // const totalCount = activeTasks.length
   const { doneCount, totalCount } = useMemo(() => ({
     doneCount:  activeTasks.filter(t => t.status === 'done').length,
     totalCount: activeTasks.length,
   }), [activeTasks])
-  const progress   = totalCount ? Math.round((doneCount / totalCount) * 100) : 0
-  const isViewer   = myRole === 'viewer'
+
+  const progress = totalCount ? Math.round((doneCount / totalCount) * 100) : 0
+  const isViewer = myRole === 'viewer'
   const { run, isPending } = usePending()
 
   const sensors = useSensors(
@@ -123,17 +116,15 @@ export function ListDetailView({ onBack }: Props) {
     useSensor(TouchSensor,   { activationConstraint: { delay: 200, tolerance: 8 } })
   )
 
-  // ── Reset loading when switching lists ─────────────────────
-  // Without this, navigating back and reopening a list shows
-  // stale content without a loading indicator.
+  // ── Reset on list change ───────────────────────────────────
   useEffect(() => {
     setLoading(true)
     setFilter('all')
     setSortKey('position')
     setSearchQuery('')
     setShowSearch(false)
-    setShowSort(false)      // ← сортировка тоже должна сбрасываться
-    setContextMenu(null)    // ← контекстное меню могло остаться открытым
+    setShowSort(false)
+    setContextMenu(null)
     wasDone.current = false
   }, [activeListId])
 
@@ -152,7 +143,7 @@ export function ListDetailView({ onBack }: Props) {
     if (!tg) return
 
     if (!isViewer) {
-      tg.MainButton.setText('+ New Task')
+      tg.MainButton.setText(t('newTaskBtn'))
       tg.MainButton.show()
       tg.MainButton.onClick(() => { setShowCreate(true); haptic.light() })
     } else {
@@ -190,71 +181,70 @@ export function ListDetailView({ onBack }: Props) {
     }
   }, [])
 
-  // СТАЛО
+  // ── Realtime ───────────────────────────────────────────────
   useEffect(() => {
-      if (!activeListId || !user) return
-      fetchTasks()
+    if (!activeListId || !user) return
+    fetchTasks()
 
-      const debouncedFetch = () => {
-        clearTimeout(fetchDebounceRef.current)
-        fetchDebounceRef.current = setTimeout(() => fetchTasks(false), 300)
-      }
+    const debouncedFetch = () => {
+      clearTimeout(fetchDebounceRef.current)
+      fetchDebounceRef.current = setTimeout(() => fetchTasks(false), 300)
+    }
 
-      const channel = supabase
-        .channel(`tasks-${activeListId}`)
-        .on('postgres_changes' as any, {
-          event: '*', schema: 'public', table: 'tasks',
-          filter: `list_id=eq.${activeListId}`,
-        }, debouncedFetch)
-        .on('postgres_changes' as any, {
-          event: '*', schema: 'public', table: 'subtasks',
-        }, debouncedFetch)
-        .subscribe((status: string) => setIsOnline(status === 'SUBSCRIBED'))
+    const channel = supabase
+      .channel(`tasks-${activeListId}`)
+      .on('postgres_changes' as any, {
+        event: '*', schema: 'public', table: 'tasks',
+        filter: `list_id=eq.${activeListId}`,
+      }, debouncedFetch)
+      .on('postgres_changes' as any, {
+        event: '*', schema: 'public', table: 'subtasks',
+      }, debouncedFetch)
+      .subscribe((status: string) => setIsOnline(status === 'SUBSCRIBED'))
 
-      return () => {
-        supabase.removeChannel(channel)
-        clearTimeout(fetchDebounceRef.current)
-        abortRef.current?.abort()
-      }
-    }, [activeListId, user])
-
+    return () => {
+      supabase.removeChannel(channel)
+      clearTimeout(fetchDebounceRef.current)
+      abortRef.current?.abort()
+    }
+  }, [activeListId, user])
 
   async function fetchTasks(showAnim = true) {
-      abortRef.current?.abort()
-      abortRef.current = new AbortController()
+    abortRef.current?.abort()
+    abortRef.current = new AbortController()
 
-      try {
-        const [res, resA] = await Promise.all([
-          fetch(`/api/tasks?listId=${activeListId}&userId=${user?.id ?? 0}`, { signal: abortRef.current.signal }),
-          fetch(`/api/tasks?listId=${activeListId}&userId=${user?.id ?? 0}&archived=true`, { signal: abortRef.current.signal }),
-        ])
-        const [data, dataA] = await Promise.all([res.json(), resA.json()])
+    try {
+      const [res, resA] = await Promise.all([
+        fetch(`/api/tasks?listId=${activeListId}&userId=${user?.id ?? 0}`, { signal: abortRef.current.signal }),
+        fetch(`/api/tasks?listId=${activeListId}&userId=${user?.id ?? 0}&archived=true`, { signal: abortRef.current.signal }),
+      ])
+      const [data, dataA] = await Promise.all([res.json(), resA.json()])
 
-        const combined = [...(data.tasks ?? []), ...(dataA.tasks ?? [])]
-        setTasks(activeListId!, combined)
-        setLoading(false)
+      const combined = [...(data.tasks ?? []), ...(dataA.tasks ?? [])]
+      setTasks(activeListId!, combined)
+      setLoading(false)
 
-        if (showAnim) {
-          requestAnimationFrame(() => {
-            const cards = listRef.current?.querySelectorAll('.task-item')
-            if (cards?.length) {
-              gsap.fromTo(cards,
-                { x: -14, opacity: 0 },
-                { x: 0, opacity: 1, duration: 0.26, stagger: 0.04, ease: 'power2.out' }
-              )
-            }
-          })
-        }
-
-        const active_    = data.tasks ?? []
-        const allDone    = active_.length > 0 && active_.every((t: Task) => t.status === 'done')
-        if (allDone && !wasDone.current) { setShowConfetti(true); haptic.success() }
-        wasDone.current  = allDone
-
-      } catch (e: any) {
-        if (e.name === 'AbortError') return
+      if (showAnim) {
+        requestAnimationFrame(() => {
+          const cards = listRef.current?.querySelectorAll('.task-item')
+          if (cards?.length) {
+            gsap.fromTo(cards,
+              { x: -14, opacity: 0 },
+              { x: 0, opacity: 1, duration: 0.26, stagger: 0.04, ease: 'power2.out' }
+            )
+          }
+        })
       }
+
+      const active_   = data.tasks ?? []
+      const allDone   = active_.length > 0 && active_.every((t: Task) => t.status === 'done')
+      if (allDone && !wasDone.current) { setShowConfetti(true); haptic.success() }
+      wasDone.current = allDone
+
+    } catch (e: any) {
+      if (e.name === 'AbortError') return
     }
+  }
 
   function handleBack() {
     haptic.light()
@@ -278,7 +268,7 @@ export function ListDetailView({ onBack }: Props) {
     setIsPulling(false)
     haptic.light()
     await fetchTasks()
-    toast.success('Refreshed')
+    toast.success(t('refreshed'))
   }
 
   // ── Status toggle ──────────────────────────────────────────
@@ -296,8 +286,8 @@ export function ListDetailView({ onBack }: Props) {
       }).then(r => { if (!r.ok) throw new Error(); return r })
     )
     if (!ok) {
-      updateTask(task.id, { status: task.status }) // откат
-      toast.error('Failed to change status')
+      updateTask(task.id, { status: task.status })
+      toast.error(t('failedStatus'))
     } else {
       const updated = (tasks[activeListId!] ?? []).map(t =>
         t.id === task.id ? { ...t, status: next } : t
@@ -309,7 +299,7 @@ export function ListDetailView({ onBack }: Props) {
     }
   }
 
-  // ── Archive / delete ───────────────────────────────────────
+  // ── Archive / restore / delete ─────────────────────────────
   async function handleArchive(task: Task) {
     if (isPending) return
     updateTask(task.id, { archived: true }); haptic.medium()
@@ -322,9 +312,9 @@ export function ListDetailView({ onBack }: Props) {
     )
     if (!ok) {
       updateTask(task.id, { archived: false })
-      toast.error('Failed to archive')
+      toast.error(t('failedToArchive'))
     } else {
-      toast.success('Archived')
+      toast.success(t('archived'))
     }
   }
 
@@ -340,13 +330,12 @@ export function ListDetailView({ onBack }: Props) {
     )
     if (!ok) {
       updateTask(task.id, { archived: true })
-      toast.error('Could not be restored')
+      toast.error(t('failedToRestore'))
     } else {
-      toast.success('Restored')
+      toast.success(t('restored'))
     }
   }
 
-// ЗАМЕНИТЬ handleDelete
   async function handleDelete(task: Task) {
     if (isPending) return
     removeTask(task.id, task.list_id); haptic.heavy()
@@ -355,17 +344,16 @@ export function ListDetailView({ onBack }: Props) {
         .then(r => { if (!r.ok) throw new Error(); return r })
     )
     if (!ok) {
-      fetchTasks(false) // восстановить если ошибка
-      toast.error('Failed to delete a task')
+      fetchTasks(false)
+      toast.error(t('failedToDelete'))
     } else {
-      toast('Task deleted', {
-        action: { label: 'Cancel', onClick: () => fetchTasks(false) },
+      toast(t('taskDeleted'), {
+        action: { label: t('cancel'), onClick: () => fetchTasks(false) },
         duration: 4000,
       })
     }
   }
 
-// ЗАМЕНИТЬ handlePriorityChange
   async function handlePriorityChange(task: Task, priority: Priority) {
     if (isPending) return
     updateTask(task.id, { priority }); haptic.select()
@@ -378,56 +366,55 @@ export function ListDetailView({ onBack }: Props) {
     )
     if (!ok) {
       updateTask(task.id, { priority: task.priority })
-      toast.error('Не удалось изменить приоритет')
+      toast.error(t('failedStatus'))
     }
   }
 
-  // ── Drag reorder (owner/editor only) ──────────────────────
-  // СТАЛО
+  // ── Drag reorder ───────────────────────────────────────────
   async function handleDragEnd(event: DragEndEvent) {
-      if (isViewer) return
-      const { active, over } = event
-      if (!over || active.id === over.id) return
-      const curr      = tasks[activeListId!] ?? []
-      const oldIdx    = curr.findIndex(t => t.id === active.id)
-      const newIdx    = curr.findIndex(t => t.id === over.id)
-      const reordered = arrayMove(curr, oldIdx, newIdx)
-      reorderTasks(activeListId!, reordered)
-      haptic.select()
-      try {
-        const results = await Promise.all(reordered.map((t, i) =>
-          fetch('/api/tasks', {
-            method:  'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ taskId: t.id, userId: user?.id ?? 0, position: i }),
-          })
-        ))
-        if (results.some(r => !r.ok)) throw new Error('partial failure')
-      } catch {
-        toast.error('Reorder failed — restoring')
-        reorderTasks(activeListId!, curr) // откат к исходному порядку
-      }
+    if (isViewer) return
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+    const curr      = tasks[activeListId!] ?? []
+    const oldIdx    = curr.findIndex(t => t.id === active.id)
+    const newIdx    = curr.findIndex(t => t.id === over.id)
+    const reordered = arrayMove(curr, oldIdx, newIdx)
+    reorderTasks(activeListId!, reordered)
+    haptic.select()
+    try {
+      const results = await Promise.all(reordered.map((t, i) =>
+        fetch('/api/tasks', {
+          method:  'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ taskId: t.id, userId: user?.id ?? 0, position: i }),
+        })
+      ))
+      if (results.some(r => !r.ok)) throw new Error('partial failure')
+    } catch {
+      toast.error(t('reorderFailed'))
+      reorderTasks(activeListId!, curr)
     }
+  }
 
   // ── Context menu ───────────────────────────────────────────
   function getContextItems(task: Task): ContextMenuItem[] {
     if (isViewer) {
-      return [{ label: 'View Task', icon: '👁', onClick: () => setViewerTask(task) }]
+      return [{ label: t('viewTask'), icon: '👁', onClick: () => setViewerTask(task) }]
     }
 
     const statusItem: ContextMenuItem = task.status !== 'done'
-      ? { label: 'Mark as Done',  icon: '✅', onClick: () => handleStatusToggle(task) }
-      : { label: 'Mark as To Do', icon: '⬜', onClick: () => handleStatusToggle(task) }
+      ? { label: t('markAsDone'),  icon: '✅', onClick: () => handleStatusToggle(task) }
+      : { label: t('markAsTodo'),  icon: '⬜', onClick: () => handleStatusToggle(task) }
 
     const archiveItem: ContextMenuItem = task.archived
-      ? { label: 'Restore', icon: '📤', onClick: () => handleUnarchive(task) }
-      : { label: 'Archive', icon: '📦', onClick: () => handleArchive(task)   }
+      ? { label: t('restored'),   icon: '📤', onClick: () => handleUnarchive(task) }
+      : { label: t('archived'),   icon: '📦', onClick: () => handleArchive(task) }
 
     return [
-      { label: 'Edit',   icon: '✏️',  onClick: () => setActiveTask(task) },
+      { label: t('edit'),   icon: '✏️',  onClick: () => setActiveTask(task) },
       statusItem,
       archiveItem,
-      { label: 'Delete', icon: '🗑️', color: 'text-danger', onClick: () => handleDelete(task) },
+      { label: t('delete'), icon: '🗑️', color: 'text-danger', onClick: () => handleDelete(task) },
     ]
   }
 
@@ -458,20 +445,20 @@ export function ListDetailView({ onBack }: Props) {
               )} />
               {isViewer && (
                 <span className="flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-text-dim/20 text-text-secondary flex-shrink-0">
-                  <Eye size={9} /> View only
+                  <Eye size={9} /> {t('viewOnly')}
                 </span>
               )}
             </div>
             {totalCount > 0 && (
-              <p className="text-xs text-text-secondary">{doneCount}/{totalCount} done</p>
+              <p className="text-xs text-text-secondary">{doneCount}/{totalCount} {t('subtasksDone')}</p>
             )}
           </div>
 
-          {/* Theme toggle — перед Search */}
+          {/* Theme toggle */}
           <button
             onClick={toggleTheme}
-            className={cn('btn-ghost p-2', 'transition-colors')}
-            title={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}
+            className="btn-ghost p-2 transition-colors"
+            title={theme === 'dark' ? t('light') : t('dark')}
           >
             {theme === 'dark'
               ? <Sun  size={17} className="text-amber" />
@@ -583,10 +570,10 @@ export function ListDetailView({ onBack }: Props) {
           <div className="flex items-center justify-between gap-2 bg-danger/10 border border-danger/20 rounded-xl px-3 py-2 mb-2 mt-2 animate-fade-up">
             <div className="flex items-center gap-2 text-xs text-danger font-medium">
               <span className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse flex-shrink-0" />
-              No connection
+              {t('noConnection')}
             </div>
             <button onClick={() => fetchTasks()} className="text-xs text-danger underline underline-offset-2">
-              Retry
+              {t('retry')}
             </button>
           </div>
         )}
@@ -594,13 +581,12 @@ export function ListDetailView({ onBack }: Props) {
         {isPulling && (
           <div className="flex items-center justify-center py-2 text-xs text-accent gap-1.5 animate-fade-up">
             <div className="w-3 h-3 border-2 border-accent border-t-transparent rounded-full animate-spin" />
-            Release to refresh
+            {t('releaseToRefresh')}
           </div>
         )}
       </div>
 
       {/* Task list */}
-      
       <div className="flex-1 relative min-h-0">
         {isPending && (
           <div className="absolute inset-0 z-20 bg-bg-base/30 backdrop-blur-[1px] pointer-events-auto" />
@@ -621,13 +607,14 @@ export function ListDetailView({ onBack }: Props) {
           ) : sorted.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 text-center animate-fade-up">
               <p className="text-text-dim text-sm">
-                {searchQuery         ? 'No tasks match your search'
-                  : filter === 'archived' ? 'Nothing archived'
-                  : 'No tasks here'}
+                {searchQuery
+                  ? t('noTasksMatch')
+                  : filter === 'archived' ? t('nothingArchived')
+                  : t('noTasksHere')}
               </p>
               {!searchQuery && filter !== 'archived' && !isViewer && (
                 <button onClick={() => setShowCreate(true)} className="mt-3 text-accent text-sm font-medium">
-                  + Add one
+                  {t('addOne')}
                 </button>
               )}
             </div>
@@ -656,8 +643,7 @@ export function ListDetailView({ onBack }: Props) {
         </div>
       </div>
 
-      {/* FAB — hidden for viewers */}
-
+      {/* FAB */}
       {!isViewer && !(typeof window !== 'undefined' && window?.Telegram?.WebApp?.MainButton?.isVisible) && (
         <button
           onClick={() => { if (isPending) return; setShowCreate(true); haptic.light() }}
@@ -686,7 +672,7 @@ export function ListDetailView({ onBack }: Props) {
         />
       )}
 
-      {/* Viewer read-only sheet */}
+      {/* Viewer sheet */}
       {viewerTask && (
         <ViewerTaskSheet
           task={viewerTask}
@@ -696,7 +682,7 @@ export function ListDetailView({ onBack }: Props) {
         />
       )}
 
-      {/* Edit / Create sheet (owner/editor only) */}
+      {/* Edit / Create sheet */}
       {(showCreate || activeTask) && (
         <TaskSheet
           listId={activeListId!}
@@ -721,6 +707,8 @@ interface CardProps {
 }
 
 function SortableTaskCard({ task, isViewer, onToggle, onOpen, onLongPress }: CardProps) {
+  const { t } = useI18n()
+
   const {
     attributes, listeners, setNodeRef,
     transform, transition, isDragging,
@@ -753,7 +741,7 @@ function SortableTaskCard({ task, isViewer, onToggle, onOpen, onLongPress }: Car
     const diff = Math.round((d.getTime() - now.getTime()) / 86400000)
     dueOverdue = diff < 0
     dueUrgent  = diff <= 1
-    dueLabel   = dueOverdue ? `${Math.abs(diff)}d overdue`
+    dueLabel   = dueOverdue ? `${Math.abs(diff)}${t('dAgo')}`
       : diff === 0 ? 'Today'
       : diff === 1 ? 'Tomorrow'
       : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: creatorTz })
@@ -785,14 +773,12 @@ function SortableTaskCard({ task, isViewer, onToggle, onOpen, onLongPress }: Car
           isArchived && 'opacity-40',
           isDragging && 'shadow-glow',
         )}>
-          {/* Priority stripe */}
           <div
             className="w-1 self-stretch flex-shrink-0 rounded-l-2xl"
             style={{ background: priority.dot, opacity: isDone ? 0.4 : 1 }}
           />
 
           <div className="flex items-start gap-2.5 p-3.5 flex-1 min-w-0">
-            {/* Drag handle */}
             {!isViewer ? (
               <button
                 {...attributes} {...listeners}
@@ -804,7 +790,6 @@ function SortableTaskCard({ task, isViewer, onToggle, onOpen, onLongPress }: Car
               <Eye size={13} className="text-text-dim mt-1 flex-shrink-0 opacity-40" />
             )}
 
-            {/* Checkbox */}
             <button
               onClick={isViewer ? undefined : onToggle}
               className={cn(
@@ -820,7 +805,6 @@ function SortableTaskCard({ task, isViewer, onToggle, onOpen, onLongPress }: Car
               )}
             </button>
 
-            {/* Content */}
             <button
               onTouchStart={handleTouchStart}
               onTouchEnd={handleTouchEnd}
@@ -839,7 +823,6 @@ function SortableTaskCard({ task, isViewer, onToggle, onOpen, onLongPress }: Car
                 <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', priority.color, priority.bg)}>
                   {priority.label}
                 </span>
-                {/* ↓ ДОБАВИТЬ */}
                 {task.assigned_user && (
                   <span className="text-xs text-text-secondary flex items-center gap-1">
                     <div className="w-4 h-4 rounded-full bg-accent/20 text-accent flex items-center justify-center text-[9px] font-bold flex-shrink-0">
@@ -861,19 +844,17 @@ function SortableTaskCard({ task, isViewer, onToggle, onOpen, onLongPress }: Car
                     <CheckCircle2 size={11} />{subDone}/{subTotal}
                   </span>
                 )}
-                {isArchived && <span className="text-xs text-text-dim">📦 archived</span>}
+                {isArchived && <span className="text-xs text-text-dim">📦 {t('archived')}</span>}
               </div>
             </button>
           </div>
         </div>
       </div>
-
     </div>
   )
 }
 
-// ── Inline mention highlight ────────────────────────────────────
-// Renders @username tokens in accent color inside description previews.
+// ── Mention highlight ──────────────────────────────────────────
 function MentionText({ text }: { text: string }) {
   const parts = text.split(/(@[a-zA-Z0-9_]+)/g)
   return (

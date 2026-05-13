@@ -18,6 +18,8 @@ interface Props {
 }
 
 export function SettingsSheet({ userId, firstName, username, onClose, onUpdated }: Props) {
+  const { t, lang, setLang } = useI18n()
+
   const [newFirstName, setNewFirstName] = useState(firstName)
   const [currentPin,   setCurrentPin]   = useState(['', '', '', ''])
   const [newPin,       setNewPin]       = useState(['', '', '', ''])
@@ -27,19 +29,15 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
   const [error,        setError]        = useState<string | null>(null)
   const [saving,       setSaving]       = useState(false)
   const [pinSection,   setPinSection]   = useState(false)
-  const { lang, setLang, t } = useI18n()
 
   const sheetRef   = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
-  
 
   const pinRefs = {
     current: [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)],
     new:     [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)],
     confirm: [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)],
   }
-
-  
 
   useEffect(() => {
     gsap.fromTo(overlayRef.current, { opacity: 0 }, { opacity: 1, duration: 0.2 })
@@ -78,10 +76,10 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
 
   async function handleSaveName() {
     if (currentPin.join('').length < 4) {
-      setError('Enter current PIN to confirm changes')
+      setError(t('enterCurrentPinConfirm'))
       return
     }
-    if (!newFirstName.trim()) { setError('Name cannot be empty'); return }
+    if (!newFirstName.trim()) { setError(t('nameEmpty')); return }
 
     setSaving(true); setError(null)
     const res  = await fetch('/api/users/identify', {
@@ -93,20 +91,20 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
     setSaving(false)
 
     if (!res.ok) {
-      setError(data.error === 'Invalid PIN' ? 'Incorrect PIN' : data.error)
+      setError(data.error === 'Invalid PIN' ? t('incorrectPin') : data.error)
       return
     }
 
     localStorage.setItem(LS_KEY_FIRST_NAME, newFirstName.trim())
-    toast.success('Name updated!')
+    toast.success(t('nameUpdated'))
     onUpdated(newFirstName.trim())
     close()
   }
 
   async function handleChangePin() {
-    if (currentPin.join('').length < 4) { setError('Enter current PIN'); return }
-    if (newPinFull.length < 4)          { setError('Enter new PIN');     return }
-    if (!pinsMatch)                     { setError('PINs do not match'); return }
+    if (currentPin.join('').length < 4) { setError(t('enterCurrentPinShort')); return }
+    if (newPinFull.length < 4)          { setError(t('enterNewPinShort'));     return }
+    if (!pinsMatch)                     { setError(t('pinsNoMatch'));           return }
 
     setSaving(true); setError(null)
     const res  = await fetch('/api/users/identify', {
@@ -118,28 +116,28 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
     setSaving(false)
 
     if (!res.ok) {
-      setError(data.error === 'Invalid PIN' ? 'Incorrect current PIN' : data.error)
+      setError(data.error === 'Invalid PIN' ? t('incorrectCurrentPin') : data.error)
       return
     }
-    toast.success('PIN changed!')
+    toast.success(t('pinChanged'))
     close()
   }
 
   function handleSignOut() {
     ;[LS_KEY_USER_ID, LS_KEY_USERNAME, LS_KEY_FIRST_NAME].forEach(k => localStorage.removeItem(k))
-    toast.success('Signed out')
+    toast.success(t('signedOut'))
     window.location.reload()
   }
 
   function PinRow({
     label, values, refs, show, onToggleShow, handlers,
   }: {
-    label:       string
-    values:      string[]
-    refs:        React.RefObject<HTMLInputElement>[]
-    show:        boolean
+    label:        string
+    values:       string[]
+    refs:         React.RefObject<HTMLInputElement>[]
+    show:         boolean
     onToggleShow: () => void
-    handlers:    ReturnType<typeof makePinHandler>
+    handlers:     ReturnType<typeof makePinHandler>
   }) {
     return (
       <div>
@@ -181,7 +179,7 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
         <div className="flex-shrink-0 px-4 pt-3 pb-4">
           <div className="w-10 h-1 bg-bg-border rounded-full mx-auto mb-4" />
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold">Settings</h2>
+            <h2 className="text-lg font-bold">{t('settings')}</h2>
             <button onClick={close} className="btn-ghost p-2"><X size={18} /></button>
           </div>
         </div>
@@ -199,8 +197,8 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
 
           {/* Profile */}
           <div>
-            <p className="text-xs font-semibold text-text-secondary uppercase tracking-widest mb-3">Profile</p>
-            <label className="text-xs text-text-secondary mb-1.5 block">First Name</label>
+            <p className="text-xs font-semibold text-text-secondary uppercase tracking-widest mb-3">{t('profile')}</p>
+            <label className="text-xs text-text-secondary mb-1.5 block">{t('firstName')}</label>
             <div className="relative">
               <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-dim" />
               <input
@@ -211,17 +209,17 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
               />
             </div>
             <p className="text-xs text-text-dim mt-1.5 px-1">
-              Username (@{username}) cannot be changed to preserve your data.
+              {t('usernameChangeNote')}
             </p>
           </div>
 
-          {/* Current PIN (required for any change) */}
+          {/* Current PIN */}
           <div>
             <p className="text-xs font-semibold text-text-secondary uppercase tracking-widest mb-3">
-              Confirm with PIN
+              {t('confirmWithPin')}
             </p>
             <PinRow
-              label="Current PIN"
+              label={t('currentPin')}
               values={currentPin}
               refs={pinRefs.current}
               show={showCurrent}
@@ -230,7 +228,7 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
             />
           </div>
 
-          {/* Save name button — only shown when name changed */}
+          {/* Save name button */}
           {newFirstName.trim() !== firstName && (
             <button
               onClick={handleSaveName}
@@ -238,7 +236,7 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
               className="btn-primary w-full py-3 flex items-center justify-center gap-2 disabled:opacity-40"
             >
               <Save size={16} />
-              {saving ? 'Saving…' : 'Save Name'}
+              {saving ? t('saving') : t('saveName')}
             </button>
           )}
 
@@ -249,13 +247,13 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
               className="flex items-center gap-2 text-sm font-medium text-accent"
             >
               <Lock size={15} />
-              {pinSection ? 'Cancel PIN change' : 'Change PIN'}
+              {pinSection ? t('cancelPinChange') : t('changePin')}
             </button>
 
             {pinSection && (
               <div className="mt-4 space-y-4 animate-fade-up">
                 <PinRow
-                  label="New PIN"
+                  label={t('newPin')}
                   values={newPin}
                   refs={pinRefs.new}
                   show={showNew}
@@ -263,7 +261,7 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
                   handlers={newH}
                 />
                 <PinRow
-                  label="Confirm New PIN"
+                  label={t('confirmNewPin')}
                   values={confirmPin}
                   refs={pinRefs.confirm}
                   show={showNew}
@@ -273,7 +271,7 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
                 {newPinFull.length === 4 && confirmPinFull.length === 4 && (
                   <p className={cn('text-xs flex items-center gap-1', pinsMatch ? 'text-emerald' : 'text-danger')}>
                     {pinsMatch ? <CheckCircle2 size={11} /> : <AlertCircle size={11} />}
-                    {pinsMatch ? 'PINs match' : 'PINs do not match'}
+                    {pinsMatch ? t('pinsMatch') : t('pinsNoMatch')}
                   </p>
                 )}
                 <button
@@ -281,7 +279,7 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
                   disabled={saving || !pinsMatch || currentPin.join('').length < 4}
                   className="btn-primary w-full py-3 disabled:opacity-40"
                 >
-                  {saving ? 'Saving…' : 'Update PIN'}
+                  {saving ? t('saving') : t('updatePin')}
                 </button>
               </div>
             )}
@@ -295,13 +293,13 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
 
           {/* Account info */}
           <div className="bg-bg-card rounded-2xl p-4 border border-bg-border space-y-2">
-            <p className="text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2">Account</p>
+            <p className="text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2">{t('account')}</p>
             <div className="flex justify-between text-sm">
-              <span className="text-text-secondary">User ID</span>
+              <span className="text-text-secondary">{t('userId')}</span>
               <span className="font-mono text-xs text-text-primary">{userId}</span>
             </div>
             <div className="flex justify-between text-sm">
-              <span className="text-text-secondary">Username</span>
+              <span className="text-text-secondary">{t('username')}</span>
               <span className="text-text-primary">@{username}</span>
             </div>
           </div>
@@ -334,7 +332,7 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
             onClick={handleSignOut}
             className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium text-danger hover:bg-danger/10 border border-danger/20 transition-colors"
           >
-            <LogOut size={15} /> Sign Out
+            <LogOut size={15} /> {t('signOut')}
           </button>
         </div>
       </div>

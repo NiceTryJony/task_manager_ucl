@@ -5,6 +5,7 @@ import { gsap } from 'gsap'
 import { X } from 'lucide-react'
 import { LIST_COLORS, LIST_EMOJIS, cn } from '@/lib/utils'
 import type { TaskList } from '@/types'
+import { useI18n } from '@/lib/i18n-context'
 
 interface Props {
   userId: number
@@ -13,11 +14,12 @@ interface Props {
 }
 
 export function CreateListSheet({ userId, onClose, onCreated }: Props) {
-  const [title,     setTitle]     = useState('')
-  const [emoji,     setEmoji]     = useState('📋')
-  const [color,     setColor]     = useState('#7B6EF6')
-  const [loading,   setLoading]   = useState(false)
-  const sheetRef  = useRef<HTMLDivElement>(null)
+  const { t } = useI18n()
+  const [title,   setTitle]   = useState('')
+  const [emoji,   setEmoji]   = useState('📋')
+  const [color,   setColor]   = useState('#7B6EF6')
+  const [loading, setLoading] = useState(false)
+  const sheetRef   = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -29,7 +31,7 @@ export function CreateListSheet({ userId, onClose, onCreated }: Props) {
   }, [])
 
   function close() {
-    gsap.to(sheetRef.current,  { y: '100%', duration: 0.25, ease: 'power3.in' })
+    gsap.to(sheetRef.current,   { y: '100%', duration: 0.25, ease: 'power3.in' })
     gsap.to(overlayRef.current, { opacity: 0, duration: 0.2, onComplete: onClose })
   }
 
@@ -48,42 +50,37 @@ export function CreateListSheet({ userId, onClose, onCreated }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end">
-      {/* Overlay */}
       <div
         ref={overlayRef}
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={close}
       />
 
-      {/* Sheet */}
       <div
         ref={sheetRef}
         className="relative w-full bg-bg-surface rounded-t-3xl border-t border-bg-border px-4 pt-3 pb-8 z-10"
       >
-        {/* Handle */}
         <div className="w-10 h-1 bg-bg-border rounded-full mx-auto mb-5" />
 
         <div className="flex items-center justify-between mb-5">
-          <h2 className="text-lg font-bold">New List</h2>
+          <h2 className="text-lg font-bold">{t('newListTitle')}</h2>
           <button onClick={close} className="btn-ghost p-2">
             <X size={18} />
           </button>
         </div>
 
-        {/* Title input */}
         <input
           autoFocus
           value={title}
           onChange={e => setTitle(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-          placeholder="List name…"
+          placeholder={t('listName')}
           className="input-field text-lg font-semibold mb-5"
           maxLength={60}
         />
 
-        {/* Emoji picker */}
         <label className="text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2 block">
-          Icon
+          {t('icon')}
         </label>
         <div className="flex flex-wrap gap-2 mb-5">
           {LIST_EMOJIS.map(e => (
@@ -102,9 +99,8 @@ export function CreateListSheet({ userId, onClose, onCreated }: Props) {
           ))}
         </div>
 
-        {/* Color picker */}
         <label className="text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2 block">
-          Color
+          {t('color')}
         </label>
         <div className="flex gap-2.5 mb-7">
           {LIST_COLORS.map(c => (
@@ -122,13 +118,12 @@ export function CreateListSheet({ userId, onClose, onCreated }: Props) {
           ))}
         </div>
 
-        {/* Submit */}
         <button
           onClick={handleSubmit}
           disabled={!title.trim() || loading}
           className="btn-primary w-full py-3.5 text-base disabled:opacity-40 disabled:cursor-not-allowed"
         >
-          {loading ? 'Creating…' : 'Create List'}
+          {loading ? t('creating') : t('createList')}
         </button>
       </div>
     </div>

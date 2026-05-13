@@ -5,6 +5,7 @@ import { gsap } from 'gsap'
 import { CheckCircle2, MoreVertical, Pencil, Trash2, X, Share2 } from 'lucide-react'
 import type { TaskList } from '@/types'
 import { cn, LIST_COLORS, LIST_EMOJIS } from '@/lib/utils'
+import { useI18n } from '@/lib/i18n-context'
 
 interface Props {
   list:      TaskList
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export function ListCard({ list, userId, onClick, onEdited, onDeleted, onShare }: Props) {
+  const { t } = useI18n()
   const cardRef = useRef<HTMLDivElement>(null)
   const menuRef = useRef<HTMLDivElement>(null)
   const btnRef  = useRef<HTMLButtonElement>(null)
@@ -33,7 +35,6 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted, onShare }
     : 0
   const isAllDone = (list.task_count ?? 0) > 0 && progress === 100
 
-  // ── Close menu on outside click ────────────────────────────
   useEffect(() => {
     if (!showMenu) return
     function handleOutside(e: MouseEvent | TouchEvent) {
@@ -43,18 +44,17 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted, onShare }
       ) return
       setShowMenu(false)
     }
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       document.addEventListener('mousedown',  handleOutside)
       document.addEventListener('touchstart', handleOutside)
     }, 10)
     return () => {
-      clearTimeout(t)
+      clearTimeout(timer)
       document.removeEventListener('mousedown',  handleOutside)
       document.removeEventListener('touchstart', handleOutside)
     }
   }, [showMenu])
 
-  // ── Menu open animation ────────────────────────────────────
   useEffect(() => {
     if (!showMenu || !menuRef.current) return
     gsap.fromTo(menuRef.current,
@@ -94,18 +94,18 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted, onShare }
     setShowEdit(false)
   }
 
-async function handleDelete(e: React.MouseEvent) {
+  async function handleDelete(e: React.MouseEvent) {
     e.stopPropagation()
     setShowMenu(false)
 
     const confirmed = await new Promise<boolean>(resolve => {
       if (window?.Telegram?.WebApp?.showConfirm) {
         window.Telegram.WebApp.showConfirm(
-          `Delete list "${list.title}" and all its tasks?`,
+          `${t('delete')} "${list.title}"?`,
           resolve
         )
       } else {
-        resolve(window.confirm(`Delete list "${list.title}"?`))
+        resolve(window.confirm(`${t('delete')} "${list.title}"?`))
       }
     })
     if (!confirmed) return
@@ -128,7 +128,7 @@ async function handleDelete(e: React.MouseEvent) {
       <div ref={cardRef} className="card p-4 space-y-3 border border-accent/25 animate-fade-up">
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-text-secondary uppercase tracking-widest">
-            Edit List
+            {t('editList')}
           </span>
           <button
             onClick={() => {
@@ -150,11 +150,11 @@ async function handleDelete(e: React.MouseEvent) {
           onKeyDown={e => e.key === 'Enter' && handleSaveEdit()}
           className="input-field font-semibold"
           maxLength={60}
-          placeholder="List name…"
+          placeholder={t('listName')}
         />
 
         <div>
-          <p className="text-xs text-text-dim mb-2">Icon</p>
+          <p className="text-xs text-text-dim mb-2">{t('icon')}</p>
           <div className="flex flex-wrap gap-1.5">
             {LIST_EMOJIS.map(e => (
               <button
@@ -174,7 +174,7 @@ async function handleDelete(e: React.MouseEvent) {
         </div>
 
         <div>
-          <p className="text-xs text-text-dim mb-2">Color</p>
+          <p className="text-xs text-text-dim mb-2">{t('color')}</p>
           <div className="flex gap-2.5">
             {LIST_COLORS.map(c => (
               <button
@@ -199,13 +199,16 @@ async function handleDelete(e: React.MouseEvent) {
           disabled={!title.trim() || saving}
           className="btn-primary w-full py-2.5 text-sm disabled:opacity-40"
         >
-          {saving ? 'Saving…' : 'Save Changes'}
+          {saving ? t('saving') : t('saveChanges')}
         </button>
       </div>
     )
   }
 
   // ── Normal card ────────────────────────────────────────────
+  const taskCount = list.task_count ?? 0
+  const doneCount = list.done_count ?? 0
+
   return (
     <div ref={cardRef} className="relative">
       <div className="card-shell">
@@ -247,13 +250,13 @@ async function handleDelete(e: React.MouseEvent) {
               </div>
 
               <div className="flex items-center gap-2 text-xs text-text-secondary">
-                <span>{list.task_count ?? 0} task{list.task_count !== 1 ? 's' : ''}</span>
-                {(list.done_count ?? 0) > 0 && (
+                <span>{taskCount} {taskCount === 1 ? t('taskWord') : t('tasksWord')}</span>
+                {doneCount > 0 && (
                   <>
                     <span className="text-text-dim">·</span>
                     <span className="flex items-center gap-1 text-emerald">
                       <CheckCircle2 size={11} />
-                      {list.done_count} done
+                      {doneCount} {t('done')}
                     </span>
                   </>
                 )}
@@ -265,7 +268,7 @@ async function handleDelete(e: React.MouseEvent) {
                 )}
               </div>
 
-              {(list.task_count ?? 0) > 0 && (
+              {taskCount > 0 && (
                 <div className="mt-2.5 h-[3px] bg-bg-hover rounded-full overflow-hidden">
                   <div
                     className="h-full rounded-full transition-all duration-700"
@@ -283,7 +286,6 @@ async function handleDelete(e: React.MouseEvent) {
         </div>
       </div>
 
-
       {/* Dropdown menu */}
       {showMenu && (
         <div
@@ -296,7 +298,7 @@ async function handleDelete(e: React.MouseEvent) {
             className="flex items-center gap-2.5 px-3.5 py-2.5 text-sm font-medium w-full text-left text-text-primary hover:bg-bg-hover transition-colors"
           >
             <Pencil size={14} className="text-accent flex-shrink-0" />
-            Edit
+            {t('edit')}
           </button>
           <div className="h-px bg-bg-border mx-2.5" />
           <button
@@ -304,7 +306,7 @@ async function handleDelete(e: React.MouseEvent) {
             className="flex items-center gap-2.5 px-3.5 py-2.5 text-sm font-medium w-full text-left text-text-primary hover:bg-bg-hover transition-colors"
           >
             <Share2 size={14} className="text-text-secondary flex-shrink-0" />
-            Share
+            {t('share')}
           </button>
           <div className="h-px bg-bg-border mx-2.5" />
           <button
@@ -313,7 +315,7 @@ async function handleDelete(e: React.MouseEvent) {
             className="flex items-center gap-2.5 px-3.5 py-2.5 text-sm font-medium w-full text-left text-danger hover:bg-danger/10 transition-colors disabled:opacity-50"
           >
             <Trash2 size={14} className="flex-shrink-0" />
-            {deleting ? 'Deleting…' : 'Delete'}
+            {deleting ? t('deleting') : t('delete')}
           </button>
         </div>
       )}

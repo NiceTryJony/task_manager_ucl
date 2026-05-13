@@ -6,20 +6,14 @@ import { User, CheckCircle2, AlertCircle, Trash2, Eye, EyeOff } from 'lucide-rea
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { LS_KEY_USER_ID, LS_KEY_USERNAME, LS_KEY_FIRST_NAME } from '@/hooks/useTelegram'
+import { useI18n } from '@/lib/i18n-context'
 
 interface Props {
   onIdentified: (userId: number, username: string, firstName: string) => void
 }
 
-function validateUsername(v: string): string | null {
-  const c = v.trim().replace(/^@/, '')
-  if (c.length < 3)  return 'Minimum 3 characters'
-  if (c.length > 32) return 'Maximum 32 characters'
-  if (!/^[a-zA-Z0-9_]+$/.test(c)) return 'Letters, numbers and _ only'
-  return null
-}
-
 export function UsernameModal({ onIdentified }: Props) {
+  const { t } = useI18n()
   const [firstName, setFirstName] = useState('')
   const [username,  setUsername]  = useState('')
   const [pin,       setPin]       = useState(['', '', '', ''])
@@ -28,7 +22,6 @@ export function UsernameModal({ onIdentified }: Props) {
   const [pinError,  setPinError]  = useState<string | null>(null)
   const [loading,   setLoading]   = useState(false)
   const [showPin,   setShowPin]   = useState(false)
-  // null = unknown, 'new' = creating, 'existing' = logging in
   const [mode, setMode] = useState<null | 'new' | 'existing'>(null)
 
   const modalRef   = useRef<HTMLDivElement>(null)
@@ -43,6 +36,14 @@ export function UsernameModal({ onIdentified }: Props) {
 
   const isDev = process.env.NODE_ENV === 'development'
 
+  function validateUsername(v: string): string | null {
+    const c = v.trim().replace(/^@/, '')
+    if (c.length < 3)  return t('validMin3')
+    if (c.length > 32) return t('validMax32')
+    if (!/^[a-zA-Z0-9_]+$/.test(c)) return t('validLetters')
+    return null
+  }
+
   useEffect(() => {
     gsap.fromTo(overlayRef.current, { opacity: 0 }, { opacity: 1, duration: 0.25 })
     gsap.fromTo(modalRef.current,
@@ -52,24 +53,23 @@ export function UsernameModal({ onIdentified }: Props) {
     setTimeout(() => fnRef.current?.focus(), 350)
   }, [])
 
-  // Debounce username lookup to show new/existing mode hint
   useEffect(() => {
-      const clean = username.trim().replace(/^@/, '').toLowerCase()
-      if (validateUsername(clean) !== null) { setMode(null); return }
+    const clean = username.trim().replace(/^@/, '').toLowerCase()
+    if (validateUsername(clean) !== null) { setMode(null); return }
 
-      const t = setTimeout(async () => {
-        const res  = await fetch(`/api/users/search?q=${encodeURIComponent(clean)}&userId=0`)
-        const data = await res.json()
-        if (data.user) {
-          setMode('existing')
-          setFirstName(data.user.first_name) // ← единственное добавление
-        } else {
-          setMode('new')
-        }
-      }, 600)
+    const timer = setTimeout(async () => {
+      const res  = await fetch(`/api/users/search?q=${encodeURIComponent(clean)}&userId=0`)
+      const data = await res.json()
+      if (data.user) {
+        setMode('existing')
+        setFirstName(data.user.first_name)
+      } else {
+        setMode('new')
+      }
+    }, 600)
 
-      return () => clearTimeout(t)
-    }, [username])
+    return () => clearTimeout(timer)
+  }, [username])
 
   const cleanUn   = username.trim().replace(/^@/, '')
   const pinFull   = pin.join('')
@@ -94,10 +94,10 @@ export function UsernameModal({ onIdentified }: Props) {
   }
 
   async function handleSubmit() {
-    if (!firstName.trim()) { setFnError('Name is required'); return }
+    if (!firstName.trim()) { setFnError(t('nameRequired')); return }
     const unErr = validateUsername(username)
     if (unErr) { setUnError(unErr); return }
-    if (pinFull.length < 4) { setPinError('Enter 4-digit PIN'); return }
+    if (pinFull.length < 4) { setPinError(t('enter4DigitPin')); return }
 
     setLoading(true)
     setFnError(null); setUnError(null); setPinError(null)
@@ -117,15 +117,15 @@ export function UsernameModal({ onIdentified }: Props) {
 
       if (!res.ok || !data.user) {
         if (data.error === 'Invalid PIN') {
-          setPinError('Incorrect PIN')
+          setPinError(t('incorrectPin'))
         } else {
-          setUnError(data.error ?? 'Something went wrong')
+          setUnError(data.error ?? t('failedToSave'))
         }
         setLoading(false)
         return
       }
     } catch {
-      setUnError('Server error')
+      setUnError(t('networkError'))
       setLoading(false)
       return
     }
@@ -139,13 +139,23 @@ export function UsernameModal({ onIdentified }: Props) {
       opacity: 0, duration: 0.2, delay: 0.1,
       onComplete: () => {
         toast.success(data.isNew
-          ? `Account created! Welcome, ${data.user.first_name} 🎉`
-          : `Welcome back, ${data.user.first_name}!`
+          ? `${t('createAccount').replace('Create account', '')}${data.user.first_name} 🎉`
+          : `${t('welcomeBack').replace('!', '')}, ${data.user.first_name}!`
         )
         onIdentified(data.user.id, cleanUn, data.user.first_name)
       },
     })
   }
+
+  const titleText =
+    mode === 'existing' ? t('welcomeBack') :
+    mode === 'new'      ? t('createAccount') :
+                          t('getStarted')
+
+  const subtitleText =
+    mode === 'existing' ? t('enterPinSignIn') :
+    mode === 'new'      ? t('choosePinProtect') :
+                          t('enterNameUsername')
 
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center px-4">
@@ -156,21 +166,13 @@ export function UsernameModal({ onIdentified }: Props) {
         <div className="w-14 h-14 rounded-2xl bg-accent/15 flex items-center justify-center mb-5 mx-auto animate-float">
           <User size={26} className="text-accent" />
         </div>
-        <h2 className="text-xl font-bold text-center mb-1">
-          {mode === 'existing' ? 'Welcome back!' : mode === 'new' ? 'Create account' : 'Get started'}
-        </h2>
-        <p className="text-text-secondary text-sm text-center mb-6 leading-relaxed">
-          {mode === 'existing'
-            ? 'Enter your PIN to sign in'
-            : mode === 'new'
-            ? 'Choose a PIN to protect your account'
-            : 'Enter your name and Telegram username'}
-        </p>
+        <h2 className="text-xl font-bold text-center mb-1">{titleText}</h2>
+        <p className="text-text-secondary text-sm text-center mb-6 leading-relaxed">{subtitleText}</p>
 
         {/* First Name */}
         <div className="mb-3">
           <label className="text-xs font-semibold text-text-secondary uppercase tracking-widest mb-1.5 block">
-            First Name
+            {t('firstName')}
           </label>
           <div className="relative">
             <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-dim" />
@@ -179,7 +181,7 @@ export function UsernameModal({ onIdentified }: Props) {
               value={firstName}
               onChange={e => { setFirstName(e.target.value); setFnError(null) }}
               onKeyDown={e => e.key === 'Enter' && (document.getElementById('un-input') as HTMLInputElement)?.focus()}
-              placeholder="Your name…"
+              placeholder={t('yourNamePlaceholder')}
               className={cn('input-field pl-9 text-sm', fnError && 'border-danger/60')}
               maxLength={64}
               autoComplete="given-name"
@@ -192,14 +194,14 @@ export function UsernameModal({ onIdentified }: Props) {
             </p>
           )}
           {mode === 'existing' && (
-            <p className="text-xs text-text-dim mt-1 px-1">Name loaded from your account</p>
+            <p className="text-xs text-text-dim mt-1 px-1">{t('nameLoadedFromAccount')}</p>
           )}
         </div>
 
         {/* Username */}
         <div className="mb-4">
           <label className="text-xs font-semibold text-text-secondary uppercase tracking-widest mb-1.5 block">
-            Username
+            {t('username')}
           </label>
           <div className="relative">
             <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-dim font-mono text-sm select-none">@</span>
@@ -235,7 +237,7 @@ export function UsernameModal({ onIdentified }: Props) {
         <div className="mb-6">
           <div className="flex items-center justify-between mb-2">
             <label className="text-xs font-semibold text-text-secondary uppercase tracking-widest">
-              {mode === 'existing' ? 'Your PIN' : 'Choose PIN'}
+              {mode === 'existing' ? t('yourPin') : t('choosePin')}
             </label>
             <button
               onClick={() => setShowPin(v => !v)}
@@ -274,10 +276,10 @@ export function UsernameModal({ onIdentified }: Props) {
             </p>
           ) : mode === 'new' && isPinOk ? (
             <p className="text-xs text-emerald flex items-center justify-center gap-1 mt-2">
-              <CheckCircle2 size={11} /> PIN set — remember it!
+              <CheckCircle2 size={11} /> {t('pinSetRemember')}
             </p>
           ) : mode === 'existing' && !isPinOk ? (
-            <p className="text-xs text-text-dim text-center mt-2">Enter 4-digit PIN to continue</p>
+            <p className="text-xs text-text-dim text-center mt-2">{t('enter4Digit')}</p>
           ) : null}
         </div>
 
@@ -289,9 +291,9 @@ export function UsernameModal({ onIdentified }: Props) {
           {loading ? (
             <span className="flex items-center justify-center gap-2">
               <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-              {mode === 'existing' ? 'Signing in…' : 'Creating account…'}
+              {mode === 'existing' ? t('signingIn') : t('creatingAccount')}
             </span>
-          ) : mode === 'existing' ? 'Sign In' : 'Continue'}
+          ) : mode === 'existing' ? t('signIn') : t('continue')}
         </button>
 
         {isDev && (
@@ -307,7 +309,7 @@ export function UsernameModal({ onIdentified }: Props) {
         )}
 
         <p className="text-xs text-text-dim text-center mt-4 leading-relaxed">
-          PIN protects your account on new devices. You can change it in Settings.
+          {t('pinProtects')}
         </p>
       </div>
     </div>
