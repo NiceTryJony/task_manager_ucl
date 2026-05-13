@@ -217,8 +217,8 @@ export function TaskHistoryPanel({ taskId, userId, initial = [] }: Props) {
     const now = new Date()
     const isToday     = d.toDateString() === now.toDateString()
     const isYesterday = d.toDateString() === new Date(now.getTime() - 86400000).toDateString()
-    const label = isToday     ? 'Today'
-                : isYesterday ? 'Yesterday'
+    const label = isToday     ? t('today')
+                : isYesterday ? t('yesterday')
                 : d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
     const last = grouped[grouped.length - 1]
     if (last && last.label === label) last.items.push(entry)

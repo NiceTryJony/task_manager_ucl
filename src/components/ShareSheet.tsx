@@ -265,13 +265,15 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
               </p>
             </div>
             <div className="flex items-center gap-1">
-              <button
-                onClick={() => setShowDebug(v => !v)}
-                className={cn('btn-ghost p-2', showDebug && 'text-amber bg-amber/10')}
-                title="Debug"
-              >
-                <Bug size={16} />
-              </button>
+              {process.env.NODE_ENV === 'development' && (
+                <button
+                  onClick={() => setShowDebug(v => !v)}
+                  className={cn('btn-ghost p-2', showDebug && 'text-amber bg-amber/10')}
+                  title="Debug"
+                >
+                  <Bug size={16} />
+                </button>
+              )}
               <button onClick={close} className="btn-ghost p-2"><X size={18} /></button>
             </div>
           </div>

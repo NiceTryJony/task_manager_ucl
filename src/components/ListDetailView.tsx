@@ -1031,13 +1031,18 @@ export function ListDetailView({ onBack }: Props) {
     setReorderStatus('idle'); wantsToGoBackRef.current = false
   }, [activeListId])
 
-  // Сброс при размонтировании — сохраняем если есть незаписанный порядок
+  // Cleanup: отменяем все таймеры и inflight-запросы при размонтировании.
+  // flushReorderSave НЕ вызываем здесь — handleBack уже гарантирует
+  // завершение записи перед навигацией (wantsToGoBackRef pattern).
   useEffect(() => {
     return () => {
       clearTimeout(reorderDebounceRef.current)
       clearTimeout(fetchDebounceRef.current)
       abortRef.current?.abort()
-      if (pendingReorderRef.current) void flushReorderSave()
+      // Сбрасываем pending-флаг чтобы не было утечки ref-значений
+      pendingReorderRef.current  = null
+      originalOrderRef.current   = null
+      wantsToGoBackRef.current   = false
     }
   }, [])
 
@@ -1168,6 +1173,9 @@ export function ListDetailView({ onBack }: Props) {
     const curr      = tasks[activeListId!] ?? []
     const oldIdx    = curr.findIndex(t => t.id === active.id)
     const newIdx    = curr.findIndex(t => t.id === over.id)
+    // Guard: ids могут устареть если список обновился во время drag
+    if (oldIdx === -1 || newIdx === -1) return
+
     const reordered = arrayMove(curr, oldIdx, newIdx)
 
     // ── 1. Мгновенное визуальное обновление ──────────────
@@ -1520,14 +1528,17 @@ function SortableTaskCard({ task, isViewer, isDndBlocked, onToggle, onOpen, onLo
   let dueLabel = '', dueUrgent = false, dueOverdue = false, dueLocalLabel = ''
 
   if (dueAt) {
-    const d = new Date(dueAt), now = new Date()
-    const diff = Math.round((d.getTime() - now.getTime()) / 86400000)
-    dueOverdue = diff < 0; dueUrgent = diff <= 1
-    dueLabel = dueOverdue ? `${Math.abs(diff)}d overdue` : diff === 0 ? 'Today' : diff === 1 ? 'Tomorrow'
-      : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: creatorTz })
-    if (creatorTz !== viewerTz)
-      dueLocalLabel = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: viewerTz })
-  }
+      const d = new Date(dueAt), now = new Date()
+      const diff = Math.round((d.getTime() - now.getTime()) / 86400000)
+      dueOverdue = diff < 0; dueUrgent = diff <= 1
+      dueLabel = dueOverdue
+        ? `${Math.abs(diff)}${t('dOverdue')}`
+        : diff === 0 ? t('today')
+        : diff === 1 ? t('tomorrow')
+        : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: creatorTz })
+      if (creatorTz !== viewerTz)
+        dueLocalLabel = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZone: viewerTz })
+    }
 
   function handleTouchStart(e: React.TouchEvent) {
     didLongPress.current = false
