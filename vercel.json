@@ -1,4 +1,5 @@
 {
+  "buildCommand": "npm ci && npm run build",
   "headers": [
     {
       "source": "/(.*)",
