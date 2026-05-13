@@ -146,17 +146,39 @@ export function ListDetailView({ onBack }: Props) {
   //  Swapy: Keep in sync when sorted list changes
   //  (realtime adds/removes, filter switches, etc.)
   // ────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!swapyRef.current) return
-    return utils.dynamicSwapy(
-      swapyRef.current,
-      sorted,
-      'id',
-      slotItemMap,
-      setSlotItemMap
-    )
+
+
+  // useEffect(() => {
+  //   if (!swapyRef.current) return
+  //   return utils.dynamicSwapy(
+  //     swapyRef.current,
+  //     sorted,
+  //     'id',
+  //     slotItemMap,
+  //     setSlotItemMap
+  //   )
+  // // eslint-disable-next-line react-hooks/exhaustive-deps
+  // }, [sorted])
+
+  // Swapy: Keep in sync when sorted list changes
+useEffect(() => {
+  if (!swapyRef.current) return
+
+  const nonNullMap = slotItemMap.filter(
+    (entry): entry is { slot: string; item: string } => entry.item !== null
+  )
+
+  return utils.dynamicSwapy(
+    swapyRef.current,
+    sorted,
+    'id',
+    nonNullMap,
+    setSlotItemMap
+  )
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sorted])
+}, [sorted, slotItemMap])
+
+
 
   // ────────────────────────────────────────────────────────────
   //  Swapy: Init once on mount, destroy on unmount
