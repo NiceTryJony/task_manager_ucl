@@ -1006,9 +1006,9 @@ import {
   TouchSensor,
   KeyboardSensor,
   MeasuringStrategy,
+  pointerWithin,
   useSensor,
   useSensors,
-  closestCenter,
   type DragStartEvent,
   type DragEndEvent,
 } from '@dnd-kit/core'
@@ -1152,8 +1152,8 @@ export function ListDetailView({ onBack }: Props) {
   const progress     = totalCount ? Math.round((doneCount / totalCount) * 100) : 0
   const isViewer     = myRole === 'viewer'
   const { run, isPending } = usePending()
-  const isDndBlocked = isPending || reorderStatus === 'saving'
-  const isDragMode   = sortKey === 'position' && !searchQuery && filter !== 'archived' && !isViewer && !isDndBlocked
+  const isBlocked    = isPending || reorderStatus === 'saving'
+  const isDragMode   = sortKey === 'position' && !searchQuery && filter !== 'archived' && !isViewer && !isBlocked
 
   // ── dnd-kit sensors ─────────────────────────────────────────
   // PointerSensor  — мышь / стилус: drag после 8px движения
@@ -1213,6 +1213,7 @@ export function ListDetailView({ onBack }: Props) {
     clearTimeout(reorderDebounceRef.current)
     reorderDebounceRef.current = setTimeout(() => {
       setReorderStatus('saving')
+      toast.loading(t('saving'), { id: 'reorder-save' })
       void flushReorderSave()
     }, 2000)
   }
@@ -1377,9 +1378,11 @@ export function ListDetailView({ onBack }: Props) {
 
       pendingOrderRef.current  = null
       originalOrderRef.current = null
+      toast.dismiss('reorder-save')
       toast.dismiss('reorder-back')
 
     } catch {
+      toast.dismiss('reorder-save')
       toast.dismiss('reorder-back')
       toast.error(t('reorderFailed'))
 
@@ -1604,7 +1607,7 @@ export function ListDetailView({ onBack }: Props) {
 
       {/* ── Task list ────────────────────────────────────────── */}
       <div className="flex-1 relative min-h-0">
-        {isPending && <div className="absolute inset-0 z-20 bg-bg-base/30 backdrop-blur-[1px] pointer-events-auto" />}
+        {(isBlocked) && <div className="absolute inset-0 z-20 bg-bg-base/30 backdrop-blur-[1px] pointer-events-auto" />}
 
         <div
           ref={listRef}
@@ -1631,7 +1634,7 @@ export function ListDetailView({ onBack }: Props) {
           ) : (
             <DndContext
               sensors={sensors}
-              collisionDetection={closestCenter}
+              collisionDetection={pointerWithin}
               measuring={{ droppable: { strategy: MeasuringStrategy.WhileDragging } }}
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
@@ -1683,16 +1686,16 @@ export function ListDetailView({ onBack }: Props) {
       {/* ── FAB ─────────────────────────────────────────────── */}
       {!isViewer && !(typeof window !== 'undefined' && window?.Telegram?.WebApp?.MainButton?.isVisible) && (
         <button
-          onClick={() => { if (isPending) return; setShowCreate(true); haptic.light() }}
-          disabled={isPending}
+          onClick={() => { if (isBlocked) return; setShowCreate(true); haptic.light() }}
+          disabled={isBlocked}
           className={cn(
             'fixed bottom-6 right-4 w-14 h-14 rounded-2xl bg-accent text-white',
             'flex items-center justify-center shadow-glow z-40',
             'active:scale-90 transition-all duration-150',
-            isPending && 'opacity-40 cursor-not-allowed'
+            isBlocked && 'opacity-40 cursor-not-allowed'
           )}
         >
-          {isPending
+          {isBlocked
             ? <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
             : <Plus size={24} strokeWidth={2.5} />
           }
@@ -1743,8 +1746,10 @@ function SortableTaskCard({ task, isViewer, isDragMode, isDragging, onToggle, on
       className="task-item"
       style={{
         transform:  CSS.Transform.toString(transform),
-        transition: transition ?? undefined,
-        // Пока летит DragOverlay — оригинальная карточка становится "призраком"
+        // Короткий пружинный transition — items "притягиваются" быстро
+        transition: transition
+          ? transition.replace(/\d+ms/, '120ms')
+          : undefined,
         opacity: isDragging ? 0.35 : 1,
       }}
     >
