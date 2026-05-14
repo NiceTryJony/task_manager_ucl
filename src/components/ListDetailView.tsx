@@ -1154,10 +1154,10 @@ export function ListDetailView({ onBack }: Props) {
     console.log('[DnD] items found:', items.length, Array.from(items).map(el => el.getAttribute('data-swapy-item')))
 
     swapyRef.current = createSwapy(containerRef.current, {
-      manualSwap: true,
-      animation:  'spring',
-      dragOnHold: true,
-      dragAxis:   'y',
+      manualSwap:       true,
+      animation:        'spring',
+      dragOnHold:       false,   // убираем — конфликтует со scroll-контейнером
+      autoScrollOnDrag: true,    // Swapy сам скроллит при drag у края
     })
     console.log('[DnD] Swapy instance created:', swapyRef.current)
 
@@ -1627,9 +1627,9 @@ export function ListDetailView({ onBack }: Props) {
         <div
           ref={listRef}
           className="h-full scrollable px-4 pb-24"
-          onTouchStart={onTouchStart}
-          onTouchMove={onTouchMove}
-          onTouchEnd={onTouchEnd}
+          onTouchStart={isDragMode ? undefined : onTouchStart}
+          onTouchMove={isDragMode ? undefined : onTouchMove}
+          onTouchEnd={isDragMode ? undefined : onTouchEnd}
         >
           {loading ? (
             <div className="space-y-2 mt-2">
@@ -1647,7 +1647,7 @@ export function ListDetailView({ onBack }: Props) {
               )}
             </div>
           ) : (
-            <div ref={containerRef} className="space-y-2 mt-2">
+            <div ref={containerRef} className="space-y-2 mt-2" style={{ touchAction: 'none' }}>
               {slottedItems.map(({ slotId, itemId, item: task }) => (
                 <div key={slotId} data-swapy-slot={slotId}>
                   <div key={itemId} data-swapy-item={itemId} className="task-item">
