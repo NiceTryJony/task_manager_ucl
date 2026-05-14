@@ -996,12 +996,30 @@
 
 
 
-
 'use client'
 
 import { useEffect, useRef, useState, useMemo } from 'react'
 import { gsap } from 'gsap'
-import { createSwapy, utils } from 'swapy'
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  TouchSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  type DragStartEvent,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+  arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { supabase } from '@/lib/supabase'
 import { useTaskStore } from '@/lib/store'
 import { useTelegram } from '@/hooks/useTelegram'
@@ -1066,6 +1084,9 @@ export function ListDetailView({ onBack }: Props) {
   const [isPulling,    setIsPulling]    = useState(false)
   const [viewerTask,   setViewerTask]   = useState<Task | null>(null)
 
+  // ── DnD state ───────────────────────────────────────────────
+  const [draggingId, setDraggingId] = useState<string | null>(null)
+
   // ── Reorder debounce state ──────────────────────────────────
   const [reorderStatus,    setReorderStatus]    = useState<ReorderStatus>('idle')
   const reorderDebounceRef = useRef<ReturnType<typeof setTimeout>>()
@@ -1073,17 +1094,10 @@ export function ListDetailView({ onBack }: Props) {
   const originalOrderRef   = useRef<Task[] | null>(null)
   const wantsToGoBackRef   = useRef(false)
 
-  // ── Swapy refs ──────────────────────────────────────────────
-  const swapyRef     = useRef<ReturnType<typeof createSwapy> | null>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
-
-  // ── Swapy slot-item mapping (drives render order) ───────────
-  const [slotItemMap, setSlotItemMap] = useState<{ slot: string; item: string | null }[]>([])
-
-  // ── Other refs ──────────────────────────────────────────────
-  const pageRef    = useRef<HTMLDivElement>(null)
-  const listRef    = useRef<HTMLDivElement>(null)
-  const searchRef  = useRef<HTMLInputElement>(null)
+  // ── Refs ─────────────────────────────────────────────────────
+  const pageRef          = useRef<HTMLDivElement>(null)
+  const listRef          = useRef<HTMLDivElement>(null)
+  const searchRef        = useRef<HTMLInputElement>(null)
   const pullStartY       = useRef(0)
   const wasDone          = useRef(false)
   const fetchDebounceRef = useRef<ReturnType<typeof setTimeout>>()
@@ -1112,18 +1126,7 @@ export function ListDetailView({ onBack }: Props) {
     return a.position - b.position
   }), [searched, sortKey])
 
-  // slottedItems — что рендерится; порядок определяется slotItemMap после свапа.
-  // Пока slotItemMap пуст (первый рендер до dynamicSwapy) — рендерим sorted напрямую.
-  const slottedItems = useMemo(() => {
-    if (slotItemMap.length === 0) {
-      return sorted.map(item => ({ slotId: String(item.id), itemId: String(item.id), item }))
-    }
-    return utils.toSlottedItems(sorted, 'id', slotItemMap.filter((x): x is { slot: string; item: string } => x.item !== null)) as Array<{
-      slotId: string
-      itemId: string
-      item:   Task
-    }>
-  }, [sorted, slotItemMap])
+  const draggingTask = draggingId ? sorted.find(t => t.id === draggingId) ?? null : null
 
   // ── Stats ───────────────────────────────────────────────────
   const { doneCount, totalCount } = useMemo(() => ({
@@ -1131,115 +1134,70 @@ export function ListDetailView({ onBack }: Props) {
     totalCount: activeTasks.length,
   }), [activeTasks])
 
-  const progress = totalCount ? Math.round((doneCount / totalCount) * 100) : 0
-  const isViewer = myRole === 'viewer'
+  const progress     = totalCount ? Math.round((doneCount / totalCount) * 100) : 0
+  const isViewer     = myRole === 'viewer'
   const { run, isPending } = usePending()
   const isDndBlocked = isPending || reorderStatus === 'saving'
+  const isDragMode   = sortKey === 'position' && !searchQuery && filter !== 'archived' && !isViewer && !isDndBlocked
 
-  // ────────────────────────────────────────────────────────────
-  //  Swapy: Init once on mount, destroy on unmount
-  // ────────────────────────────────────────────────────────────
-  useEffect(() => {
-    console.log('[DnD] useEffect triggered — activeListId:', activeListId, 'loading:', loading)
-    console.log('[DnD] containerRef.current:', containerRef.current)
-
-    if (!containerRef.current) {
-      console.warn('[DnD] containerRef is null — Swapy NOT initialized')
-      return
-    }
-
-    const slots = containerRef.current.querySelectorAll('[data-swapy-slot]')
-    const items = containerRef.current.querySelectorAll('[data-swapy-item]')
-    console.log('[DnD] slots found:', slots.length, Array.from(slots).map(el => el.getAttribute('data-swapy-slot')))
-    console.log('[DnD] items found:', items.length, Array.from(items).map(el => el.getAttribute('data-swapy-item')))
-
-    swapyRef.current = createSwapy(containerRef.current, {
-      manualSwap:       true,
-      animation:        'spring',
-      dragOnHold:       false,   // убираем — конфликтует со scroll-контейнером
-      autoScrollOnDrag: true,    // Swapy сам скроллит при drag у края
+  // ── dnd-kit sensors ─────────────────────────────────────────
+  // PointerSensor  — мышь / стилус: drag после 8px движения
+  // TouchSensor    — тач: держишь 250ms на ручке, потом тащишь;
+  //                  если сдвинулся >5px за холд — скролл побеждает
+  // KeyboardSensor — доступность
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 8 },
+    }),
+    useSensor(TouchSensor, {
+      activationConstraint: { delay: 250, tolerance: 5 },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
     })
-    console.log('[DnD] Swapy instance created:', swapyRef.current)
-
-    // ── Drag start ───────────────────────────────────────────
-    swapyRef.current.onSwapStart((event) => {
-      console.log('[DnD] onSwapStart — dragging item:', (event as any)?.draggingItem ?? '?')
-      haptic.light()
-    })
-
-    // ── Swap: при manualSwap React сам обновляет DOM через state ─
-    swapyRef.current.onSwap((event) => {
-      console.log('[DnD] onSwap fired — newSlotItemMap:', event.newSlotItemMap.asArray)
-      const newMap = event.newSlotItemMap.asArray
-      setSlotItemMap(newMap)
-      haptic.select()
-
-      const taskById  = new Map((tasks[activeListId!] ?? []).map((t: Task) => [t.id, t]))
-      const newOrdered: Task[] = newMap
-        .map(({ item }) => (item ? taskById.get(item) : null))
-        .filter((t): t is Task => !!t && !t.archived)
-
-      console.log('[DnD] newOrdered tasks:', newOrdered.map(t => t.id))
-
-      if (!originalOrderRef.current) {
-        originalOrderRef.current = activeTasks
-      }
-      pendingOrderRef.current = newOrdered
-
-      setReorderStatus('pending')
-      clearTimeout(reorderDebounceRef.current)
-      reorderDebounceRef.current = setTimeout(() => {
-        setReorderStatus('saving')
-        void flushReorderSave()
-      }, 2000)
-    })
-
-    // ── Drag end ─────────────────────────────────────────────
-    swapyRef.current.onSwapEnd((event) => {
-      console.log('[DnD] onSwapEnd — hasChanged:', (event as any)?.hasChanged ?? '?')
-      haptic.medium()
-    })
-
-    return () => {
-      console.log('[DnD] Swapy destroy')
-      swapyRef.current?.destroy()
-      clearTimeout(reorderDebounceRef.current)
-      pendingOrderRef.current  = null
-      originalOrderRef.current = null
-    }
-  // Only re-init when list changes or loading finishes (container appears in DOM)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeListId, loading])
+  )
 
   // ────────────────────────────────────────────────────────────
-  //  Swapy: синхронизируем при внешних изменениях (realtime, фильтр)
+  //  DnD handlers
   // ────────────────────────────────────────────────────────────
-  useEffect(() => {
-    console.log('[DnD] dynamicSwapy — swapyRef:', !!swapyRef.current, 'sorted.length:', sorted.length, 'slotItemMap.length:', slotItemMap.length)
-    return utils.dynamicSwapy(
-      swapyRef.current,
-      sorted,
-      'id',
-      slotItemMap.filter((x): x is { slot: string; item: string } => x.item !== null),
-      setSlotItemMap
-    )
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sorted])
+  function handleDragStart(event: DragStartEvent) {
+    setDraggingId(String(event.active.id))
+    haptic.light()
+  }
 
-  // ────────────────────────────────────────────────────────────
-  //  Swapy: Enable/disable based on current UI state
-  // ────────────────────────────────────────────────────────────
-  useEffect(() => {
-    const canDrag =
-      !isViewer &&
-      !isDndBlocked &&
-      sortKey === 'position' &&
-      !searchQuery &&
-      filter !== 'archived'
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    setDraggingId(null)
 
-    console.log('[DnD] enable/disable — canDrag:', canDrag, { isViewer, isDndBlocked, sortKey, searchQuery, filter })
-    swapyRef.current?.enable(canDrag)
-  }, [isViewer, isDndBlocked, sortKey, searchQuery, filter])
+    if (!over || active.id === over.id) return
+
+    haptic.medium()
+
+    const oldIndex = sorted.findIndex(t => t.id === active.id)
+    const newIndex = sorted.findIndex(t => t.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+
+    const newOrder = arrayMove(sorted, oldIndex, newIndex)
+
+    // Сохраняем оригинальный порядок для отката (первый drag в серии)
+    if (!originalOrderRef.current) originalOrderRef.current = activeTasks
+    pendingOrderRef.current = newOrder
+
+    // Оптимистичное обновление стора — список перерисуется сразу
+    reorderTasks(activeListId!, [...newOrder, ...archivedTasks])
+
+    // Дебаунс 2с перед записью в БД
+    setReorderStatus('pending')
+    clearTimeout(reorderDebounceRef.current)
+    reorderDebounceRef.current = setTimeout(() => {
+      setReorderStatus('saving')
+      void flushReorderSave()
+    }, 2000)
+  }
+
+  function handleDragCancel() {
+    setDraggingId(null)
+  }
 
   // ────────────────────────────────────────────────────────────
   //  Reset on list change
@@ -1253,7 +1211,6 @@ export function ListDetailView({ onBack }: Props) {
     originalOrderRef.current = null
     setReorderStatus('idle')
     wantsToGoBackRef.current = false
-    setSlotItemMap([])
   }, [activeListId])
 
   // ────────────────────────────────────────────────────────────
@@ -1384,8 +1341,6 @@ export function ListDetailView({ onBack }: Props) {
     if (!ordered) { setReorderStatus('idle'); return }
 
     try {
-      reorderTasks(activeListId!, [...ordered, ...archivedTasks])
-
       const results = await Promise.all(
         ordered.map((task, i) =>
           fetch('/api/tasks', {
@@ -1405,6 +1360,7 @@ export function ListDetailView({ onBack }: Props) {
       toast.dismiss('reorder-back')
       toast.error(t('reorderFailed'))
 
+      // Откат к оригинальному порядку
       if (originalOrderRef.current) {
         reorderTasks(activeListId!, originalOrderRef.current)
       }
@@ -1511,8 +1467,6 @@ export function ListDetailView({ onBack }: Props) {
     : reorderStatus === 'saving'
     ? { show: true, icon: <div className="w-2.5 h-2.5 border border-current/30 border-t-current rounded-full animate-spin" />, label: t('saving'), cls: 'bg-amber/10 text-amber border-amber/20' }
     : { show: false, icon: null, label: '', cls: '' }
-
-  const isDragMode = sortKey === 'position' && !searchQuery && filter !== 'archived' && !isViewer
 
   // ────────────────────────────────────────────────────────────
   //  Render
@@ -1627,9 +1581,9 @@ export function ListDetailView({ onBack }: Props) {
         <div
           ref={listRef}
           className="h-full scrollable px-4 pb-24"
-          onTouchStart={isDragMode ? undefined : onTouchStart}
-          onTouchMove={isDragMode ? undefined : onTouchMove}
-          onTouchEnd={isDragMode ? undefined : onTouchEnd}
+          onTouchStart={onTouchStart}
+          onTouchMove={onTouchMove}
+          onTouchEnd={onTouchEnd}
         >
           {loading ? (
             <div className="space-y-2 mt-2">
@@ -1647,22 +1601,47 @@ export function ListDetailView({ onBack }: Props) {
               )}
             </div>
           ) : (
-            <div ref={containerRef} className="space-y-2 mt-2" style={{ touchAction: 'none' }}>
-              {slottedItems.map(({ slotId, itemId, item: task }) => (
-                <div key={slotId} data-swapy-slot={slotId}>
-                  <div key={itemId} data-swapy-item={itemId} className="task-item">
-                    <TaskCard
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+              onDragCancel={handleDragCancel}
+            >
+              <SortableContext items={sorted.map(t => t.id)} strategy={verticalListSortingStrategy}>
+                <div className="space-y-2 mt-2">
+                  {sorted.map(task => (
+                    <SortableTaskCard
+                      key={task.id}
                       task={task}
                       isViewer={isViewer}
                       isDragMode={isDragMode}
+                      isDragging={draggingId === task.id}
                       onToggle={() => handleStatusToggle(task)}
                       onOpen={() => isViewer ? setViewerTask(task) : setActiveTask(task)}
                       onLongPress={(x, y) => { setContextMenu({ task, x, y }); haptic.medium() }}
                     />
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
+              </SortableContext>
+
+              {/* Плавающая карточка под пальцем при drag */}
+              <DragOverlay>
+                {draggingTask ? (
+                  <div className="rotate-[0.8deg] scale-[1.03] shadow-2xl opacity-95">
+                    <TaskCard
+                      task={draggingTask}
+                      isViewer={false}
+                      isDragMode={false}
+                      isDraggingOverlay
+                      onToggle={() => {}}
+                      onOpen={() => {}}
+                      onLongPress={() => {}}
+                    />
+                  </div>
+                ) : null}
+              </DragOverlay>
+            </DndContext>
           )}
         </div>
       </div>
@@ -1706,23 +1685,73 @@ export function ListDetailView({ onBack }: Props) {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  TaskCard
+//  SortableTaskCard — обёртка dnd-kit для каждой карточки
 // ─────────────────────────────────────────────────────────────
-interface CardProps {
+interface SortableCardProps {
   task:        Task
   isViewer:    boolean
   isDragMode:  boolean
+  isDragging:  boolean
   onToggle:    () => void
   onOpen:      () => void
   onLongPress: (x: number, y: number) => void
 }
 
-function TaskCard({ task, isViewer, isDragMode, onToggle, onOpen, onLongPress }: CardProps) {
+function SortableTaskCard({ task, isViewer, isDragMode, isDragging, onToggle, onOpen, onLongPress }: SortableCardProps) {
+  const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
+    id:       task.id,
+    disabled: !isDragMode,
+  })
+
+  return (
+    <div
+      ref={setNodeRef}
+      className="task-item"
+      style={{
+        transform:  CSS.Transform.toString(transform),
+        transition: transition ?? undefined,
+        // Пока летит DragOverlay — оригинальная карточка становится "призраком"
+        opacity: isDragging ? 0.35 : 1,
+      }}
+    >
+      <TaskCard
+        task={task}
+        isViewer={isViewer}
+        isDragMode={isDragMode}
+        dragListeners={listeners}
+        dragAttributes={attributes}
+        onToggle={onToggle}
+        onOpen={onOpen}
+        onLongPress={onLongPress}
+      />
+    </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+//  TaskCard
+// ─────────────────────────────────────────────────────────────
+interface CardProps {
+  task:               Task
+  isViewer:           boolean
+  isDragMode:         boolean
+  isDraggingOverlay?: boolean
+  dragListeners?:     Record<string, Function>
+  dragAttributes?:    Record<string, any>
+  onToggle:           () => void
+  onOpen:             () => void
+  onLongPress:        (x: number, y: number) => void
+}
+
+function TaskCard({
+  task, isViewer, isDragMode, isDraggingOverlay,
+  dragListeners, dragAttributes,
+  onToggle, onOpen, onLongPress,
+}: CardProps) {
   const { t } = useI18n()
 
   const [isHolding, setIsHolding] = useState(false)
-  const holdTimer = useRef<ReturnType<typeof setTimeout>>()
-
+  const holdTimer      = useRef<ReturnType<typeof setTimeout>>()
   const longPressTimer = useRef<ReturnType<typeof setTimeout>>()
   const didLongPress   = useRef(false)
 
@@ -1750,6 +1779,7 @@ function TaskCard({ task, isViewer, isDragMode, onToggle, onOpen, onLongPress }:
   }
 
   function handleTouchStart(e: React.TouchEvent) {
+    if (isDraggingOverlay) return
     didLongPress.current = false
     const { clientX, clientY } = e.touches[0]
     longPressTimer.current = setTimeout(() => { didLongPress.current = true; onLongPress(clientX, clientY) }, 500)
@@ -1757,10 +1787,12 @@ function TaskCard({ task, isViewer, isDragMode, onToggle, onOpen, onLongPress }:
   function handleTouchEnd() { clearTimeout(longPressTimer.current) }
   function handleClick()    { if (!didLongPress.current) onOpen() }
 
-  function handleGripDown() {
+  function handleGripPointerDown(e: React.PointerEvent) {
     holdTimer.current = setTimeout(() => setIsHolding(true), 50)
+    // Прокидываем событие в dnd-kit listener
+    dragListeners?.onPointerDown?.(e)
   }
-  function handleGripUp() {
+  function handleGripPointerUp() {
     clearTimeout(holdTimer.current)
     setIsHolding(false)
   }
@@ -1777,16 +1809,24 @@ function TaskCard({ task, isViewer, isDragMode, onToggle, onOpen, onLongPress }:
 
         <div className="flex items-start gap-2.5 p-3.5 flex-1 min-w-0">
 
-          {isDragMode ? (
+          {/* ── Drag handle / viewer indicator ──────────────── */}
+          {isDragMode || isDraggingOverlay ? (
+            // Listeners ТОЛЬКО на ручке — вся остальная карточка скроллится.
+            // touch-none запрещает браузеру перехватывать этот элемент как скролл.
             <div
-              data-swapy-handle
-              onPointerDown={handleGripDown}
-              onPointerUp={handleGripUp}
-              onPointerLeave={handleGripUp}
+              {...dragAttributes}
+              onPointerDown={handleGripPointerDown}
+              onPointerUp={handleGripPointerUp}
+              onPointerLeave={handleGripPointerUp}
+              // Переопределяем touch listeners из dnd-kit вручную
+              onTouchStart={dragListeners?.onTouchStart as any}
+              onTouchMove={dragListeners?.onTouchMove as any}
+              onTouchEnd={dragListeners?.onTouchEnd as any}
               className={cn(
-                'mt-0.5 flex-shrink-0 touch-none select-none cursor-grab active:cursor-grabbing',
+                'mt-0.5 flex-shrink-0 touch-none select-none',
+                isDraggingOverlay ? 'cursor-grabbing' : 'cursor-grab active:cursor-grabbing',
                 'relative transition-colors duration-150',
-                isHolding ? 'text-accent' : 'text-text-dim hover:text-text-secondary'
+                isHolding ? 'text-accent' : 'text-text-dim hover:text-text-secondary',
               )}
             >
               <GripVertical size={15} />
@@ -1798,9 +1838,9 @@ function TaskCard({ task, isViewer, isDragMode, onToggle, onOpen, onLongPress }:
             <Eye size={13} className="text-text-dim mt-1 flex-shrink-0 opacity-40" />
           )}
 
+          {/* ── Completion checkbox ──────────────────────────── */}
           <button
-            onClick={isViewer ? undefined : onToggle}
-            data-swapy-no-drag
+            onClick={isViewer || isDraggingOverlay ? undefined : onToggle}
             className={cn('custom-checkbox mt-0.5', isDone ? 'checked' : 'unchecked', isViewer && 'opacity-60 cursor-default')}
           >
             {isDone && (
@@ -1810,11 +1850,11 @@ function TaskCard({ task, isViewer, isDragMode, onToggle, onOpen, onLongPress }:
             )}
           </button>
 
+          {/* ── Task body ────────────────────────────────────── */}
           <button
-            data-swapy-no-drag
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
-            onClick={handleClick}
+            onClick={isDraggingOverlay ? undefined : handleClick}
             className="flex-1 min-w-0 text-left"
           >
             <p className={cn('text-sm font-medium leading-snug', isDone && 'line-through text-text-secondary')}>
@@ -1859,6 +1899,9 @@ function TaskCard({ task, isViewer, isDragMode, onToggle, onOpen, onLongPress }:
   )
 }
 
+// ─────────────────────────────────────────────────────────────
+//  MentionText
+// ─────────────────────────────────────────────────────────────
 function MentionText({ text }: { text: string }) {
   return (
     <>
