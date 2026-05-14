@@ -995,7 +995,6 @@
 
 
 
-
 'use client'
 
 import { useEffect, useRef, useState, useMemo } from 'react'
@@ -1006,6 +1005,7 @@ import {
   PointerSensor,
   TouchSensor,
   KeyboardSensor,
+  MeasuringStrategy,
   useSensor,
   useSensors,
   closestCenter,
@@ -1103,6 +1103,15 @@ export function ListDetailView({ onBack }: Props) {
   const fetchDebounceRef = useRef<ReturnType<typeof setTimeout>>()
   const abortRef         = useRef<AbortController>()
 
+  // ── DnD stability refs ───────────────────────────────────────
+  // frozenSorted — список замораживается при dragStart, чтобы realtime-обновления
+  // не перерисовывали DOM пока пользователь тащит карточку
+  const frozenSortedRef = useRef<Task[]>([])
+  // isDraggingRef — синхронный флаг для pull-to-refresh; state async и запаздывает
+  const isDraggingRef   = useRef(false)
+  // sortedRef — актуальный sorted без stale-closure в обработчиках
+  const sortedRef       = useRef<Task[]>([])
+
   // ── Derived task lists ──────────────────────────────────────
   const allTasks      = tasks[activeListId!] ?? []
   const activeTasks   = allTasks.filter(t => !t.archived)
@@ -1126,7 +1135,13 @@ export function ListDetailView({ onBack }: Props) {
     return a.position - b.position
   }), [searched, sortKey])
 
-  const draggingTask = draggingId ? sorted.find(t => t.id === draggingId) ?? null : null
+  // Держим ref актуальным — нет stale closure в dragEnd
+  sortedRef.current = sorted
+
+  // Во время drag рендерим замороженный список, чтобы realtime не дёргал DOM
+  const displayList = draggingId ? frozenSortedRef.current : sorted
+
+  const draggingTask = draggingId ? frozenSortedRef.current.find(t => t.id === draggingId) ?? null : null
 
   // ── Stats ───────────────────────────────────────────────────
   const { doneCount, totalCount } = useMemo(() => ({
@@ -1161,32 +1176,39 @@ export function ListDetailView({ onBack }: Props) {
   //  DnD handlers
   // ────────────────────────────────────────────────────────────
   function handleDragStart(event: DragStartEvent) {
-    setDraggingId(String(event.active.id))
+    const id = String(event.active.id)
+    // Замораживаем текущий список — realtime не сломает drag
+    frozenSortedRef.current = sortedRef.current
+    isDraggingRef.current   = true
+    setDraggingId(id)
     haptic.light()
   }
 
   function handleDragEnd(event: DragEndEvent) {
     const { active, over } = event
+    isDraggingRef.current = false
     setDraggingId(null)
 
     if (!over || active.id === over.id) return
 
     haptic.medium()
 
-    const oldIndex = sorted.findIndex(t => t.id === active.id)
-    const newIndex = sorted.findIndex(t => t.id === over.id)
+    // Используем замороженный список — нет stale closure
+    const frozen   = frozenSortedRef.current
+    const oldIndex = frozen.findIndex(t => t.id === active.id)
+    const newIndex = frozen.findIndex(t => t.id === over.id)
     if (oldIndex === -1 || newIndex === -1) return
 
-    const newOrder = arrayMove(sorted, oldIndex, newIndex)
+    const newOrder = arrayMove(frozen, oldIndex, newIndex)
 
-    // Сохраняем оригинальный порядок для отката (первый drag в серии)
     if (!originalOrderRef.current) originalOrderRef.current = activeTasks
     pendingOrderRef.current = newOrder
 
-    // Оптимистичное обновление стора — список перерисуется сразу
-    reorderTasks(activeListId!, [...newOrder, ...archivedTasks])
+    // rAF — даём dnd-kit завершить drop-анимацию до ре-рендера React
+    requestAnimationFrame(() => {
+      reorderTasks(activeListId!, [...newOrder, ...archivedTasks])
+    })
 
-    // Дебаунс 2с перед записью в БД
     setReorderStatus('pending')
     clearTimeout(reorderDebounceRef.current)
     reorderDebounceRef.current = setTimeout(() => {
@@ -1196,6 +1218,7 @@ export function ListDetailView({ onBack }: Props) {
   }
 
   function handleDragCancel() {
+    isDraggingRef.current = false
     setDraggingId(null)
   }
 
@@ -1448,13 +1471,18 @@ export function ListDetailView({ onBack }: Props) {
   }
 
   // ── Pull-to-refresh ────────────────────────────────────────
-  function onTouchStart(e: React.TouchEvent) { pullStartY.current = e.touches[0].clientY }
+  function onTouchStart(e: React.TouchEvent) {
+    if (isDraggingRef.current) return
+    pullStartY.current = e.touches[0].clientY
+  }
   function onTouchMove(e: React.TouchEvent) {
+    if (isDraggingRef.current) return
     if (!listRef.current || listRef.current.scrollTop > 0) return
     if (e.touches[0].clientY - pullStartY.current < 40) return
     setIsPulling(true)
   }
   async function onTouchEnd() {
+    if (isDraggingRef.current) return
     if (!isPulling) return; setIsPulling(false); haptic.light()
     await fetchTasks(); toast.success(t('refreshed'))
   }
@@ -1604,13 +1632,14 @@ export function ListDetailView({ onBack }: Props) {
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
+              measuring={{ droppable: { strategy: MeasuringStrategy.WhileDragging } }}
               onDragStart={handleDragStart}
               onDragEnd={handleDragEnd}
               onDragCancel={handleDragCancel}
             >
-              <SortableContext items={sorted.map(t => t.id)} strategy={verticalListSortingStrategy}>
+              <SortableContext items={displayList.map(t => t.id)} strategy={verticalListSortingStrategy}>
                 <div className="space-y-2 mt-2">
-                  {sorted.map(task => (
+                  {displayList.map(task => (
                     <SortableTaskCard
                       key={task.id}
                       task={task}
@@ -1626,7 +1655,12 @@ export function ListDetailView({ onBack }: Props) {
               </SortableContext>
 
               {/* Плавающая карточка под пальцем при drag */}
-              <DragOverlay>
+              <DragOverlay
+                dropAnimation={{
+                  duration:   180,
+                  easing:     'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
+                }}
+              >
                 {draggingTask ? (
                   <div className="rotate-[0.8deg] scale-[1.03] shadow-2xl opacity-95">
                     <TaskCard
