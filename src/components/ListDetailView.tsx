@@ -1165,7 +1165,7 @@ export function ListDetailView({ onBack }: Props) {
 
       // КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: при manualSwap:true нужно явно
       // сообщить Swapy о новом порядке, иначе элементы вернутся
-      swapyRef.current!.setData({ array: newMap })
+      //swapyRef.current!.setData({ array: newMap })
       setSlotItemMap(newMap)
       haptic.select()
 
