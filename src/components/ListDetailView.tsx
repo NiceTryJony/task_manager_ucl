@@ -1140,7 +1140,18 @@ export function ListDetailView({ onBack }: Props) {
   //  Swapy: Init once on mount, destroy on unmount
   // ────────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!containerRef.current) return
+    console.log('[DnD] useEffect triggered — activeListId:', activeListId, 'loading:', loading)
+    console.log('[DnD] containerRef.current:', containerRef.current)
+
+    if (!containerRef.current) {
+      console.warn('[DnD] containerRef is null — Swapy NOT initialized')
+      return
+    }
+
+    const slots = containerRef.current.querySelectorAll('[data-swapy-slot]')
+    const items = containerRef.current.querySelectorAll('[data-swapy-item]')
+    console.log('[DnD] slots found:', slots.length, Array.from(slots).map(el => el.getAttribute('data-swapy-slot')))
+    console.log('[DnD] items found:', items.length, Array.from(items).map(el => el.getAttribute('data-swapy-item')))
 
     swapyRef.current = createSwapy(containerRef.current, {
       manualSwap: true,
@@ -1148,14 +1159,17 @@ export function ListDetailView({ onBack }: Props) {
       dragOnHold: true,
       dragAxis:   'y',
     })
+    console.log('[DnD] Swapy instance created:', swapyRef.current)
 
     // ── Drag start ───────────────────────────────────────────
-    swapyRef.current.onSwapStart(() => {
+    swapyRef.current.onSwapStart((event) => {
+      console.log('[DnD] onSwapStart — dragging item:', (event as any)?.draggingItem ?? '?')
       haptic.light()
     })
 
     // ── Swap: при manualSwap React сам обновляет DOM через state ─
     swapyRef.current.onSwap((event) => {
+      console.log('[DnD] onSwap fired — newSlotItemMap:', event.newSlotItemMap.asArray)
       const newMap = event.newSlotItemMap.asArray
       setSlotItemMap(newMap)
       haptic.select()
@@ -1164,6 +1178,8 @@ export function ListDetailView({ onBack }: Props) {
       const newOrdered: Task[] = newMap
         .map(({ item }) => (item ? taskById.get(item) : null))
         .filter((t): t is Task => !!t && !t.archived)
+
+      console.log('[DnD] newOrdered tasks:', newOrdered.map(t => t.id))
 
       if (!originalOrderRef.current) {
         originalOrderRef.current = activeTasks
@@ -1179,11 +1195,13 @@ export function ListDetailView({ onBack }: Props) {
     })
 
     // ── Drag end ─────────────────────────────────────────────
-    swapyRef.current.onSwapEnd(() => {
+    swapyRef.current.onSwapEnd((event) => {
+      console.log('[DnD] onSwapEnd — hasChanged:', (event as any)?.hasChanged ?? '?')
       haptic.medium()
     })
 
     return () => {
+      console.log('[DnD] Swapy destroy')
       swapyRef.current?.destroy()
       clearTimeout(reorderDebounceRef.current)
       pendingOrderRef.current  = null
@@ -1196,17 +1214,17 @@ export function ListDetailView({ onBack }: Props) {
   // ────────────────────────────────────────────────────────────
   //  Swapy: синхронизируем при внешних изменениях (realtime, фильтр)
   // ────────────────────────────────────────────────────────────
-  useEffect(
-    () => utils.dynamicSwapy(
+  useEffect(() => {
+    console.log('[DnD] dynamicSwapy — swapyRef:', !!swapyRef.current, 'sorted.length:', sorted.length, 'slotItemMap.length:', slotItemMap.length)
+    return utils.dynamicSwapy(
       swapyRef.current,
       sorted,
       'id',
       slotItemMap.filter((x): x is { slot: string; item: string } => x.item !== null),
       setSlotItemMap
-    ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [sorted]
-  )
+    )
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sorted])
 
   // ────────────────────────────────────────────────────────────
   //  Swapy: Enable/disable based on current UI state
@@ -1219,6 +1237,7 @@ export function ListDetailView({ onBack }: Props) {
       !searchQuery &&
       filter !== 'archived'
 
+    console.log('[DnD] enable/disable — canDrag:', canDrag, { isViewer, isDndBlocked, sortKey, searchQuery, filter })
     swapyRef.current?.enable(canDrag)
   }, [isViewer, isDndBlocked, sortKey, searchQuery, filter])
 
