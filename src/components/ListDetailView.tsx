@@ -1215,7 +1215,7 @@ export function ListDetailView({ onBack }: Props) {
       setReorderStatus('saving')
       toast.loading(t('saving'), { id: 'reorder-save' })
       void flushReorderSave()
-    }, 2000)
+    }, 1000)
   }
 
   function handleDragCancel() {
@@ -1494,7 +1494,7 @@ export function ListDetailView({ onBack }: Props) {
 
   // ── Reorder status badge ────────────────────────────────────
   const reorderBadge = reorderStatus === 'pending'
-    ? { show: true, icon: <ArrowUpDown size={10} />, label: '2s…', cls: 'bg-accent/10 text-accent border-accent/20' }
+    ? { show: true, icon: <ArrowUpDown size={10} />, label: '1s…', cls: 'bg-accent/10 text-accent border-accent/20' }
     : reorderStatus === 'saving'
     ? { show: true, icon: <div className="w-2.5 h-2.5 border border-current/30 border-t-current rounded-full animate-spin" />, label: t('saving'), cls: 'bg-amber/10 text-amber border-amber/20' }
     : { show: false, icon: null, label: '', cls: '' }
