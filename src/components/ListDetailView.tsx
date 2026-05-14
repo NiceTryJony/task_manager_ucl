@@ -1029,8 +1029,6 @@ type SortKey       = 'position' | 'due_at' | 'priority' | 'created_at'
 type FilterKey     = TaskStatus | 'all' | 'archived'
 type ReorderStatus = 'idle' | 'pending' | 'saving'
 
-type SlotItemEntry = { slot: string; item: string | null }
-
 const PRIORITY_ORDER: Record<Priority, number> = { urgent: 0, high: 1, medium: 2, low: 3 }
 
 // ─────────────────────────────────────────────────────────────
@@ -1080,7 +1078,7 @@ export function ListDetailView({ onBack }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
 
   // ── Swapy slot-item mapping (drives render order) ───────────
-  const [slotItemMap, setSlotItemMap] = useState<SlotItemEntry[]>([])
+  const [slotItemMap, setSlotItemMap] = useState<{ slot: string; item: string | null }[]>([])
 
   // ── Other refs ──────────────────────────────────────────────
   const pageRef    = useRef<HTMLDivElement>(null)
@@ -1114,21 +1112,18 @@ export function ListDetailView({ onBack }: Props) {
     return a.position - b.position
   }), [searched, sortKey])
 
-  // ── Swapy: вычисляем slottedItems из sorted + slotItemMap ──
-  // Это то, что рендерится — Swapy переставляет задачи визуально
-  // не затрагивая reconciliation React по ключам.
-  const slottedItems = useMemo(
-    () => utils.toSlottedItems(
-      sorted,
-      'id',
-      slotItemMap.filter((x): x is { slot: string; item: string } => x.item !== null)
-    ) as Array<{
+  // slottedItems — что рендерится; порядок определяется slotItemMap после свапа.
+  // Пока slotItemMap пуст (первый рендер до dynamicSwapy) — рендерим sorted напрямую.
+  const slottedItems = useMemo(() => {
+    if (slotItemMap.length === 0) {
+      return sorted.map(item => ({ slotId: String(item.id), itemId: String(item.id), item }))
+    }
+    return utils.toSlottedItems(sorted, 'id', slotItemMap.filter((x): x is { slot: string; item: string } => x.item !== null)) as Array<{
       slotId: string
       itemId: string
       item:   Task
-    }>,
-    [sorted, slotItemMap]
-  )
+    }>
+  }, [sorted, slotItemMap])
 
   // ── Stats ───────────────────────────────────────────────────
   const { doneCount, totalCount } = useMemo(() => ({
@@ -1159,29 +1154,22 @@ export function ListDetailView({ onBack }: Props) {
       haptic.light()
     })
 
-    // ── Swap: обновляем порядок визуально + планируем запись ─
+    // ── Swap: при manualSwap React сам обновляет DOM через state ─
     swapyRef.current.onSwap((event) => {
-      const newMap = event.newSlotItemMap.asArray as SlotItemEntry[]
-
-      // КЛЮЧЕВОЕ ИСПРАВЛЕНИЕ: при manualSwap:true нужно явно
-      // сообщить Swapy о новом порядке, иначе элементы вернутся
-      //swapyRef.current!.setData({ array: newMap })
+      const newMap = event.newSlotItemMap.asArray
       setSlotItemMap(newMap)
       haptic.select()
 
-      // Вычисляем новый порядок активных задач из slot-item map
       const taskById  = new Map((tasks[activeListId!] ?? []).map((t: Task) => [t.id, t]))
       const newOrdered: Task[] = newMap
         .map(({ item }) => (item ? taskById.get(item) : null))
         .filter((t): t is Task => !!t && !t.archived)
 
-      // Сохраняем оригинальный порядок для отката (первый drag в серии)
       if (!originalOrderRef.current) {
         originalOrderRef.current = activeTasks
       }
       pendingOrderRef.current = newOrdered
 
-      // Планируем запись в БД через 2с после последнего drag
       setReorderStatus('pending')
       clearTimeout(reorderDebounceRef.current)
       reorderDebounceRef.current = setTimeout(() => {
@@ -1206,20 +1194,19 @@ export function ListDetailView({ onBack }: Props) {
   }, [activeListId])
 
   // ────────────────────────────────────────────────────────────
-  //  Swapy: синхронизируем при внешних изменениях списка
-  //  (realtime добавление/удаление, смена фильтра и т.д.)
+  //  Swapy: синхронизируем при внешних изменениях (realtime, фильтр)
   // ────────────────────────────────────────────────────────────
-  useEffect(() => {
-    if (!swapyRef.current) return
-    return utils.dynamicSwapy(
+  useEffect(
+    () => utils.dynamicSwapy(
       swapyRef.current,
       sorted,
       'id',
       slotItemMap.filter((x): x is { slot: string; item: string } => x.item !== null),
       setSlotItemMap
-    )
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sorted])
+    ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sorted]
+  )
 
   // ────────────────────────────────────────────────────────────
   //  Swapy: Enable/disable based on current UI state
@@ -1641,20 +1628,10 @@ export function ListDetailView({ onBack }: Props) {
               )}
             </div>
           ) : (
-            // ── Swapy container: слоты управляют порядком ─────────
-            // Каждый slot — позиция в списке, item — перетаскиваемая карточка.
-            // slottedItems обновляется через slotItemMap после каждого swap.
             <div ref={containerRef} className="space-y-2 mt-2">
               {slottedItems.map(({ slotId, itemId, item: task }) => (
-                <div
-                  key={slotId}
-                  data-swapy-slot={slotId}
-                >
-                  <div
-                    key={itemId}
-                    data-swapy-item={itemId}
-                    className="task-item"
-                  >
+                <div key={slotId} data-swapy-slot={slotId}>
+                  <div key={itemId} data-swapy-item={itemId} className="task-item">
                     <TaskCard
                       task={task}
                       isViewer={isViewer}
