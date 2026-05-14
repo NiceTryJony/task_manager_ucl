@@ -1189,9 +1189,9 @@ export function ListDetailView({ onBack }: Props) {
       pendingOrderRef.current  = null
       originalOrderRef.current = null
     }
-  // Only re-init when list changes
+  // Only re-init when list changes or loading finishes (container appears in DOM)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeListId])
+  }, [activeListId, loading])
 
   // ────────────────────────────────────────────────────────────
   //  Swapy: синхронизируем при внешних изменениях (realtime, фильтр)
