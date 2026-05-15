@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     }
 
     const authDate = Number(params.get('auth_date'))
-    if (Date.now() / 1000 - authDate > 86400) {
+    if (Date.now() / 1000 - authDate > 3600) {
       return NextResponse.json({ ok: false, error: 'Expired' }, { status: 403 })
     }
 

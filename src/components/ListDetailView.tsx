@@ -1155,6 +1155,11 @@ export function ListDetailView({ onBack }: Props) {
   const isBlocked    = isPending || reorderStatus === 'saving'
   const isDragMode   = sortKey === 'position' && !searchQuery && filter !== 'archived' && !isViewer && !isBlocked
 
+  const userIdRef = useRef(user?.id ?? 0)
+  const listIdRef = useRef(activeListId)
+  const isFetchingRef = useRef(false)
+
+
   // ── dnd-kit sensors ─────────────────────────────────────────
   // PointerSensor  — мышь / стилус: drag после 8px движения
   // TouchSensor    — тач: держишь 250ms на ручке, потом тащишь;
@@ -1310,28 +1315,68 @@ export function ListDetailView({ onBack }: Props) {
   // ────────────────────────────────────────────────────────────
   //  fetchTasks
   // ────────────────────────────────────────────────────────────
-  async function fetchTasks(showAnim = true) {
-    abortRef.current?.abort(); abortRef.current = new AbortController()
-    try {
-      const [res, resA] = await Promise.all([
-        fetch(`/api/tasks?listId=${activeListId}&userId=${user?.id ?? 0}`, { signal: abortRef.current.signal }),
-        fetch(`/api/tasks?listId=${activeListId}&userId=${user?.id ?? 0}&archived=true`, { signal: abortRef.current.signal }),
-      ])
-      const [data, dataA] = await Promise.all([res.json(), resA.json()])
-      setTasks(activeListId!, [...(data.tasks ?? []), ...(dataA.tasks ?? [])])
-      setLoading(false)
-      if (showAnim) {
-        requestAnimationFrame(() => {
-          const cards = listRef.current?.querySelectorAll('.task-item')
-          if (cards?.length) gsap.fromTo(cards, { x: -14, opacity: 0 }, { x: 0, opacity: 1, duration: 0.26, stagger: 0.04, ease: 'power2.out' })
-        })
-      }
-      const active_ = data.tasks ?? []
-      const allDone = active_.length > 0 && active_.every((t: Task) => t.status === 'done')
-      if (allDone && !wasDone.current) { setShowConfetti(true); haptic.success() }
-      wasDone.current = allDone
-    } catch (e: any) { if (e.name !== 'AbortError') {} }
+
+  useEffect(() => {
+    userIdRef.current = user?.id ?? 0
+  }, [user?.id])
+
+  useEffect(() => {
+    listIdRef.current = activeListId
+  }, [activeListId])
+
+async function fetchTasks(showAnim = true) {
+  // ✅ Guard от race condition
+  if (isFetchingRef.current) return
+  isFetchingRef.current = true
+  
+  abortRef.current?.abort()
+  abortRef.current = new AbortController()
+  
+  try {
+    const [res, resA] = await Promise.all([
+      fetch(`/api/tasks?listId=${activeListId}&userId=${user?.id ?? 0}`, { 
+        signal: abortRef.current.signal 
+      }),
+      fetch(`/api/tasks?listId=${activeListId}&userId=${user?.id ?? 0}&archived=true`, { 
+        signal: abortRef.current.signal 
+      }),
+    ])
+    
+    // ✅ ВОССТАНОВИ ЭТУ СТРОКУ
+    const [data, dataA] = await Promise.all([res.json(), resA.json()])
+    
+    setTasks(activeListId!, [...(data.tasks ?? []), ...(dataA.tasks ?? [])])
+    setLoading(false)
+    
+    if (showAnim) {
+      requestAnimationFrame(() => {
+        const cards = listRef.current?.querySelectorAll('.task-item')
+        if (cards?.length) {
+          gsap.fromTo(
+            cards, 
+            { x: -14, opacity: 0 }, 
+            { x: 0, opacity: 1, duration: 0.26, stagger: 0.04, ease: 'power2.out' }
+          )
+        }
+      })
+    }
+    
+    const active_ = data.tasks ?? []
+    const allDone = active_.length > 0 && active_.every((t: Task) => t.status === 'done')
+    if (allDone && !wasDone.current) { 
+      setShowConfetti(true)
+      haptic.success() 
+    }
+    wasDone.current = allDone
+    
+  } catch (e: any) {
+    if (e.name !== 'AbortError') {
+      // Можно добавить toast.error если нужно
+    }
+  } finally {
+    isFetchingRef.current = false  // ✅ Разблокируем
   }
+}
 
   // ────────────────────────────────────────────────────────────
   //  Navigation
@@ -1357,12 +1402,52 @@ export function ListDetailView({ onBack }: Props) {
     navigateBack()
   }
 
+
+  useEffect(() => {
+    userIdRef.current = user?.id ?? 0
+  }, [user?.id])
+
+  useEffect(() => {
+    listIdRef.current = activeListId
+  }, [activeListId])
+
   // ────────────────────────────────────────────────────────────
   //  flushReorderSave
   // ────────────────────────────────────────────────────────────
+  // async function flushReorderSave() {
+  //   const ordered = pendingOrderRef.current
+  //   if (!ordered) { setReorderStatus('idle'); return }
+
+  //   try {
+  //     const results = await Promise.all(
+  //       ordered.map((task, i) =>
+  //         fetch('/api/tasks', {
+  //           method:  'PATCH',
+  //           headers: { 'Content-Type': 'application/json' },
+  //           body:    JSON.stringify({ taskId: task.id, userId: user?.id ?? 0, position: i }),
+  //         })
+  //       )
+  //     )
+
+  // В flushReorderSave используй refs
   async function flushReorderSave() {
     const ordered = pendingOrderRef.current
-    if (!ordered) { setReorderStatus('idle'); return }
+    if (!ordered) { 
+      setReorderStatus('idle')
+      return 
+    }
+
+    // ✅ Берём актуальные значения из refs
+    const currentUserId = userIdRef.current
+    const currentListId = listIdRef.current
+    
+    // ✅ Guard: юзер уже вышел из списка
+    if (!currentListId) {
+      setReorderStatus('idle')
+      toast.dismiss('reorder-save')
+      toast.dismiss('reorder-back')
+      return
+    }
 
     try {
       const results = await Promise.all(
@@ -1370,10 +1455,15 @@ export function ListDetailView({ onBack }: Props) {
           fetch('/api/tasks', {
             method:  'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body:    JSON.stringify({ taskId: task.id, userId: user?.id ?? 0, position: i }),
+            body: JSON.stringify({ 
+              taskId: task.id, 
+              userId: currentUserId,    // ✅ Используем ref
+              position: i 
+            }),
           })
         )
       )
+      
       if (results.some(r => !r.ok)) throw new Error('partial failure')
 
       pendingOrderRef.current  = null
@@ -1388,7 +1478,7 @@ export function ListDetailView({ onBack }: Props) {
 
       // Откат к оригинальному порядку
       if (originalOrderRef.current) {
-        reorderTasks(activeListId!, originalOrderRef.current)
+        reorderTasks(currentListId, originalOrderRef.current)  // ✅ Используем ref
       }
       pendingOrderRef.current  = null
       originalOrderRef.current = null
@@ -1401,6 +1491,10 @@ export function ListDetailView({ onBack }: Props) {
       }
     }
   }
+
+
+
+
 
   // ────────────────────────────────────────────────────────────
   //  Task actions

@@ -93,8 +93,9 @@ import { createServiceClient } from '@/lib/supabase'
 
 // sha256(username:pin) — lightweight, no extra deps
 function hashPin(username: string, pin: string): string {
+  const salt = process.env.PIN_SALT || 'taskflow-2024-default'
   return createHash('sha256')
-    .update(`${username.toLowerCase()}:${pin}`)
+    .update(`${salt}:${username.toLowerCase()}:${pin}`)
     .digest('hex')
 }
 
