@@ -1429,6 +1429,7 @@ async function fetchTasks(showAnim = true) {
   //       )
   //     )
 
+  
   // В flushReorderSave используй refs
   async function flushReorderSave() {
     const ordered = pendingOrderRef.current
@@ -1437,9 +1438,13 @@ async function fetchTasks(showAnim = true) {
       return 
     }
 
+    const reorderAbortRef = useRef<AbortController>()
+    reorderAbortRef.current?.abort()
+    reorderAbortRef.current = new AbortController()
     // ✅ Берём актуальные значения из refs
     const currentUserId = userIdRef.current
     const currentListId = listIdRef.current
+    const signal = reorderAbortRef.current.signal
     
     // ✅ Guard: юзер уже вышел из списка
     if (!currentListId) {
@@ -1454,6 +1459,7 @@ async function fetchTasks(showAnim = true) {
         ordered.map((task, i) =>
           fetch('/api/tasks', {
             method:  'PATCH',
+            signal,
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ 
               taskId: task.id, 
