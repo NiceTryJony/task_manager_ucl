@@ -107,14 +107,9 @@ export function ListDetailView({ onBack }: Props) {
   const abortRef         = useRef<AbortController>()
 
   // ── DnD stability refs ───────────────────────────────────────
-  // frozenSorted — список замораживается при dragStart, чтобы realtime-обновления
-  // не перерисовывали DOM пока пользователь тащит карточку
   const frozenSortedRef  = useRef<Task[]>([])
-  // isDraggingRef — синхронный флаг для pull-to-refresh; state async и запаздывает
   const isDraggingRef    = useRef(false)
-  // sortedRef — актуальный sorted без stale-closure в обработчиках
   const sortedRef        = useRef<Task[]>([])
-  // reorderAbortRef — для отмены сохранения порядка (должен быть на уровне компонента)
   const reorderAbortRef  = useRef<AbortController>()
 
   // ── Derived task lists ──────────────────────────────────────
@@ -140,12 +135,9 @@ export function ListDetailView({ onBack }: Props) {
     return a.position - b.position
   }), [searched, sortKey])
 
-  // Держим ref актуальным — нет stale closure в dragEnd
   sortedRef.current = sorted
 
-  // Во время drag рендерим замороженный список, чтобы realtime не дёргал DOM
   const displayList = draggingId ? frozenSortedRef.current : sorted
-
   const draggingTask = draggingId ? frozenSortedRef.current.find(t => t.id === draggingId) ?? null : null
 
   // ── Stats ───────────────────────────────────────────────────
@@ -163,12 +155,7 @@ export function ListDetailView({ onBack }: Props) {
   const userIdRef = useRef(user?.id ?? 0)
   const listIdRef = useRef(activeListId)
 
-
   // ── dnd-kit sensors ─────────────────────────────────────────
-  // PointerSensor  — мышь / стилус: drag после 8px движения
-  // TouchSensor    — тач: держишь 250ms на ручке, потом тащишь;
-  //                  если сдвинулся >5px за холд — скролл побеждает
-  // KeyboardSensor — доступность
   const sensors = useSensors(
     useSensor(PointerSensor, {
       activationConstraint: { distance: 8 },
@@ -186,7 +173,6 @@ export function ListDetailView({ onBack }: Props) {
   // ────────────────────────────────────────────────────────────
   function handleDragStart(event: DragStartEvent) {
     const id = String(event.active.id)
-    // Замораживаем текущий список — realtime не сломает drag
     frozenSortedRef.current = sortedRef.current
     isDraggingRef.current   = true
     setDraggingId(id)
@@ -202,7 +188,6 @@ export function ListDetailView({ onBack }: Props) {
 
     haptic.medium()
 
-    // Используем замороженный список — нет stale closure
     const frozen   = frozenSortedRef.current
     const oldIndex = frozen.findIndex(t => t.id === active.id)
     const newIndex = frozen.findIndex(t => t.id === over.id)
@@ -213,7 +198,6 @@ export function ListDetailView({ onBack }: Props) {
     if (!originalOrderRef.current) originalOrderRef.current = activeTasks
     pendingOrderRef.current = newOrder
 
-    // rAF — даём dnd-kit завершить drop-анимацию до ре-рендера React
     requestAnimationFrame(() => {
       reorderTasks(activeListId!, [...newOrder, ...archivedTasks])
     })
@@ -317,64 +301,46 @@ export function ListDetailView({ onBack }: Props) {
   }, [activeListId, user])
 
   // ────────────────────────────────────────────────────────────
-  //  fetchTasks — uses refs for listId/userId to avoid stale closures
-  //  in online/offline handler; uses abort for cancellation
+  //  fetchTasks
   // ────────────────────────────────────────────────────────────
+  async function fetchTasks(showAnim = true) {
+    abortRef.current?.abort()
+    const ctrl = new AbortController()
+    abortRef.current = ctrl
 
-async function fetchTasks(showAnim = true) {
-  // Отменяем предыдущий in-flight запрос и стартуем новый
-  abortRef.current?.abort()
-  const ctrl = new AbortController()
-  abortRef.current = ctrl
+    const currentListId = listIdRef.current
+    const currentUserId = userIdRef.current
+    if (!currentListId) return
 
-  // Читаем актуальные значения из refs — нет stale closure
-  const currentListId = listIdRef.current
-  const currentUserId = userIdRef.current
-  if (!currentListId) return
+    try {
+      const [res, resA] = await Promise.all([
+        fetch(`/api/tasks?listId=${currentListId}&userId=${currentUserId}`, { signal: ctrl.signal }),
+        fetch(`/api/tasks?listId=${currentListId}&userId=${currentUserId}&archived=true`, { signal: ctrl.signal }),
+      ])
 
-  try {
-    const [res, resA] = await Promise.all([
-      fetch(`/api/tasks?listId=${currentListId}&userId=${currentUserId}`, {
-        signal: ctrl.signal,
-      }),
-      fetch(`/api/tasks?listId=${currentListId}&userId=${currentUserId}&archived=true`, {
-        signal: ctrl.signal,
-      }),
-    ])
-    
-    // ✅ ВОССТАНОВИ ЭТУ СТРОКУ
-    const [data, dataA] = await Promise.all([res.json(), resA.json()])
-    
-    setTasks(activeListId!, [...(data.tasks ?? []), ...(dataA.tasks ?? [])])
-    setLoading(false)
-    
-    if (showAnim) {
-      requestAnimationFrame(() => {
-        const cards = listRef.current?.querySelectorAll('.task-item')
-        if (cards?.length) {
-          gsap.fromTo(
-            cards, 
-            { x: -14, opacity: 0 }, 
-            { x: 0, opacity: 1, duration: 0.26, stagger: 0.04, ease: 'power2.out' }
-          )
-        }
-      })
-    }
-    
-    const active_ = data.tasks ?? []
-    const allDone = active_.length > 0 && active_.every((t: Task) => t.status === 'done')
-    if (allDone && !wasDone.current) { 
-      setShowConfetti(true)
-      haptic.success() 
-    }
-    wasDone.current = allDone
-    
-  } catch (e: any) {
-    if (e.name !== 'AbortError') {
-      // Можно добавить toast.error если нужно
+      const [data, dataA] = await Promise.all([res.json(), resA.json()])
+
+      setTasks(activeListId!, [...(data.tasks ?? []), ...(dataA.tasks ?? [])])
+      setLoading(false)
+
+      if (showAnim) {
+        requestAnimationFrame(() => {
+          const cards = listRef.current?.querySelectorAll('.task-item')
+          if (cards?.length) {
+            gsap.fromTo(cards, { x: -14, opacity: 0 }, { x: 0, opacity: 1, duration: 0.26, stagger: 0.04, ease: 'power2.out' })
+          }
+        })
+      }
+
+      const active_ = data.tasks ?? []
+      const allDone = active_.length > 0 && active_.every((t: Task) => t.status === 'done')
+      if (allDone && !wasDone.current) { setShowConfetti(true); haptic.success() }
+      wasDone.current = allDone
+
+    } catch (e: any) {
+      if (e.name !== 'AbortError') {}
     }
   }
-}
 
   // ────────────────────────────────────────────────────────────
   //  Navigation
@@ -400,56 +366,23 @@ async function fetchTasks(showAnim = true) {
     navigateBack()
   }
 
-
-  useEffect(() => {
-    userIdRef.current = user?.id ?? 0
-  }, [user?.id])
-
-  useEffect(() => {
-    listIdRef.current = activeListId
-  }, [activeListId])
+  useEffect(() => { userIdRef.current = user?.id ?? 0 }, [user?.id])
+  useEffect(() => { listIdRef.current = activeListId }, [activeListId])
 
   // ────────────────────────────────────────────────────────────
   //  flushReorderSave
   // ────────────────────────────────────────────────────────────
-  // async function flushReorderSave() {
-  //   const ordered = pendingOrderRef.current
-  //   if (!ordered) { setReorderStatus('idle'); return }
-
-  //   try {
-  //     const results = await Promise.all(
-  //       ordered.map((task, i) =>
-  //         fetch('/api/tasks', {
-  //           method:  'PATCH',
-  //           headers: { 'Content-Type': 'application/json' },
-  //           body:    JSON.stringify({ taskId: task.id, userId: user?.id ?? 0, position: i }),
-  //         })
-  //       )
-  //     )
-
-  
-  // В flushReorderSave используй refs
   async function flushReorderSave() {
     const ordered = pendingOrderRef.current
-    if (!ordered) { 
-      setReorderStatus('idle')
-      return 
-    }
+    if (!ordered) { setReorderStatus('idle'); return }
 
     reorderAbortRef.current?.abort()
     reorderAbortRef.current = new AbortController()
-    // ✅ Берём актуальные значения из refs
     const currentUserId = userIdRef.current
     const currentListId = listIdRef.current
     const signal = reorderAbortRef.current.signal
-    
-    // ✅ Guard: юзер уже вышел из списка
-    if (!currentListId) {
-      setReorderStatus('idle')
-      toast.dismiss('reorder-save')
-      toast.dismiss('reorder-back')
-      return
-    }
+
+    if (!currentListId) { setReorderStatus('idle'); toast.dismiss('reorder-save'); toast.dismiss('reorder-back'); return }
 
     try {
       const results = await Promise.all(
@@ -458,15 +391,11 @@ async function fetchTasks(showAnim = true) {
             method:  'PATCH',
             signal,
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ 
-              taskId: task.id, 
-              userId: currentUserId,    // ✅ Используем ref
-              position: i 
-            }),
+            body: JSON.stringify({ taskId: task.id, userId: currentUserId, position: i }),
           })
         )
       )
-      
+
       if (results.some(r => !r.ok)) throw new Error('partial failure')
 
       pendingOrderRef.current  = null
@@ -479,9 +408,8 @@ async function fetchTasks(showAnim = true) {
       toast.dismiss('reorder-back')
       toast.error(t('reorderFailed'))
 
-      // Откат к оригинальному порядку
       if (originalOrderRef.current) {
-        reorderTasks(currentListId, originalOrderRef.current)  // ✅ Используем ref
+        reorderTasks(currentListId, originalOrderRef.current)
       }
       pendingOrderRef.current  = null
       originalOrderRef.current = null
@@ -494,10 +422,6 @@ async function fetchTasks(showAnim = true) {
       }
     }
   }
-
-
-
-
 
   // ────────────────────────────────────────────────────────────
   //  Task actions
@@ -754,11 +678,10 @@ async function fetchTasks(showAnim = true) {
                 </div>
               </SortableContext>
 
-              {/* Плавающая карточка под пальцем при drag */}
               <DragOverlay
                 dropAnimation={{
-                  duration:   180,
-                  easing:     'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
+                  duration: 180,
+                  easing:   'cubic-bezier(0.18, 0.67, 0.6, 1.22)',
                 }}
               >
                 {draggingTask ? (
@@ -819,7 +742,7 @@ async function fetchTasks(showAnim = true) {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  SortableTaskCard — обёртка dnd-kit для каждой карточки
+//  SortableTaskCard
 // ─────────────────────────────────────────────────────────────
 interface SortableCardProps {
   task:        Task
@@ -843,7 +766,6 @@ function SortableTaskCard({ task, isViewer, isDragMode, isDragging, onToggle, on
       className="task-item"
       style={{
         transform:  CSS.Transform.toString(transform),
-        // Короткий пружинный transition — items "притягиваются" быстро
         transition: transition
           ? transition.replace(/\d+ms/, '120ms')
           : undefined,
@@ -861,6 +783,45 @@ function SortableTaskCard({ task, isViewer, isDragMode, isDragging, onToggle, on
         onLongPress={onLongPress}
       />
     </div>
+  )
+}
+
+// ─────────────────────────────────────────────────────────────
+//  MoreButton — три точки для десктопа
+// ─────────────────────────────────────────────────────────────
+function MoreButton({ onPress }: { onPress: (x: number, y: number) => void }) {
+  const btnRef = useRef<HTMLButtonElement>(null)
+
+  function handleClick(e: React.MouseEvent) {
+    e.stopPropagation()
+    e.preventDefault()
+    const rect = btnRef.current?.getBoundingClientRect()
+    if (rect) onPress(rect.left, rect.bottom + 4)
+  }
+
+  return (
+    <button
+      ref={btnRef}
+      onClick={handleClick}
+      onPointerDown={e => e.stopPropagation()} // не триггерить drag
+      className={cn(
+        'flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg',
+        'text-text-dim hover:text-text-secondary hover:bg-bg-hover',
+        'active:scale-90 transition-all duration-150',
+        // На мобиле скрываем — там работает long-press
+        // На десктопе показываем при hover на карточке
+        'opacity-0 group-hover:opacity-100 focus:opacity-100',
+      )}
+      tabIndex={0}
+      aria-label="Task options"
+    >
+      {/* Три вертикальные точки */}
+      <svg width="3" height="15" viewBox="0 0 3 15" fill="currentColor">
+        <circle cx="1.5" cy="1.5"  r="1.5" />
+        <circle cx="1.5" cy="7.5"  r="1.5" />
+        <circle cx="1.5" cy="13.5" r="1.5" />
+      </svg>
+    </button>
   )
 }
 
@@ -925,7 +886,6 @@ function TaskCard({
 
   function handleGripPointerDown(e: React.PointerEvent) {
     holdTimer.current = setTimeout(() => setIsHolding(true), 50)
-    // Прокидываем событие в dnd-kit listener
     dragListeners?.onPointerDown?.(e)
   }
   function handleGripPointerUp() {
@@ -934,7 +894,8 @@ function TaskCard({
   }
 
   return (
-    <div className="card-shell">
+    // group — нужен чтобы MoreButton появлялся при hover на карточке
+    <div className="card-shell group">
       <div className={cn(
         'card flex items-start overflow-hidden',
         isDone     && 'opacity-55',
@@ -947,14 +908,11 @@ function TaskCard({
 
           {/* ── Drag handle / viewer indicator ──────────────── */}
           {isDragMode || isDraggingOverlay ? (
-            // Listeners ТОЛЬКО на ручке — вся остальная карточка скроллится.
-            // touch-none запрещает браузеру перехватывать этот элемент как скролл.
             <div
               {...dragAttributes}
               onPointerDown={handleGripPointerDown}
               onPointerUp={handleGripPointerUp}
               onPointerLeave={handleGripPointerUp}
-              // Переопределяем touch listeners из dnd-kit вручную
               onTouchStart={dragListeners?.onTouchStart as any}
               onTouchMove={dragListeners?.onTouchMove as any}
               onTouchEnd={dragListeners?.onTouchEnd as any}
@@ -1028,6 +986,11 @@ function TaskCard({
               {isArchived && <span className="text-xs text-text-dim">📦 {t('archived')}</span>}
             </div>
           </button>
+
+          {/* ── ⋮ Three-dots button (desktop hover) ─────────── */}
+          {!isDraggingOverlay && (
+            <MoreButton onPress={onLongPress} />
+          )}
 
         </div>
       </div>
