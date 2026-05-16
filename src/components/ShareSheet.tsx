@@ -2,11 +2,17 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { gsap } from 'gsap'
+// import {
+//   X, UserPlus, Check, AlertCircle, Search, Loader2,
+//   Crown, Pencil, Eye, Trash2, RefreshCw, ChevronDown,
+//   Copy, FileText, ChevronUp, CheckCheck, Bug,
+// } from 'lucide-react'
 import {
   X, UserPlus, Check, AlertCircle, Search, Loader2,
-  Crown, Pencil, Eye, Trash2, RefreshCw, ChevronDown,
-  Copy, FileText, ChevronUp, CheckCheck, Bug,
+  Crown, Pencil, Eye, Trash2, RefreshCw, ChevronDown, Bug,
 } from 'lucide-react'
+import { ExportPanel } from '@/components/ExportPanel'
+
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { useI18n } from '@/lib/i18n-context'
@@ -65,10 +71,10 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
   const [removingId,   setRemovingId]   = useState<number | null>(null)
   const [openRoleMenu, setOpenRoleMenu] = useState<number | null>(null)
 
-  const [showExport,   setShowExport]   = useState(false)
-  const [exportText,   setExportText]   = useState('')
-  const [loadingExp,   setLoadingExp]   = useState(false)
-  const [copied,       setCopied]       = useState(false)
+  // const [showExport,   setShowExport]   = useState(false)
+  // const [exportText,   setExportText]   = useState('')
+  // const [loadingExp,   setLoadingExp]   = useState(false)
+  // const [copied,       setCopied]       = useState(false)
 
   const [showDebug,  setShowDebug]  = useState(false)
   const [debugLines, setDebugLines] = useState<string[]>([])
@@ -209,41 +215,41 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
     toast.success(`${name} ${t('removed')}`)
   }
 
-  async function handleLoadExport() {
-    if (exportText) { setShowExport(v => !v); return }
-    setLoadingExp(true)
-    dbg(`export → GET /api/export?listId=${listId}&userId=${userId}`)
-    try {
-      const res = await fetch(`/api/export?listId=${listId}&userId=${userId}`)
-      dbg(`export ← status=${res.status} contentType=${res.headers.get('content-type')}`)
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
-        dbg(`export FAIL: ${err.error}`)
-        toast.error(`${t('exportFailed')}: ${err.error}`)
-        setLoadingExp(false)
-        return
-      }
-      const text = await res.text()
-      dbg(`export OK: ${text.length} chars`)
-      setExportText(text || '(empty list)')
-      setShowExport(true)
-    } catch (e: any) {
-      dbg(`export ERROR: ${e?.message}`)
-      toast.error(t('networkError'))
-    }
-    setLoadingExp(false)
-  }
+  // async function handleLoadExport() {
+  //   if (exportText) { setShowExport(v => !v); return }
+  //   setLoadingExp(true)
+  //   dbg(`export → GET /api/export?listId=${listId}&userId=${userId}`)
+  //   try {
+  //     const res = await fetch(`/api/export?listId=${listId}&userId=${userId}`)
+  //     dbg(`export ← status=${res.status} contentType=${res.headers.get('content-type')}`)
+  //     if (!res.ok) {
+  //       const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }))
+  //       dbg(`export FAIL: ${err.error}`)
+  //       toast.error(`${t('exportFailed')}: ${err.error}`)
+  //       setLoadingExp(false)
+  //       return
+  //     }
+  //     const text = await res.text()
+  //     dbg(`export OK: ${text.length} chars`)
+  //     setExportText(text || '(empty list)')
+  //     setShowExport(true)
+  //   } catch (e: any) {
+  //     dbg(`export ERROR: ${e?.message}`)
+  //     toast.error(t('networkError'))
+  //   }
+  //   setLoadingExp(false)
+  // }
 
-  async function handleCopy() {
-    try {
-      await navigator.clipboard.writeText(exportText)
-      setCopied(true)
-      toast.success(t('copied'))
-      setTimeout(() => setCopied(false), 2500)
-    } catch {
-      toast.error(t('copyFailed'))
-    }
-  }
+  // async function handleCopy() {
+  //   try {
+  //     await navigator.clipboard.writeText(exportText)
+  //     setCopied(true)
+  //     toast.success(t('copied'))
+  //     setTimeout(() => setCopied(false), 2500)
+  //   } catch {
+  //     toast.error(t('copyFailed'))
+  //   }
+  // }
 
   const canManage = myRole === 'owner' || myRole === 'editor'
   const memberCount = members.length
@@ -516,7 +522,7 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
           )}
 
           {/* Export as text */}
-          <div className="flex items-center gap-3">
+          {/* <div className="flex items-center gap-3">
             <div className="flex-1 h-px bg-bg-border/60" />
             <span className="text-xs text-text-dim">{t('orShareAsText')}</span>
             <div className="flex-1 h-px bg-bg-border/60" />
@@ -556,7 +562,13 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
                 <p className="text-xs text-text-dim text-center">{t('copyPasteHint')}</p>
               </div>
             )}
-          </div>
+          </div> */}
+          <ExportPanel
+            listId={listId}
+            userId={userId}
+            listTitle={listTitle}
+          />
+
 
         </div>
       </div>
