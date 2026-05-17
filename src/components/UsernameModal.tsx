@@ -8,6 +8,9 @@ import { toast } from 'sonner'
 import { LS_KEY_USER_ID, LS_KEY_USERNAME, LS_KEY_FIRST_NAME } from '@/hooks/useTelegram'
 import { useI18n } from '@/lib/i18n-context'
 
+import 'driver.js/dist/driver.css'
+import { driver } from 'driver.js'
+
 interface Props {
   onIdentified: (userId: number, username: string, firstName: string) => void
 }
@@ -70,6 +73,60 @@ export function UsernameModal({ onIdentified }: Props) {
 
     return () => clearTimeout(timer)
   }, [username])
+
+
+  // Внутри компонента UsernameModal, после объявления рефов:
+  useEffect(() => {
+    // Показываем только один раз
+    if (localStorage.getItem('taskflow_onboarding_done')) return
+
+    // Небольшая задержка чтобы поля успели отрендериться
+    const timer = setTimeout(() => {
+      const driverObj = driver({
+        showProgress: false,
+        allowClose: true,
+        nextBtnText: 'Далі →',
+        prevBtnText: '← Назад',
+        doneBtnText: 'Зрозуміло!',
+        steps: [
+          {
+            element: '[data-onboard="firstname"]',
+            popover: {
+              title: "👋 Твоє ім'я",
+              description: "Введи своє ім'я — так тебе бачитимуть інші учасники спільних списків.",
+              side: 'bottom',
+              align: 'start',
+            },
+          },
+          {
+            element: '[data-onboard="username"]',
+            popover: {
+              title: '🔖 Нікнейм',
+              description: 'Унікальне ім\'я для входу в акаунт і для того щоб інші могли запросити тебе до свого списку через @нікнейм.',
+              side: 'bottom',
+              align: 'start',
+            },
+          },
+          {
+            element: '[data-onboard="pin"]',
+            popover: {
+              title: '🔐 PIN-код',
+              description: 'Захищає твій акаунт на нових пристроях. Запам\'ятай його — без PIN не увійдеш.',
+              side: 'top',
+              align: 'center',
+            },
+          },
+        ],
+        onDestroyed: () => {
+          localStorage.setItem('taskflow_onboarding_done', '1')
+        },
+      })
+
+      driverObj.drive()
+    }, 600)
+
+    return () => clearTimeout(timer)
+  }, [])
 
   const cleanUn   = username.trim().replace(/^@/, '')
   const pinFull   = pin.join('')
@@ -178,6 +235,7 @@ export function UsernameModal({ onIdentified }: Props) {
             <User size={15} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-dim" />
             <input
               ref={fnRef}
+              data-onboard="firstname"
               value={firstName}
               onChange={e => { setFirstName(e.target.value); setFnError(null) }}
               onKeyDown={e => e.key === 'Enter' && (document.getElementById('un-input') as HTMLInputElement)?.focus()}
@@ -207,6 +265,7 @@ export function UsernameModal({ onIdentified }: Props) {
             <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-dim font-mono text-sm select-none">@</span>
             <input
               id="un-input"
+              data-onboard="username"
               value={username}
               onChange={e => { setUsername(e.target.value); setUnError(null); setMode(null) }}
               onKeyDown={e => e.key === 'Enter' && pinRefs[0].current?.focus()}
@@ -246,7 +305,7 @@ export function UsernameModal({ onIdentified }: Props) {
               {showPin ? <EyeOff size={14} /> : <Eye size={14} />}
             </button>
           </div>
-          <div className="flex gap-3 justify-center">
+          <div data-onboard="pin" className="flex gap-3 justify-center">
             {pin.map((digit, idx) => (
               <input
                 key={idx}

@@ -6,10 +6,10 @@ interface I18nCtx { lang: Lang; t: (key: TranslationKey) => string; setLang: (l:
 const Ctx = createContext<I18nCtx>({ lang: 'en', t: k => k, setLang: () => {} })
 
 export function I18nProvider({ children }: { children: ReactNode }) {
-  const [lang, setLangState] = useState<Lang>('en')
+  const [lang, setLangState] = useState<Lang>('uk')
 
   useEffect(() => {
-    const saved = (localStorage.getItem('taskflow_lang') as Lang) ?? 'en'
+    const saved = (localStorage.getItem('taskflow_lang') as Lang) ?? 'uk'
     setLangState(saved)
   }, [])
 

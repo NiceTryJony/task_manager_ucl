@@ -40,6 +40,7 @@ import { toast } from 'sonner'
 import { usePending }  from '@/hooks/usePending'
 import { useTheme }    from '@/lib/theme-context'
 import { useI18n }     from '@/lib/i18n-context'
+import { SaveBanner } from '@/components/ui/SaveBanner'
 
 // ─────────────────────────────────────────────────────────────
 //  Types
@@ -68,7 +69,7 @@ export function ListDetailView({ onBack }: Props) {
   ], [t])
 
   const { user, haptic } = useTelegram()
-  const { lists, tasks, activeListId, setTasks, updateTask, removeTask, reorderTasks } = useTaskStore()
+  const { lists, tasks, activeListId, setTasks, updateTask, removeTask, reorderTasks, incrementPending, decrementPending } = useTaskStore()
   const list = lists.find(l => l.id === activeListId)
 
   // ── UI state ────────────────────────────────────────────────
@@ -116,6 +117,8 @@ export function ListDetailView({ onBack }: Props) {
   const allTasks      = tasks[activeListId!] ?? []
   const activeTasks   = allTasks.filter(t => !t.archived)
   const archivedTasks = allTasks.filter(t => t.archived)
+
+  
 
   const baseList = filter === 'archived' ? archivedTasks
     : filter === 'all' ? activeTasks
@@ -206,7 +209,7 @@ export function ListDetailView({ onBack }: Props) {
     clearTimeout(reorderDebounceRef.current)
     reorderDebounceRef.current = setTimeout(() => {
       setReorderStatus('saving')
-      toast.loading(t('saving'), { id: 'reorder-save' })
+      incrementPending()
       void flushReorderSave()
     }, 1000)
   }
@@ -364,7 +367,7 @@ export function ListDetailView({ onBack }: Props) {
         setReorderStatus('saving')
         void flushReorderSave()
       }
-      toast.loading(t('saving'), { id: 'reorder-back', duration: 5000 })
+      //toast.loading(t('saving'), { id: 'reorder-back', duration: 5000 })
       return
     }
     navigateBack()
@@ -404,12 +407,14 @@ export function ListDetailView({ onBack }: Props) {
 
       pendingOrderRef.current  = null
       originalOrderRef.current = null
-      toast.dismiss('reorder-save')
-      toast.dismiss('reorder-back')
+      // toast.dismiss('reorder-save')
+      // toast.dismiss('reorder-back')
+      decrementPending(false)
 
     } catch {
-      toast.dismiss('reorder-save')
-      toast.dismiss('reorder-back')
+      // toast.dismiss('reorder-save')
+      // toast.dismiss('reorder-back')
+      decrementPending(false)
       toast.error(t('reorderFailed'))
 
       if (originalOrderRef.current) {
@@ -518,11 +523,11 @@ export function ListDetailView({ onBack }: Props) {
   if (!list) return null
 
   // ── Reorder status badge ────────────────────────────────────
-  const reorderBadge = reorderStatus === 'pending'
-    ? { show: true, icon: <ArrowUpDown size={10} />, label: '1s…', cls: 'bg-accent/10 text-accent border-accent/20' }
-    : reorderStatus === 'saving'
-    ? { show: true, icon: <div className="w-2.5 h-2.5 border border-current/30 border-t-current rounded-full animate-spin" />, label: t('saving'), cls: 'bg-amber/10 text-amber border-amber/20' }
-    : { show: false, icon: null, label: '', cls: '' }
+  // const reorderBadge = reorderStatus === 'pending'
+  //   ? { show: true, icon: <ArrowUpDown size={10} />, label: '1s…', cls: 'bg-accent/10 text-accent border-accent/20' }
+  //   : reorderStatus === 'saving'
+  //   ? { show: true, icon: <div className="w-2.5 h-2.5 border border-current/30 border-t-current rounded-full animate-spin" />, label: t('saving'), cls: 'bg-amber/10 text-amber border-amber/20' }
+  //   : { show: false, icon: null, label: '', cls: '' }
 
   // ────────────────────────────────────────────────────────────
   //  Render
@@ -530,6 +535,7 @@ export function ListDetailView({ onBack }: Props) {
   return (
     <div ref={pageRef} className="page-container">
       {showConfetti && <Confetti onDone={() => setShowConfetti(false)} />}
+      <SaveBanner />
 
       {/* ── Header ──────────────────────────────────────────── */}
       <div className="px-4 pt-3 pb-2 flex-shrink-0">
@@ -547,11 +553,11 @@ export function ListDetailView({ onBack }: Props) {
                   <Eye size={9} /> {t('viewOnly')}
                 </span>
               )}
-              {reorderBadge.show && (
+              {/* {reorderBadge.show && (
                 <span className={cn('flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border flex-shrink-0 transition-all duration-200', reorderBadge.cls)}>
                   {reorderBadge.icon}{reorderBadge.label}
                 </span>
-              )}
+              )} */}
             </div>
             {totalCount > 0 && <p className="text-xs text-text-secondary">{doneCount}/{totalCount} {t('subtasksDone')}</p>}
           </div>

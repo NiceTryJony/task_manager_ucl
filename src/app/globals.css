@@ -581,3 +581,30 @@
   filter: drop-shadow(0 12px 28px rgba(61, 38, 18, 0.35))
           drop-shadow(0 0 0 0.5px rgba(176, 107, 46, 0.3));
 }
+
+/* Driver.js override */
+.driver-popover {
+  background: var(--bg-surface) !important;
+  border: 1px solid var(--bg-border) !important;
+  color: var(--text-primary) !important;
+  border-radius: 16px !important;
+}
+.driver-popover-title {
+  color: var(--text-primary) !important;
+  font-size: 14px !important;
+}
+.driver-popover-description {
+  color: var(--text-secondary) !important;
+  font-size: 12px !important;
+}
+.driver-popover-next-btn,
+.driver-popover-done-btn {
+  background: var(--btn-primary-bg) !important;
+  border: none !important;
+  border-radius: 10px !important;
+}
+.driver-popover-prev-btn {
+  color: var(--text-secondary) !important;
+  border-color: var(--bg-border) !important;
+  border-radius: 10px !important;
+}
