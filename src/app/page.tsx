@@ -10,8 +10,9 @@ import { ListDetailView } from '@/components/ListDetailView'
 import { UsernameModal } from '@/components/UsernameModal'
 import { SettingsSheet } from '@/components/SettingsSheet'
 import { ShareSheet } from '@/components/ShareSheet'
+import { GlobalSearchSheet } from '@/components/GlobalSearchSheet'
 import { SkeletonList } from '@/components/ui/Skeleton'
-import { Plus, Sparkles, Settings } from 'lucide-react'
+import { Plus, Search, Sparkles, Settings } from 'lucide-react'
 import { gsap } from 'gsap'
 import type { TaskList } from '@/types'
 import { Toaster } from 'sonner'
@@ -20,12 +21,13 @@ import { useI18n } from '@/lib/i18n-context'
 
 export default function HomePage() {
   const { user, isReady, haptic, needsIdentify, setIdentity } = useTelegram()
-  const { lists, setLists, setUserId, activeListId, setActiveList } = useTaskStore()
+  const { lists, setLists, setUserId, activeListId, setActiveList, setPendingTaskId } = useTaskStore()
   const { t } = useI18n()
 
   const [loading,      setLoading]      = useState(true)
   const [showCreate,   setShowCreate]   = useState(false)
   const [showSettings, setShowSettings] = useState(false)
+  const [showSearch,   setShowSearch]   = useState(false)
   const [shareList,    setShareList]    = useState<TaskList | null>(null)
   const [uid,          setUid]          = useState<number>(0)
   const [displayName,  setDisplayName]  = useState('')
@@ -108,6 +110,12 @@ export default function HomePage() {
     setIdentity(uid, currentUn, firstName)
   }
 
+  /** Called when user picks a result in global search */
+  function handleSelectTask(listId: string, taskId: string) {
+    setPendingTaskId(taskId)
+    setActiveList(listId)
+  }
+
   const totalTasks = lists.reduce((s, l) => s + (l.task_count ?? 0), 0)
   const doneTasks  = lists.reduce((s, l) => s + (l.done_count ?? 0), 0)
 
@@ -139,6 +147,15 @@ export default function HomePage() {
         />
       )}
 
+      {showSearch && (
+        <GlobalSearchSheet
+          userId={uid}
+          activeListId={null}
+          onClose={() => setShowSearch(false)}
+          onSelectTask={handleSelectTask}
+        />
+      )}
+
       <div ref={headerRef} className="px-4 pt-4 pb-3 flex-shrink-0">
         <div className="flex items-start justify-between">
           <div>
@@ -151,7 +168,15 @@ export default function HomePage() {
               </p>
             )}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5">
+            {/* Global search button */}
+            <button
+              onClick={() => { setShowSearch(true); haptic.light() }}
+              className="btn-ghost p-2"
+              aria-label={t('searchPlaceholderGlobal')}
+            >
+              <Search size={18} />
+            </button>
             <button
               onClick={() => { setShowSettings(true); haptic.light() }}
               className="btn-ghost p-2"
