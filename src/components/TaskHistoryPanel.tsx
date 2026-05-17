@@ -1,316 +1,34 @@
-// 'use client'
-
-// import { useState } from 'react'
-// import { History, ChevronDown, ChevronUp } from 'lucide-react'
-// import { cn } from '@/lib/utils'
-// import type { TaskHistory, HistoryActionType } from '@/types'
-// import { useI18n } from '@/lib/i18n-context'
-// import type { TranslationKey } from '@/lib/i18n'
-
-// // ── Time helper ────────────────────────────────────────────────
-// function useTimeAgo() {
-//   const { t } = useI18n()
-//   return (isoStr: string): string => {
-//     const diff  = Date.now() - new Date(isoStr).getTime()
-//     const mins  = Math.floor(diff / 60000)
-//     const hours = Math.floor(mins / 60)
-//     const days  = Math.floor(hours / 24)
-//     if (mins  < 1)  return t('justNow')
-//     if (mins  < 60) return `${mins}${t('mAgo')}`
-//     if (hours < 24) return `${hours}${t('hAgo')}`
-//     if (days  < 7)  return `${days}${t('dAgo')}`
-//     return new Date(isoStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-//   }
-// }
-
-// // ── Field / value label maps (built inside component) ─────────
-// function useFieldLabels(): Record<string, TranslationKey> {
-//   return {
-//     title:       'fieldTitle',
-//     description: 'fieldNotes',
-//     priority:    'fieldPriority',
-//     status:      'fieldStatus',
-//     due_at:      'fieldDueDate',
-//     archived:    'fieldArchived',
-//     subtask:     'fieldSubtask',
-//   }
-// }
-
-// function useValueLabels(): Record<string, TranslationKey> {
-//   return {
-//     todo:        'todo',
-//     in_progress: 'inProgress',
-//     done:        'done',
-//     low:         'low',
-//     medium:      'medium',
-//     high:        'high',
-//     urgent:      'urgent',
-//     'true':      'valYes',
-//     'false':     'valNo',
-//     'null':      'valNo',
-//   }
-// }
-
-// // ── Action config ──────────────────────────────────────────────
-// interface ActionCfg {
-//   icon:      string
-//   color:     string
-//   bg:        string
-//   labelKey:  TranslationKey
-//   altLabelKey?: TranslationKey  // for subtask_toggled alternate
-//   showDiff?: boolean
-// }
-
-// const ACTION_CONFIG: Record<string, ActionCfg> = {
-//   field_change:       { icon: '✏️', color: 'text-accent',          bg: 'bg-accent/10',   labelKey: 'actionChangedField',      showDiff: true  },
-//   subtask_added:      { icon: '➕', color: 'text-emerald',         bg: 'bg-emerald/10',  labelKey: 'actionAddedSubtask',      showDiff: false },
-//   subtask_deleted:    { icon: '🗑️', color: 'text-danger',          bg: 'bg-danger/10',   labelKey: 'actionRemovedSubtask',    showDiff: false },
-//   subtask_toggled:    { icon: '✅', color: 'text-accent',          bg: 'bg-accent/10',   labelKey: 'actionCompletedSubtask',  altLabelKey: 'actionUncompletedSubtask', showDiff: false },
-//   subtask_renamed:    { icon: '📝', color: 'text-amber',           bg: 'bg-amber/10',    labelKey: 'actionRenamedSubtask',    showDiff: true  },
-//   subtask_reordered:  { icon: '↕️', color: 'text-text-secondary',  bg: 'bg-bg-hover',    labelKey: 'actionReorderedSubtasks', showDiff: false },
-//   task_created:       { icon: '🆕', color: 'text-emerald',         bg: 'bg-emerald/10',  labelKey: 'actionTaskCreated',       showDiff: false },
-// }
-
-// function getActionCfg(actionType: string): ActionCfg {
-//   return ACTION_CONFIG[actionType] ?? {
-//     icon: '•', color: 'text-text-secondary', bg: 'bg-bg-hover',
-//     labelKey: 'actionChangedField', showDiff: true,
-//   }
-// }
-
-// // ── Subtask name chip ──────────────────────────────────────────
-// function SubtaskChip({ title, strikethrough = false }: { title: string; strikethrough?: boolean }) {
-//   return (
-//     <span className={cn(
-//       'inline-flex items-center gap-1 px-2 py-0.5 bg-bg-hover rounded-lg text-xs font-medium text-text-primary max-w-[200px] truncate',
-//       strikethrough && 'line-through text-text-dim'
-//     )}>
-//       {title}
-//     </span>
-//   )
-// }
-
-// // ── Single history entry ───────────────────────────────────────
-// function HistoryEntry({ entry }: { entry: TaskHistory }) {
-//   const { t } = useI18n()
-//   const timeAgo      = useTimeAgo()
-//   const fieldLabels  = useFieldLabels()
-//   const valueLabels  = useValueLabels()
-
-//   const cfg         = getActionCfg(entry.action_type)
-//   const subtaskName = entry.meta?.subtask_title as string | undefined
-//   const isSubtask   = entry.action_type.startsWith('subtask_')
-
-//   // Build action label
-//   let actionLabel: string
-//   if (entry.action_type === 'field_change') {
-//     const fieldKey = fieldLabels[entry.field ?? '']
-//     const fieldStr = fieldKey ? t(fieldKey) : (entry.field ?? '')
-//     actionLabel = `${t('actionChangedField')} ${fieldStr}`
-//   } else if (entry.action_type === 'subtask_toggled') {
-//     actionLabel = entry.new_value === 'true'
-//       ? t('actionCompletedSubtask')
-//       : t(cfg.altLabelKey ?? cfg.labelKey)
-//   } else {
-//     actionLabel = t(cfg.labelKey)
-//   }
-
-//   function prettyValue(val: string | null | undefined): string {
-//     if (val == null || val === 'null' || val === '') return '—'
-//     const key = valueLabels[val]
-//     return key ? t(key) : val
-//   }
-
-//   return (
-//     <div className="flex gap-3 px-3 py-3 bg-bg-card rounded-2xl border border-bg-border/60">
-//       <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center text-base flex-shrink-0', cfg.bg)}>
-//         <span role="img" aria-hidden>{cfg.icon}</span>
-//       </div>
-
-//       <div className="flex-1 min-w-0">
-//         <div className="flex items-center justify-between gap-2 mb-1">
-//           <span className="flex items-center gap-1.5 text-xs font-semibold text-text-primary min-w-0 truncate">
-//             <span className="w-5 h-5 rounded-full bg-accent/20 text-accent flex items-center justify-center text-[10px] font-bold flex-shrink-0" aria-hidden>
-//               {entry.user.first_name[0]?.toUpperCase()}
-//             </span>
-//             <span className="truncate">{entry.user.first_name}</span>
-//             {entry.user.username && (
-//               <span className="text-text-dim font-normal shrink-0">@{entry.user.username}</span>
-//             )}
-//           </span>
-//           <span className="text-[10px] text-text-dim whitespace-nowrap flex-shrink-0">
-//             {timeAgo(entry.created_at)}
-//           </span>
-//         </div>
-
-//         <p className={cn('text-xs font-medium mb-1', cfg.color)}>{actionLabel}</p>
-
-//         {isSubtask && subtaskName && entry.action_type !== 'subtask_reordered' && (
-//           <div className="mb-1.5">
-//             {entry.action_type === 'subtask_deleted'
-//               ? <SubtaskChip title={subtaskName} strikethrough />
-//               : <SubtaskChip title={subtaskName} />
-//             }
-//           </div>
-//         )}
-
-//         {cfg.showDiff && (entry.old_value != null || entry.new_value != null) && (
-//           <div className="flex items-center gap-1.5 flex-wrap">
-//             {entry.old_value != null && entry.old_value !== 'null' && (
-//               <>
-//                 <span className="text-[11px] px-2 py-0.5 rounded-lg bg-danger/10 text-danger line-through max-w-[140px] truncate">
-//                   {prettyValue(entry.old_value)}
-//                 </span>
-//                 <span className="text-text-dim text-[11px]">→</span>
-//               </>
-//             )}
-//             {entry.new_value != null && (
-//               <span className="text-[11px] px-2 py-0.5 rounded-lg bg-emerald/10 text-emerald max-w-[140px] truncate">
-//                 {prettyValue(entry.new_value)}
-//               </span>
-//             )}
-//           </div>
-//         )}
-
-//         {entry.action_type === 'task_created' && entry.new_value && (
-//           <p className="text-xs text-text-secondary truncate">"{entry.new_value}"</p>
-//         )}
-//       </div>
-//     </div>
-//   )
-// }
-
-// // ── Props ──────────────────────────────────────────────────────
-// interface Props {
-//   taskId:   string
-//   userId:   number
-//   initial?: TaskHistory[]
-// }
-
-// // ── Main component ─────────────────────────────────────────────
-// export function TaskHistoryPanel({ taskId, userId, initial = [] }: Props) {
-//   const { t } = useI18n()
-//   const [open,    setOpen]    = useState(false)
-//   const [entries, setEntries] = useState<TaskHistory[]>(initial)
-//   const [loading, setLoading] = useState(false)
-//   const [fetched, setFetched] = useState(initial.length > 0)
-
-//   async function handleToggle() {
-//     if (open) { setOpen(false); return }
-//     if (!fetched) {
-//       setLoading(true)
-//       try {
-//         const res  = await fetch(`/api/tasks/history?taskId=${taskId}&userId=${userId}`)
-//         const data = await res.json()
-//         setEntries(data.history ?? [])
-//         setFetched(true)
-//       } catch {}
-//       setLoading(false)
-//     }
-//     setOpen(true)
-//   }
-
-//   // Group by date
-//   const grouped: { label: string; items: TaskHistory[] }[] = []
-//   for (const entry of entries) {
-//     const d   = new Date(entry.created_at)
-//     const now = new Date()
-//     const isToday     = d.toDateString() === now.toDateString()
-//     const isYesterday = d.toDateString() === new Date(now.getTime() - 86400000).toDateString()
-//     const label = isToday     ? t('today')
-//                 : isYesterday ? t('yesterday')
-//                 : d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-//     const last = grouped[grouped.length - 1]
-//     if (last && last.label === label) last.items.push(entry)
-//     else grouped.push({ label, items: [entry] })
-//   }
-
-//   return (
-//     <div>
-//       <button
-//         onClick={handleToggle}
-//         className="w-full flex items-center justify-between px-3 py-2.5 bg-bg-card rounded-2xl border border-bg-border/60 text-sm text-text-secondary hover:bg-bg-hover transition-colors"
-//       >
-//         <span className="flex items-center gap-2">
-//           <History size={14} />
-//           {t('editHistory')}
-//           {entries.length > 0 && (
-//             <span className="text-xs bg-bg-hover px-1.5 py-0.5 rounded-full tabular-nums">
-//               {entries.length}
-//             </span>
-//           )}
-//         </span>
-//         {loading
-//           ? <div className="w-3.5 h-3.5 border-2 border-text-dim border-t-accent rounded-full animate-spin" />
-//           : open ? <ChevronUp size={14} /> : <ChevronDown size={14} />
-//         }
-//       </button>
-
-//       {open && (
-//         <div className="mt-2 space-y-4 animate-fade-up">
-//           {entries.length === 0 ? (
-//             <div className="flex flex-col items-center justify-center py-6 text-center">
-//               <span className="text-2xl mb-2">📋</span>
-//               <p className="text-xs text-text-dim">{t('noHistory')}</p>
-//               <p className="text-[11px] text-text-dim mt-0.5">{t('noHistoryDesc')}</p>
-//             </div>
-//           ) : (
-//             grouped.map(group => (
-//               <div key={group.label}>
-//                 <div className="flex items-center gap-2 mb-2">
-//                   <div className="flex-1 h-px bg-bg-border/60" />
-//                   <span className="text-[10px] font-semibold text-text-dim uppercase tracking-widest whitespace-nowrap">
-//                     {group.label}
-//                   </span>
-//                   <div className="flex-1 h-px bg-bg-border/60" />
-//                 </div>
-//                 <div className="space-y-2">
-//                   {group.items.map(entry => (
-//                     <HistoryEntry key={entry.id} entry={entry} />
-//                   ))}
-//                 </div>
-//               </div>
-//             ))
-//           )}
-//         </div>
-//       )}
-//     </div>
-//   )
-// }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 'use client'
 
-import { useState } from 'react'
-import { History, ChevronDown, ChevronUp } from 'lucide-react'
+import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
+import { History, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { TaskHistory, HistoryActionType } from '@/types'
 import { useI18n } from '@/lib/i18n-context'
 import type { TranslationKey } from '@/lib/i18n'
 
+// ─────────────────────────────────────────────────────────────
+//  Constants
+// ─────────────────────────────────────────────────────────────
+
+const PAGE_SIZE = 15
+
+// ─────────────────────────────────────────────────────────────
+//  useTimeAgo — live-updating relative timestamps
+// ─────────────────────────────────────────────────────────────
+
 function useTimeAgo() {
   const { t } = useI18n()
-  return (isoStr: string): string => {
+  // Tick every 60 s so "5m ago" stays accurate while panel is open
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setTick(n => n + 1), 60_000)
+    return () => clearInterval(id)
+  }, [])
+
+  return useCallback((isoStr: string): string => {
     const diff  = Date.now() - new Date(isoStr).getTime()
-    const mins  = Math.floor(diff / 60000)
+    const mins  = Math.floor(diff / 60_000)
     const hours = Math.floor(mins / 60)
     const days  = Math.floor(hours / 24)
     if (mins  < 1)  return t('justNow')
@@ -318,8 +36,12 @@ function useTimeAgo() {
     if (hours < 24) return `${hours}${t('hAgo')}`
     if (days  < 7)  return `${days}${t('dAgo')}`
     return new Date(isoStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
-  }
+  }, [t])
 }
+
+// ─────────────────────────────────────────────────────────────
+//  Label maps
+// ─────────────────────────────────────────────────────────────
 
 function useFieldLabels(): Record<string, TranslationKey> {
   return {
@@ -337,40 +59,52 @@ function useValueLabels(): Record<string, TranslationKey> {
   }
 }
 
-// ── Конфиг действий ────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+//  Action config
+// ─────────────────────────────────────────────────────────────
+
 interface ActionCfg {
-  icon:         string          // lucide icon name (будем рендерить вручную)
+  icon:         string
   labelKey:     TranslationKey
   altLabelKey?: TranslationKey
   showDiff:     boolean
   isCreation:   boolean
+  filterGroup:  'fields' | 'subtasks' | 'created'
 }
 
 const ACTION_CONFIG: Record<string, ActionCfg> = {
-  field_change:      { icon: 'pencil',        labelKey: 'actionChangedField',      showDiff: true,  isCreation: false },
-  subtask_added:     { icon: 'plus',          labelKey: 'actionAddedSubtask',      showDiff: false, isCreation: false },
-  subtask_deleted:   { icon: 'trash',         labelKey: 'actionRemovedSubtask',    showDiff: false, isCreation: false },
-  subtask_toggled:   { icon: 'check',         labelKey: 'actionCompletedSubtask',  altLabelKey: 'actionUncompletedSubtask', showDiff: false, isCreation: false },
-  subtask_renamed:   { icon: 'text-cursor',   labelKey: 'actionRenamedSubtask',    showDiff: true,  isCreation: false },
-  subtask_reordered: { icon: 'arrows-sort',   labelKey: 'actionReorderedSubtasks', showDiff: false, isCreation: false },
-  task_created:      { icon: 'sparkles',      labelKey: 'actionTaskCreated',       showDiff: false, isCreation: true  },
+  field_change:      { icon: 'pencil',      labelKey: 'actionChangedField',      showDiff: true,  isCreation: false, filterGroup: 'fields'   },
+  subtask_added:     { icon: 'plus',        labelKey: 'actionAddedSubtask',      showDiff: false, isCreation: false, filterGroup: 'subtasks' },
+  subtask_deleted:   { icon: 'trash',       labelKey: 'actionRemovedSubtask',    showDiff: false, isCreation: false, filterGroup: 'subtasks' },
+  subtask_toggled:   { icon: 'check',       labelKey: 'actionCompletedSubtask',  altLabelKey: 'actionUncompletedSubtask', showDiff: false, isCreation: false, filterGroup: 'subtasks' },
+  subtask_renamed:   { icon: 'text-cursor', labelKey: 'actionRenamedSubtask',    showDiff: true,  isCreation: false, filterGroup: 'subtasks' },
+  subtask_reordered: { icon: 'arrows-sort', labelKey: 'actionReorderedSubtasks', showDiff: false, isCreation: false, filterGroup: 'subtasks' },
+  task_created:      { icon: 'sparkles',    labelKey: 'actionTaskCreated',       showDiff: false, isCreation: true,  filterGroup: 'created'  },
 }
 
 function getActionCfg(actionType: string): ActionCfg {
   return ACTION_CONFIG[actionType] ?? {
-    icon: 'pencil', labelKey: 'actionChangedField', showDiff: true, isCreation: false,
+    icon: 'pencil', labelKey: 'actionChangedField', showDiff: true, isCreation: false, filterGroup: 'fields',
   }
 }
 
-// ── Avatar ─────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+//  Filter types
+// ─────────────────────────────────────────────────────────────
+
+type FilterGroup = 'all' | 'fields' | 'subtasks' | 'created'
+
+// ─────────────────────────────────────────────────────────────
+//  Sub-components
+// ─────────────────────────────────────────────────────────────
+
 function Avatar({ name, isCreation }: { name: string; isCreation: boolean }) {
   const initial = name[0]?.toUpperCase() ?? '?'
   if (isCreation) {
     return (
       <div className="w-7 h-7 rounded-full bg-emerald/15 border border-emerald/30 flex items-center justify-center flex-shrink-0">
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-          className="text-emerald">
+          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald">
           <path d="M12 3l1.9 5.8H20l-4.9 3.6 1.9 5.8L12 15l-5 3.4 1.9-5.8L4 8.8h6.1z" />
         </svg>
       </div>
@@ -383,7 +117,6 @@ function Avatar({ name, isCreation }: { name: string; isCreation: boolean }) {
   )
 }
 
-// ── DiffBadge ──────────────────────────────────────────────────
 function DiffBadge({ value, variant }: { value: string; variant: 'old' | 'new' }) {
   return (
     <span className={cn(
@@ -397,7 +130,6 @@ function DiffBadge({ value, variant }: { value: string; variant: 'old' | 'new' }
   )
 }
 
-// ── DateSeparator ──────────────────────────────────────────────
 function DateSeparator({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-3 my-3 ml-[35px]">
@@ -410,7 +142,10 @@ function DateSeparator({ label }: { label: string }) {
   )
 }
 
-// ── Одна запись ────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+//  HistoryEntry
+// ─────────────────────────────────────────────────────────────
+
 function HistoryEntry({ entry }: { entry: TaskHistory }) {
   const { t }       = useI18n()
   const timeAgo     = useTimeAgo()
@@ -421,7 +156,6 @@ function HistoryEntry({ entry }: { entry: TaskHistory }) {
   const subtaskName = entry.meta?.subtask_title as string | undefined
   const isSubtask   = entry.action_type.startsWith('subtask_')
 
-  // Текст действия
   let actionLabel: string
   if (entry.action_type === 'field_change') {
     const fieldKey = fieldLabels[entry.field ?? '']
@@ -440,7 +174,6 @@ function HistoryEntry({ entry }: { entry: TaskHistory }) {
     return key ? t(key) : val
   }
 
-  // task_created — особый стиль
   if (cfg.isCreation) {
     return (
       <div className="flex gap-3">
@@ -466,7 +199,6 @@ function HistoryEntry({ entry }: { entry: TaskHistory }) {
     <div className="flex gap-3">
       <Avatar name={entry.user.first_name} isCreation={false} />
       <div className="flex-1 min-w-0 pt-0.5">
-        {/* Строка с именем, действием и временем */}
         <div className="flex items-baseline gap-1.5 flex-wrap mb-1">
           <span className="text-[13px] font-semibold text-text-primary leading-none">
             {entry.user.first_name}
@@ -480,7 +212,6 @@ function HistoryEntry({ entry }: { entry: TaskHistory }) {
           </span>
         </div>
 
-        {/* Название подзадачи */}
         {isSubtask && subtaskName && entry.action_type !== 'subtask_reordered' && (
           <span className={cn(
             'inline-block text-[11px] px-2 py-0.5 rounded-md bg-bg-hover text-text-primary border border-bg-border/60 max-w-[200px] truncate mb-1',
@@ -490,7 +221,6 @@ function HistoryEntry({ entry }: { entry: TaskHistory }) {
           </span>
         )}
 
-        {/* Diff old → new */}
         {cfg.showDiff && (entry.old_value != null || entry.new_value != null) && (
           <div className="flex items-center gap-1.5 flex-wrap">
             {entry.old_value != null && entry.old_value !== 'null' && (
@@ -513,54 +243,169 @@ function HistoryEntry({ entry }: { entry: TaskHistory }) {
   )
 }
 
-// ── Props ──────────────────────────────────────────────────────
-interface Props {
-  taskId:   string
-  userId:   number
-  initial?: TaskHistory[]
+// ─────────────────────────────────────────────────────────────
+//  FilterTabs
+// ─────────────────────────────────────────────────────────────
+
+const FILTER_TABS: { key: FilterGroup; label: string; emoji: string }[] = [
+  { key: 'all',      label: 'All',      emoji: '📋' },
+  { key: 'fields',   label: 'Fields',   emoji: '✏️' },
+  { key: 'subtasks', label: 'Subtasks', emoji: '☑️' },
+  { key: 'created',  label: 'Created',  emoji: '✨' },
+]
+
+function FilterTabs({
+  active,
+  onChange,
+  counts,
+}: {
+  active:   FilterGroup
+  onChange: (g: FilterGroup) => void
+  counts:   Record<FilterGroup, number>
+}) {
+  return (
+    <div className="flex gap-1.5 overflow-x-auto pb-0.5 mt-3" style={{ scrollbarWidth: 'none' }}>
+      {FILTER_TABS.map(tab => (
+        <button
+          key={tab.key}
+          onClick={() => onChange(tab.key)}
+          className={cn(
+            'flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium whitespace-nowrap transition-all flex-shrink-0',
+            active === tab.key
+              ? 'bg-accent text-white'
+              : 'bg-bg-hover text-text-secondary hover:bg-bg-border'
+          )}
+        >
+          <span>{tab.emoji}</span>
+          {tab.label}
+          {counts[tab.key] > 0 && (
+            <span className={cn(
+              'text-[9px] px-1 py-0.5 rounded-full tabular-nums',
+              active === tab.key ? 'bg-white/20' : 'bg-bg-border text-text-dim'
+            )}>
+              {counts[tab.key]}
+            </span>
+          )}
+        </button>
+      ))}
+    </div>
+  )
 }
 
-// ── Main ───────────────────────────────────────────────────────
-export function TaskHistoryPanel({ taskId, userId, initial = [] }: Props) {
-  const { t } = useI18n()
-  const [open,    setOpen]    = useState(false)
-  const [entries, setEntries] = useState<TaskHistory[]>(initial)
-  const [loading, setLoading] = useState(false)
-  const [fetched, setFetched] = useState(initial.length > 0)
+// ─────────────────────────────────────────────────────────────
+//  Props
+// ─────────────────────────────────────────────────────────────
 
+interface Props {
+  taskId:      string
+  userId:      number
+  initial?:    TaskHistory[]
+  /** Bump this to force a refetch (e.g. after task save) */
+  refetchKey?: number
+}
+
+// ─────────────────────────────────────────────────────────────
+//  TaskHistoryPanel
+// ─────────────────────────────────────────────────────────────
+
+export function TaskHistoryPanel({ taskId, userId, initial = [], refetchKey }: Props) {
+  const { t } = useI18n()
+
+  const [open,        setOpen]        = useState(false)
+  const [entries,     setEntries]     = useState<TaskHistory[]>(initial)
+  const [loading,     setLoading]     = useState(false)
+  const [fetched,     setFetched]     = useState(initial.length > 0)
+  const [page,        setPage]        = useState(1)
+  const [filterGroup, setFilterGroup] = useState<FilterGroup>('all')
+  const [refreshing,  setRefreshing]  = useState(false)
+
+  // Track previous refetchKey so we only re-fetch on actual bumps
+  const prevRefetchKey = useRef(refetchKey)
+
+  // ── fetch ────────────────────────────────────────────────
+  const fetchHistory = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true)
+    else setRefreshing(true)
+    try {
+      const res  = await fetch(`/api/tasks/history?taskId=${taskId}&userId=${userId}`)
+      const data = await res.json()
+      setEntries(data.history ?? [])
+      setFetched(true)
+    } catch {}
+    if (!silent) setLoading(false)
+    else setRefreshing(false)
+  }, [taskId, userId])
+
+  // ── open / close ────────────────────────────────────────
   async function handleToggle() {
     if (open) { setOpen(false); return }
-    if (!fetched) {
-      setLoading(true)
-      try {
-        const res  = await fetch(`/api/tasks/history?taskId=${taskId}&userId=${userId}`)
-        const data = await res.json()
-        setEntries(data.history ?? [])
-        setFetched(true)
-      } catch {}
-      setLoading(false)
-    }
+    if (!fetched) await fetchHistory()
     setOpen(true)
   }
 
-  // Группировка по дате
-  const grouped: { label: string; items: TaskHistory[] }[] = []
-  for (const entry of entries) {
-    const d   = new Date(entry.created_at)
-    const now = new Date()
-    const isToday     = d.toDateString() === now.toDateString()
-    const isYesterday = d.toDateString() === new Date(now.getTime() - 86400000).toDateString()
-    const label = isToday     ? t('today')
-                : isYesterday ? t('yesterday')
-                : d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
-    const last = grouped[grouped.length - 1]
-    if (last?.label === label) last.items.push(entry)
-    else grouped.push({ label, items: [entry] })
+  // ── manual refresh ───────────────────────────────────────
+  async function handleRefresh(e: React.MouseEvent) {
+    e.stopPropagation()
+    await fetchHistory(true)
+    setPage(1)
   }
 
+  // ── refetchKey watcher ───────────────────────────────────
+  // When parent bumps refetchKey (e.g. after save), silently
+  // refresh if the panel is already open, or invalidate so
+  // next open triggers a fresh fetch.
+  useEffect(() => {
+    if (refetchKey === prevRefetchKey.current) return
+    prevRefetchKey.current = refetchKey
+    setFetched(false)
+    if (open) {
+      void fetchHistory(true)
+      setPage(1)
+    }
+  }, [refetchKey, open, fetchHistory])
+
+  // ── filter + pagination (memoized) ───────────────────────
+  const filtered = useMemo(() => {
+    if (filterGroup === 'all') return entries
+    return entries.filter(e => getActionCfg(e.action_type).filterGroup === filterGroup)
+  }, [entries, filterGroup])
+
+  const paginated = useMemo(() => filtered.slice(0, page * PAGE_SIZE), [filtered, page])
+  const hasMore   = paginated.length < filtered.length
+
+  // ── filter counts (memoized) ─────────────────────────────
+  const counts = useMemo((): Record<FilterGroup, number> => {
+    const c: Record<FilterGroup, number> = { all: entries.length, fields: 0, subtasks: 0, created: 0 }
+    for (const e of entries) {
+      const g = getActionCfg(e.action_type).filterGroup
+      c[g] = (c[g] ?? 0) + 1
+    }
+    return c
+  }, [entries])
+
+  // ── group paginated entries by date (memoized) ───────────
+  const grouped = useMemo(() => {
+    const groups: { label: string; items: TaskHistory[] }[] = []
+    const now = new Date()
+
+    for (const entry of paginated) {
+      const d           = new Date(entry.created_at)
+      const isToday     = d.toDateString() === now.toDateString()
+      const isYesterday = d.toDateString() === new Date(now.getTime() - 86_400_000).toDateString()
+      const label = isToday     ? t('today')
+                  : isYesterday ? t('yesterday')
+                  : d.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
+      const last = groups[groups.length - 1]
+      if (last?.label === label) last.items.push(entry)
+      else groups.push({ label, items: [entry] })
+    }
+    return groups
+  }, [paginated, t])
+
+  // ─────────────────────────────────────────────────────────
   return (
     <div>
-      {/* Кнопка-триггер */}
+      {/* Trigger button */}
       <button
         onClick={handleToggle}
         className="w-full flex items-center justify-between px-3 py-2.5 bg-bg-card rounded-2xl border border-bg-border/60 text-sm text-text-secondary hover:bg-bg-hover transition-colors"
@@ -574,39 +419,83 @@ export function TaskHistoryPanel({ taskId, userId, initial = [] }: Props) {
             </span>
           )}
         </span>
-        {loading
-          ? <div className="w-3.5 h-3.5 border-2 border-text-dim border-t-accent rounded-full animate-spin" />
-          : open ? <ChevronUp size={14} /> : <ChevronDown size={14} />
-        }
+        <div className="flex items-center gap-2">
+          {open && (
+            <button
+              onClick={handleRefresh}
+              className={cn(
+                'p-1 rounded-lg text-text-dim hover:text-accent hover:bg-accent/10 transition-all',
+                refreshing && 'animate-spin text-accent'
+              )}
+              title="Refresh history"
+            >
+              <RefreshCw size={12} />
+            </button>
+          )}
+          {loading
+            ? <div className="w-3.5 h-3.5 border-2 border-text-dim border-t-accent rounded-full animate-spin" />
+            : open ? <ChevronUp size={14} /> : <ChevronDown size={14} />
+          }
+        </div>
       </button>
 
       {open && (
-        <div className="mt-3 animate-fade-up">
-          {entries.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-8 text-center">
-              <span className="text-2xl mb-2">📋</span>
-              <p className="text-xs text-text-dim">{t('noHistory')}</p>
-              <p className="text-[11px] text-text-dim mt-0.5">{t('noHistoryDesc')}</p>
-            </div>
-          ) : (
-            <div className="relative">
-              {/* Вертикальная линия */}
-              <div className="absolute left-[13px] top-0 bottom-0 w-px bg-bg-border/50" />
-
-              <div className="space-y-3">
-                {grouped.map((group, gi) => (
-                  <div key={group.label}>
-                    <DateSeparator label={group.label} />
-                    <div className="space-y-3">
-                      {group.items.map(entry => (
-                        <HistoryEntry key={entry.id} entry={entry} />
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
+        <div className="mt-2 animate-fade-up">
+          {/* Filter tabs — only show when there are entries */}
+          {entries.length > 0 && (
+            <FilterTabs
+              active={filterGroup}
+              onChange={g => { setFilterGroup(g); setPage(1) }}
+              counts={counts}
+            />
           )}
+
+          <div className="mt-3">
+            {filtered.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-8 text-center">
+                <span className="text-2xl mb-2">
+                  {entries.length === 0 ? '📋' : '🔍'}
+                </span>
+                <p className="text-xs text-text-dim">
+                  {entries.length === 0 ? t('noHistory') : 'No entries for this filter'}
+                </p>
+                {entries.length === 0 && (
+                  <p className="text-[11px] text-text-dim mt-0.5">{t('noHistoryDesc')}</p>
+                )}
+              </div>
+            ) : (
+              <div className="relative">
+                {/* Vertical timeline line */}
+                <div className="absolute left-[13px] top-0 bottom-0 w-px bg-bg-border/50" />
+
+                <div className="space-y-3">
+                  {grouped.map(group => (
+                    <div key={group.label}>
+                      <DateSeparator label={group.label} />
+                      <div className="space-y-3">
+                        {group.items.map(entry => (
+                          <HistoryEntry key={entry.id} entry={entry} />
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Load more */}
+                {hasMore && (
+                  <button
+                    onClick={() => setPage(p => p + 1)}
+                    className="w-full mt-4 py-2 text-xs text-accent font-medium hover:bg-accent/5 rounded-xl transition-colors border border-accent/20"
+                  >
+                    Load {Math.min(PAGE_SIZE, filtered.length - paginated.length)} more
+                    <span className="text-text-dim ml-1">
+                      ({filtered.length - paginated.length} remaining)
+                    </span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
