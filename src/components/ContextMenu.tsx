@@ -1,13 +1,14 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { createPortal } from 'react-dom'
 import { gsap } from 'gsap'
 import { cn } from '@/lib/utils'
 
 export interface ContextMenuItem {
-  label: string
-  icon:  string
-  color?: string
+  label:   string
+  icon:    string
+  color?:  string
   onClick: () => void
 }
 
@@ -44,28 +45,31 @@ export function ContextMenu({ items, x, y, onClose }: Props) {
     })
   }
 
-  const MENU_W = 200
-  const ITEM_H = 48
-  const PADDING = 16
-  const menuH = items.length * ITEM_H + 16
+  const MENU_W  = 200
+  const ITEM_H  = 48
+  const PAD     = 16
+  const menuH   = items.length * ITEM_H + 16
 
-  // Clamp X — не выходить за правый край
+  // Clamp X — не выходить за края экрана
   const clampedX = Math.min(
-    Math.max(PADDING, x),
-    window.innerWidth - MENU_W - PADDING
+    Math.max(PAD, x),
+    window.innerWidth - MENU_W - PAD
   )
 
   // Flip вверх если не влезает снизу
-  const fitsBelow = y + menuH + PADDING < window.innerHeight
+  const fitsBelow = y + menuH + PAD < window.innerHeight
   const clampedY  = fitsBelow
-    ? Math.max(PADDING, y)
-    : Math.max(PADDING, y - menuH - 10) // открываем выше точки клика
+    ? Math.max(PAD, y)
+    : Math.max(PAD, y - menuH - 10)
 
-  // Анимация появляется от правильного края
   const origin = fitsBelow ? 'top right' : 'bottom right'
 
-  return (
-    <div className="fixed inset-0 z-[100]" style={{ pointerEvents: 'none' }}>
+  // ✅ Portal — рендерим прямо в document.body, минуя
+  //    трансформированный .page-container на десктопе.
+  //    Иначе position:fixed позиционируется относительно
+  //    transformed ancestor, а не viewport.
+  return createPortal(
+    <div className="fixed inset-0 z-[9999]" style={{ pointerEvents: 'none' }}>
       <div
         ref={menuRef}
         className="absolute bg-bg-surface border border-bg-border rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] py-2 overflow-hidden"
@@ -92,6 +96,7 @@ export function ContextMenu({ items, x, y, onClose }: Props) {
           </button>
         ))}
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

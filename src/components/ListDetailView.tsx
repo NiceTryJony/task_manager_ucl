@@ -282,6 +282,10 @@ export function ListDetailView({ onBack }: Props) {
   // ────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!activeListId || !user) return
+    // Обновляем рефы синхронно ДО fetchTasks — иначе ref-эффекты
+    // выполнятся позже и fetchTasks увидит null в listIdRef.current
+    listIdRef.current = activeListId
+    userIdRef.current = user.id
     fetchTasks()
     const debFetch = () => {
       clearTimeout(fetchDebounceRef.current)
@@ -320,7 +324,7 @@ export function ListDetailView({ onBack }: Props) {
 
       const [data, dataA] = await Promise.all([res.json(), resA.json()])
 
-      setTasks(activeListId!, [...(data.tasks ?? []), ...(dataA.tasks ?? [])])
+      setTasks(currentListId, [...(data.tasks ?? []), ...(dataA.tasks ?? [])])
       setLoading(false)
 
       if (showAnim) {
