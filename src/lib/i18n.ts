@@ -137,6 +137,9 @@ export const translations = {
     saved: 'Saved', saveError: 'Error — changes not saved',
     // ── Error boundary ────────────────────────────────────────
     errorTitle: 'Something went wrong', errorReload: 'Reload',
+
+    swipeDone: 'Done',
+    swipeArchive: 'Archive',
   },
 
   uk: {
@@ -280,6 +283,9 @@ export const translations = {
     saved: 'Збережено', saveError: 'Помилка — зміни не збережено',
     // ── Error boundary ────────────────────────────────────────
     errorTitle: 'Щось пішло не так', errorReload: 'Перезавантажити',
+
+    swipeDone: 'Виконано',
+    swipeArchive: 'Архів',
   },
 } as const
 

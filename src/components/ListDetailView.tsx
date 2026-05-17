@@ -41,6 +41,7 @@ import { usePending }  from '@/hooks/usePending'
 import { useTheme }    from '@/lib/theme-context'
 import { useI18n }     from '@/lib/i18n-context'
 import { SaveBanner } from '@/components/ui/SaveBanner'
+import { SwipeableTaskCard } from '@/components/SwipeableTaskCard'
 
 // ─────────────────────────────────────────────────────────────
 //  Types
@@ -674,16 +675,26 @@ export function ListDetailView({ onBack }: Props) {
               <SortableContext items={displayList.map(t => t.id)} strategy={verticalListSortingStrategy}>
                 <div className="space-y-2 mt-2">
                   {displayList.map(task => (
-                    <SortableTaskCard
+                    <SwipeableTaskCard
                       key={task.id}
-                      task={task}
-                      isViewer={isViewer}
-                      isDragMode={isDragMode}
-                      isDragging={draggingId === task.id}
-                      onToggle={() => handleStatusToggle(task)}
-                      onOpen={() => isViewer ? setViewerTask(task) : setActiveTask(task)}
-                      onLongPress={(x, y) => { setContextMenu({ task, x, y }); haptic.medium() }}
-                    />
+                      onSwipeRight={() => {
+                        if (task.status !== 'done') handleStatusToggle(task)
+                      }}
+                      onSwipeLeft={() => {
+                        if (!task.archived) handleArchive(task)
+                      }}
+                      disabled={isDragMode && !!draggingId}
+                    >
+                      <SortableTaskCard
+                        task={task}
+                        isViewer={isViewer}
+                        isDragMode={isDragMode}
+                        isDragging={draggingId === task.id}
+                        onToggle={() => handleStatusToggle(task)}
+                        onOpen={() => isViewer ? setViewerTask(task) : setActiveTask(task)}
+                        onLongPress={(x, y) => { setContextMenu({ task, x, y }); haptic.medium() }}
+                      />
+                    </SwipeableTaskCard>
                   ))}
                 </div>
               </SortableContext>
