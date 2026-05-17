@@ -137,9 +137,16 @@ export const translations = {
     saved: 'Saved', saveError: 'Error — changes not saved',
     // ── Error boundary ────────────────────────────────────────
     errorTitle: 'Something went wrong', errorReload: 'Reload',
-
+    // ── Swipe gestures ────────────────────────────────────────
     swipeDone: 'Done',
     swipeArchive: 'Archive',
+    // ── Global search ─────────────────────────────────────────
+    searchAll: 'All Lists',
+    searchCurrent: 'Current List',
+    searchPlaceholderGlobal: 'Search all tasks…',
+    searchNoResults: 'Nothing found',
+    searchMatchDesc: 'in description',
+    searchMatchSubtask: 'in subtask',
   },
 
   uk: {
@@ -283,9 +290,16 @@ export const translations = {
     saved: 'Збережено', saveError: 'Помилка — зміни не збережено',
     // ── Error boundary ────────────────────────────────────────
     errorTitle: 'Щось пішло не так', errorReload: 'Перезавантажити',
-
+    // ── Swipe gestures ────────────────────────────────────────
     swipeDone: 'Виконано',
     swipeArchive: 'Архів',
+    // ── Global search ─────────────────────────────────────────
+    searchAll: 'Всі списки',
+    searchCurrent: 'Поточний список',
+    searchPlaceholderGlobal: 'Пошук по всіх завданнях…',
+    searchNoResults: 'Нічого не знайдено',
+    searchMatchDesc: 'в описі',
+    searchMatchSubtask: 'в підзавданні',
   },
 } as const
 

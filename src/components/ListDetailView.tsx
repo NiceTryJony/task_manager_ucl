@@ -879,6 +879,7 @@ function TaskCard({ task, isViewer, isDragMode, isDraggingOverlay, dragListeners
   const { t } = useI18n()
 
   const [isHolding, setIsHolding] = useState(false)
+  const [burst, setBurst] = useState(false)
   const holdTimer      = useRef<ReturnType<typeof setTimeout>>()
   const longPressTimer = useRef<ReturnType<typeof setTimeout>>()
   const didLongPress   = useRef(false)
@@ -932,6 +933,16 @@ function TaskCard({ task, isViewer, isDragMode, isDraggingOverlay, dragListeners
     setIsHolding(false)
   }
 
+  function handleToggle() {
+    if (isViewer || isDraggingOverlay) return
+    if (!isDone) {
+      // Только при переходе в done
+      setBurst(true)
+      setTimeout(() => setBurst(false), 600)
+    }
+    onToggle()
+  }
+
   return (
     // group — нужен чтобы MoreButton появлялся при hover на карточке
     <div className="card-shell group">
@@ -972,7 +983,7 @@ function TaskCard({ task, isViewer, isDragMode, isDraggingOverlay, dragListeners
           )}
 
           {/* ── Completion checkbox ──────────────────────────── */}
-          <button
+          {/* <button
             onClick={isViewer || isDraggingOverlay ? undefined : onToggle}
             className={cn('custom-checkbox mt-0.5', isDone ? 'checked' : 'unchecked', isViewer && 'opacity-60 cursor-default')}
           >
@@ -981,7 +992,44 @@ function TaskCard({ task, isViewer, isDragMode, isDraggingOverlay, dragListeners
                 <path d="M1 4L4 7L10 1" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             )}
-          </button>
+          </button> */}
+          {/* ── Completion checkbox ──────────────────────────── */}
+          <div className="relative flex-shrink-0 mt-0.5">
+            <button
+              onClick={handleToggle}
+              className={cn(
+                'custom-checkbox',
+                isDone ? 'checked' : 'unchecked',
+                isViewer && 'opacity-60 cursor-default',
+                burst && 'animate-checkbox-burst'
+              )}
+            >
+              {isDone && (
+                <svg width="11" height="9" viewBox="0 0 11 9" fill="none">
+                  <path d="M1 4L4 7L10 1" stroke="white" strokeWidth="2.2"
+                    strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+              )}
+            </button>
+
+            {/* Частицы взрыва */}
+            {burst && (
+              <div className="absolute inset-0 pointer-events-none" aria-hidden>
+                {[...Array(6)].map((_, i) => (
+                  <span
+                    key={i}
+                    className="absolute w-1 h-1 rounded-full bg-emerald"
+                    style={{
+                      top: '50%', left: '50%',
+                      animation: `burst-particle 0.5s ease-out forwards`,
+                      animationDelay: `${i * 18}ms`,
+                      '--angle': `${i * 60}deg`,
+                    } as React.CSSProperties}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
 
           {/* ── Task body ────────────────────────────────────── */}
           <button
