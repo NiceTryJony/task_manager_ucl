@@ -229,7 +229,7 @@ export function ListDetailView({ onBack }: Props) {
       setReorderStatus('saving')
       incrementPending()
       void flushReorderSave()
-    }, 1000)
+    }, 1)
   }
 
   function handleDragCancel() {
