@@ -796,26 +796,32 @@ function MoreButton({ onPress }: { onPress: (x: number, y: number) => void }) {
     e.stopPropagation()
     e.preventDefault()
     const rect = btnRef.current?.getBoundingClientRect()
-    if (rect) onPress(rect.left, rect.bottom + 4)
+    if (!rect) return
+    // Выравниваем правый край меню (200px) по правому краю кнопки,
+    // чтобы меню не уходило за пределы экрана
+    const MENU_W = 200
+    const x = Math.max(8, rect.right - MENU_W)
+    const y = rect.bottom + 6
+    onPress(x, y)
   }
 
   return (
     <button
       ref={btnRef}
       onClick={handleClick}
-      onPointerDown={e => e.stopPropagation()} // не триггерить drag
+      // capture — перехватываем до dnd-kit, не даём ему начать drag
+      onPointerDownCapture={e => e.stopPropagation()}
+      onTouchStartCapture={e => e.stopPropagation()}
       className={cn(
-        'flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg',
+        'flex-shrink-0 self-center w-7 h-7 flex items-center justify-center rounded-lg',
         'text-text-dim hover:text-text-secondary hover:bg-bg-hover',
         'active:scale-90 transition-all duration-150',
-        // На мобиле скрываем — там работает long-press
-        // На десктопе показываем при hover на карточке
-        'opacity-0 group-hover:opacity-100 focus:opacity-100',
+        // Мобайл: long-press работает сам, кнопка скрыта
+        // Десктоп: появляется при hover на карточке
+        'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
       )}
-      tabIndex={0}
       aria-label="Task options"
     >
-      {/* Три вертикальные точки */}
       <svg width="3" height="15" viewBox="0 0 3 15" fill="currentColor">
         <circle cx="1.5" cy="1.5"  r="1.5" />
         <circle cx="1.5" cy="7.5"  r="1.5" />

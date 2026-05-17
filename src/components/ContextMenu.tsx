@@ -26,7 +26,6 @@ export function ContextMenu({ items, x, y, onClose }: Props) {
       { scale: 0.85, opacity: 0 },
       { scale: 1, opacity: 1, duration: 0.2, ease: 'back.out(2)' }
     )
-    // Close on outside tap
     const handler = (e: TouchEvent | MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) close()
     }
@@ -45,11 +44,25 @@ export function ContextMenu({ items, x, y, onClose }: Props) {
     })
   }
 
-  // Clamp position to viewport
-  const menuW = 200
-  const menuH = items.length * 48 + 16
-  const clampedX = Math.min(x, window.innerWidth  - menuW - 16)
-  const clampedY = Math.min(y, window.innerHeight - menuH - 16)
+  const MENU_W = 200
+  const ITEM_H = 48
+  const PADDING = 16
+  const menuH = items.length * ITEM_H + 16
+
+  // Clamp X — не выходить за правый край
+  const clampedX = Math.min(
+    Math.max(PADDING, x),
+    window.innerWidth - MENU_W - PADDING
+  )
+
+  // Flip вверх если не влезает снизу
+  const fitsBelow = y + menuH + PADDING < window.innerHeight
+  const clampedY  = fitsBelow
+    ? Math.max(PADDING, y)
+    : Math.max(PADDING, y - menuH - 10) // открываем выше точки клика
+
+  // Анимация появляется от правильного края
+  const origin = fitsBelow ? 'top right' : 'bottom right'
 
   return (
     <div className="fixed inset-0 z-[100]" style={{ pointerEvents: 'none' }}>
@@ -57,11 +70,11 @@ export function ContextMenu({ items, x, y, onClose }: Props) {
         ref={menuRef}
         className="absolute bg-bg-surface border border-bg-border rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] py-2 overflow-hidden"
         style={{
-          left: clampedX,
-          top:  clampedY,
-          width: menuW,
-          pointerEvents: 'all',
-          transformOrigin: 'top left',
+          left:            clampedX,
+          top:             clampedY,
+          width:           MENU_W,
+          pointerEvents:   'all',
+          transformOrigin: origin,
         }}
       >
         {items.map((item, i) => (
