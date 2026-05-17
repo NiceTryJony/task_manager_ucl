@@ -756,6 +756,7 @@ export function ListDetailView({ onBack }: Props) {
                       onSwipeRight={() => { if (task.status !== 'done') handleStatusToggle(task) }}
                       onSwipeLeft={() =>  { if (!task.archived) handleArchive(task) }}
                       disabled={isDragMode && !!draggingId}
+                      isDraggingGlobal={!!draggingId}
                       onSwipeStart={() => { isSwipingRef.current = true }}
                       onSwipeEnd={() =>   { setTimeout(() => { isSwipingRef.current = false }, 50) }}
                     >

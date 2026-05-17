@@ -12,6 +12,7 @@ interface Props {
   onSwipeStart?: () => void
   onSwipeEnd?:   () => void
   disabled?: boolean         // drag mode active — disable swipe
+  isDraggingGlobal?: boolean  
   
 }
 
@@ -21,7 +22,7 @@ const MAX_OFFSET       = 120   // максимальный визуальный 
 const RETURN_DURATION  = '0.35s'
 const FLY_DURATION     = '0.28s'
 
-export function SwipeableTaskCard({ children, onSwipeRight, onSwipeLeft, disabled, onSwipeStart, onSwipeEnd }: Props) {
+export function SwipeableTaskCard({ children, onSwipeRight, onSwipeLeft, disabled, onSwipeStart, onSwipeEnd, isDraggingGlobal, }: Props) {
   const { t } = useI18n()
   
 
@@ -131,11 +132,14 @@ export function SwipeableTaskCard({ children, onSwipeRight, onSwipeLeft, disable
   return (
     <div
       ref={containerRef}
-      className="relative overflow-hidden rounded-[23.25px]"
+      className={cn(
+        "relative rounded-[23.25px]",
+        !isDraggingGlobal && "overflow-hidden"  // ← убираем clip во время drag
+      )}
       style={{ touchAction: 'pan-y' }}
     >
       {/* ── Подложка (фон под карточкой) ──────────────────── */}
-      {showHint && !flying && (
+      {showHint && !flying && !isDraggingGlobal &&(
         <div
           className="absolute inset-0 rounded-[23.25px] flex items-center transition-all duration-75"
           style={{
