@@ -210,6 +210,7 @@ A fast, beautiful and powerful task management application built for Telegram.
 [![Next.js](https://img.shields.io/badge/Next.js-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org/)
 [![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
 
+
 ## ✨ Features
 
 - Full CRUD for tasks and subtasks (checklists)
@@ -265,7 +266,8 @@ Development mode uses mocked Telegram authentication for easier testing.
 Bashvercel deploy
 After deployment, register your Mini App in BotFather using /newapp.
 📁 Project Structure
-Bashsrc/
+```
+src/
 ├── app/
 │   ├── api/                 # Server API routes
 │   ├── page.tsx
@@ -279,6 +281,7 @@ Bashsrc/
 ├── types/
 └── supabase/
     └── schema.sql
+```
 🔐 Security
 
 All data mutations are handled through protected API routes
@@ -304,4 +307,4 @@ License
 MIT License
 
 Built with ❤️ for Telegram Mini Apps
-Open App →
+[![Open App](https://task-manager-ucl.vercel.app)] →
