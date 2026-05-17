@@ -1,26 +1,113 @@
 'use client'
 
-import { useState, useMemo, useEffect, useCallback, useRef } from 'react'
+/**
+ * TaskHistoryPanel — glassmorphism edition
+ *
+ * Performance contract:
+ * ─ backdrop-filter blur только на wrapper контейнере (1 compositing layer)
+ * ─ каждая HistoryEntry — нет blur, нет box-shadow с blur-radius
+ * ─ useTimeAgo — один setInterval на компонент, не на каждый entry
+ * ─ FIELD_LABELS / VALUE_LABELS / ACTION_CONFIG — module-level constants
+ * ─ HistoryEntry + Avatar + FilterTabs — React.memo
+ * ─ contain: content на каждом entry — браузер не пересчитывает layout вверх
+ * ─ анимация открытия — только opacity + translateY (GPU composited)
+ * ─ inline styles вместо динамических Tailwind классов для accent цветов
+ */
+
+import { useState, useMemo, useEffect, useCallback, useRef, memo } from 'react'
 import { History, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import type { TaskHistory, HistoryActionType } from '@/types'
+import type { TaskHistory } from '@/types'
 import { useI18n } from '@/lib/i18n-context'
 import type { TranslationKey } from '@/lib/i18n'
 
 // ─────────────────────────────────────────────────────────────
-//  Constants
+//  Module-level constants — zero re-creation cost
 // ─────────────────────────────────────────────────────────────
 
 const PAGE_SIZE = 15
 
+const FIELD_LABELS: Record<string, TranslationKey> = {
+  title:       'fieldTitle',
+  description: 'fieldNotes',
+  priority:    'fieldPriority',
+  status:      'fieldStatus',
+  due_at:      'fieldDueDate',
+  archived:    'fieldArchived',
+  subtask:     'fieldSubtask',
+}
+
+const VALUE_LABELS: Record<string, TranslationKey> = {
+  todo:        'todo',
+  in_progress: 'inProgress',
+  done:        'done',
+  low:         'low',
+  medium:      'medium',
+  high:        'high',
+  urgent:      'urgent',
+  'true':      'valYes',
+  'false':     'valNo',
+  'null':      'valNo',
+}
+
 // ─────────────────────────────────────────────────────────────
-//  useTimeAgo — live-updating relative timestamps
+//  Action config
+// ─────────────────────────────────────────────────────────────
+
+type FilterGroup = 'all' | 'fields' | 'subtasks' | 'created'
+type AccentKey   = 'accent' | 'emerald' | 'danger' | 'amber' | 'dim'
+
+interface ActionCfg {
+  labelKey:     TranslationKey
+  altLabelKey?: TranslationKey
+  showDiff:     boolean
+  isCreation:   boolean
+  filterGroup:  'fields' | 'subtasks' | 'created'
+  accent:       AccentKey
+}
+
+const ACTION_CONFIG: Record<string, ActionCfg> = {
+  field_change:      { labelKey: 'actionChangedField',      showDiff: true,  isCreation: false, filterGroup: 'fields',   accent: 'accent'  },
+  subtask_added:     { labelKey: 'actionAddedSubtask',      showDiff: false, isCreation: false, filterGroup: 'subtasks', accent: 'emerald' },
+  subtask_deleted:   { labelKey: 'actionRemovedSubtask',    showDiff: false, isCreation: false, filterGroup: 'subtasks', accent: 'danger'  },
+  subtask_toggled:   { labelKey: 'actionCompletedSubtask',  altLabelKey: 'actionUncompletedSubtask', showDiff: false, isCreation: false, filterGroup: 'subtasks', accent: 'emerald' },
+  subtask_renamed:   { labelKey: 'actionRenamedSubtask',    showDiff: true,  isCreation: false, filterGroup: 'subtasks', accent: 'amber'   },
+  subtask_reordered: { labelKey: 'actionReorderedSubtasks', showDiff: false, isCreation: false, filterGroup: 'subtasks', accent: 'dim'     },
+  task_created:      { labelKey: 'actionTaskCreated',       showDiff: false, isCreation: true,  filterGroup: 'created',  accent: 'emerald' },
+}
+
+const FALLBACK_CFG: ActionCfg = {
+  labelKey: 'actionChangedField', showDiff: true,
+  isCreation: false, filterGroup: 'fields', accent: 'accent',
+}
+
+function getActionCfg(actionType: string): ActionCfg {
+  return ACTION_CONFIG[actionType] ?? FALLBACK_CFG
+}
+
+// CSS variable string per accent — avoids dynamic Tailwind classes
+const ACCENT_CSS: Record<AccentKey, string> = {
+  accent:  'var(--c-accent)',
+  emerald: 'var(--c-emerald)',
+  danger:  'var(--c-danger)',
+  amber:   'var(--c-amber)',
+  dim:     'rgba(255,255,255,0.18)',
+}
+
+const FILTER_TABS: { key: FilterGroup; label: string; emoji: string }[] = [
+  { key: 'all',      label: 'All',      emoji: '📋' },
+  { key: 'fields',   label: 'Fields',   emoji: '✏️' },
+  { key: 'subtasks', label: 'Subtasks', emoji: '☑️' },
+  { key: 'created',  label: 'Created',  emoji: '✨' },
+]
+
+// ─────────────────────────────────────────────────────────────
+//  useTimeAgo — one interval for the whole panel
 // ─────────────────────────────────────────────────────────────
 
 function useTimeAgo() {
   const { t } = useI18n()
-  // Tick every 60 s so "5m ago" stays accurate while panel is open
   const [, setTick] = useState(0)
+
   useEffect(() => {
     const id = setInterval(() => setTick(n => n + 1), 60_000)
     return () => clearInterval(id)
@@ -40,125 +127,118 @@ function useTimeAgo() {
 }
 
 // ─────────────────────────────────────────────────────────────
-//  Label maps
+//  Avatar — memo
 // ─────────────────────────────────────────────────────────────
 
-function useFieldLabels(): Record<string, TranslationKey> {
-  return {
-    title: 'fieldTitle', description: 'fieldNotes', priority: 'fieldPriority',
-    status: 'fieldStatus', due_at: 'fieldDueDate', archived: 'fieldArchived',
-    subtask: 'fieldSubtask',
-  }
-}
-
-function useValueLabels(): Record<string, TranslationKey> {
-  return {
-    todo: 'todo', in_progress: 'inProgress', done: 'done',
-    low: 'low', medium: 'medium', high: 'high', urgent: 'urgent',
-    'true': 'valYes', 'false': 'valNo', 'null': 'valNo',
-  }
-}
-
-// ─────────────────────────────────────────────────────────────
-//  Action config
-// ─────────────────────────────────────────────────────────────
-
-interface ActionCfg {
-  icon:         string
-  labelKey:     TranslationKey
-  altLabelKey?: TranslationKey
-  showDiff:     boolean
-  isCreation:   boolean
-  filterGroup:  'fields' | 'subtasks' | 'created'
-}
-
-const ACTION_CONFIG: Record<string, ActionCfg> = {
-  field_change:      { icon: 'pencil',      labelKey: 'actionChangedField',      showDiff: true,  isCreation: false, filterGroup: 'fields'   },
-  subtask_added:     { icon: 'plus',        labelKey: 'actionAddedSubtask',      showDiff: false, isCreation: false, filterGroup: 'subtasks' },
-  subtask_deleted:   { icon: 'trash',       labelKey: 'actionRemovedSubtask',    showDiff: false, isCreation: false, filterGroup: 'subtasks' },
-  subtask_toggled:   { icon: 'check',       labelKey: 'actionCompletedSubtask',  altLabelKey: 'actionUncompletedSubtask', showDiff: false, isCreation: false, filterGroup: 'subtasks' },
-  subtask_renamed:   { icon: 'text-cursor', labelKey: 'actionRenamedSubtask',    showDiff: true,  isCreation: false, filterGroup: 'subtasks' },
-  subtask_reordered: { icon: 'arrows-sort', labelKey: 'actionReorderedSubtasks', showDiff: false, isCreation: false, filterGroup: 'subtasks' },
-  task_created:      { icon: 'sparkles',    labelKey: 'actionTaskCreated',       showDiff: false, isCreation: true,  filterGroup: 'created'  },
-}
-
-function getActionCfg(actionType: string): ActionCfg {
-  return ACTION_CONFIG[actionType] ?? {
-    icon: 'pencil', labelKey: 'actionChangedField', showDiff: true, isCreation: false, filterGroup: 'fields',
-  }
-}
-
-// ─────────────────────────────────────────────────────────────
-//  Filter types
-// ─────────────────────────────────────────────────────────────
-
-type FilterGroup = 'all' | 'fields' | 'subtasks' | 'created'
-
-// ─────────────────────────────────────────────────────────────
-//  Sub-components
-// ─────────────────────────────────────────────────────────────
-
-function Avatar({ name, isCreation }: { name: string; isCreation: boolean }) {
+const Avatar = memo(function Avatar({
+  name,
+  isCreation,
+}: {
+  name:       string
+  isCreation: boolean
+}) {
   const initial = name[0]?.toUpperCase() ?? '?'
+
   if (isCreation) {
     return (
-      <div className="w-7 h-7 rounded-full bg-emerald/15 border border-emerald/30 flex items-center justify-center flex-shrink-0">
-        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-emerald">
+      <div
+        className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+        style={{
+          background: 'rgba(62,207,142,0.12)',
+          border:     '1px solid rgba(62,207,142,0.25)',
+        }}
+      >
+        <svg
+          width="12" height="12" viewBox="0 0 24 24"
+          fill="none" stroke="currentColor"
+          strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+          style={{ color: 'var(--c-emerald)' }}
+        >
           <path d="M12 3l1.9 5.8H20l-4.9 3.6 1.9 5.8L12 15l-5 3.4 1.9-5.8L4 8.8h6.1z" />
         </svg>
       </div>
     )
   }
+
   return (
-    <div className="w-7 h-7 rounded-full bg-bg-hover border border-bg-border flex items-center justify-center flex-shrink-0 text-[11px] font-semibold text-text-secondary">
+    <div
+      className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 text-[11px] font-semibold"
+      style={{
+        background: 'rgba(255,255,255,0.06)',
+        border:     '1px solid rgba(255,255,255,0.10)',
+        color:      'var(--text-secondary)',
+      }}
+    >
       {initial}
     </div>
   )
-}
+})
+
+// ─────────────────────────────────────────────────────────────
+//  DiffBadge — no blur, alpha backgrounds only
+// ─────────────────────────────────────────────────────────────
 
 function DiffBadge({ value, variant }: { value: string; variant: 'old' | 'new' }) {
   return (
-    <span className={cn(
-      'inline-block text-[10px] px-2 py-0.5 rounded-full font-medium max-w-[120px] truncate',
-      variant === 'old'
-        ? 'bg-danger/10 text-danger line-through'
-        : 'bg-emerald/10 text-emerald'
-    )}>
+    <span
+      className="inline-block text-[10px] px-2 py-0.5 rounded-full font-medium max-w-[120px] truncate"
+      style={
+        variant === 'old'
+          ? { background: 'rgba(240,112,112,0.12)', color: 'var(--c-danger)',  textDecoration: 'line-through' }
+          : { background: 'rgba(62,207,142,0.12)',  color: 'var(--c-emerald)' }
+      }
+    >
       {value}
     </span>
   )
 }
 
+// ─────────────────────────────────────────────────────────────
+//  DateSeparator
+// ─────────────────────────────────────────────────────────────
+
 function DateSeparator({ label }: { label: string }) {
   return (
-    <div className="flex items-center gap-3 my-3 ml-[35px]">
-      <div className="flex-1 h-px bg-bg-border/50" />
-      <span className="text-[9px] font-semibold uppercase tracking-widest text-text-dim whitespace-nowrap px-1">
+    <div className="flex items-center gap-2 my-2 ml-9">
+      <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.07)' }} />
+      <span
+        className="text-[9px] font-semibold uppercase tracking-widest whitespace-nowrap px-2 py-0.5 rounded-full"
+        style={{
+          color:      'rgba(255,255,255,0.30)',
+          background: 'rgba(255,255,255,0.05)',
+          border:     '1px solid rgba(255,255,255,0.07)',
+        }}
+      >
         {label}
       </span>
-      <div className="flex-1 h-px bg-bg-border/50" />
+      <div className="flex-1 h-px" style={{ background: 'rgba(255,255,255,0.07)' }} />
     </div>
   )
 }
 
 // ─────────────────────────────────────────────────────────────
 //  HistoryEntry
+//  memo → skips re-render when page/filter change
+//  contain: content → browser won't propagate layout recalc up
 // ─────────────────────────────────────────────────────────────
 
-function HistoryEntry({ entry }: { entry: TaskHistory }) {
-  const { t }       = useI18n()
-  const timeAgo     = useTimeAgo()
-  const fieldLabels = useFieldLabels()
-  const valueLabels = useValueLabels()
+interface EntryProps {
+  entry:   TaskHistory
+  timeAgo: (s: string) => string
+}
+
+const HistoryEntry = memo(function HistoryEntry({ entry, timeAgo }: EntryProps) {
+  const { t } = useI18n()
 
   const cfg         = getActionCfg(entry.action_type)
   const subtaskName = entry.meta?.subtask_title as string | undefined
   const isSubtask   = entry.action_type.startsWith('subtask_')
+  const accentColor = ACCENT_CSS[cfg.accent]
 
+  // Action label
   let actionLabel: string
   if (entry.action_type === 'field_change') {
-    const fieldKey = fieldLabels[entry.field ?? '']
+    const fieldKey = FIELD_LABELS[entry.field ?? '']
     actionLabel = `${t('actionChangedField')} ${fieldKey ? t(fieldKey) : (entry.field ?? '')}`
   } else if (entry.action_type === 'subtask_toggled') {
     actionLabel = entry.new_value === 'true'
@@ -170,25 +250,53 @@ function HistoryEntry({ entry }: { entry: TaskHistory }) {
 
   function prettyValue(val: string | null | undefined): string {
     if (val == null || val === 'null' || val === '') return '—'
-    const key = valueLabels[val]
+    const key = VALUE_LABELS[val]
     return key ? t(key) : val
+  }
+
+  // Glass card — no backdrop-filter, alpha + border only
+  const cardBase: React.CSSProperties = {
+    contain:      'content',
+    borderRadius: 12,
+    padding:      '8px 10px 8px 12px',
+    background:   'rgba(255,255,255,0.035)',
+    border:       '1px solid rgba(255,255,255,0.08)',
+    borderLeft:   `2px solid ${accentColor}`,
   }
 
   if (cfg.isCreation) {
     return (
-      <div className="flex gap-3">
+      <div className="flex gap-2.5">
         <Avatar name={entry.user.first_name} isCreation />
-        <div className="flex-1 min-w-0 bg-emerald/5 border border-emerald/15 rounded-xl px-3 py-2">
+        <div
+          className="flex-1 min-w-0"
+          style={{
+            ...cardBase,
+            background:  'rgba(62,207,142,0.06)',
+            border:      '1px solid rgba(62,207,142,0.15)',
+            borderLeft:  '2px solid var(--c-emerald)',
+          }}
+        >
           <div className="flex items-baseline gap-1.5 flex-wrap">
-            <span className="text-[13px] font-semibold text-text-primary">{entry.user.first_name}</span>
+            <span className="text-[13px] font-semibold" style={{ color: 'var(--text-primary)' }}>
+              {entry.user.first_name}
+            </span>
             {entry.user.username && (
-              <span className="text-[11px] text-text-dim">@{entry.user.username}</span>
+              <span className="text-[11px]" style={{ color: 'var(--text-dim)' }}>
+                @{entry.user.username}
+              </span>
             )}
-            <span className="text-[12px] text-emerald/80">{actionLabel}</span>
-            <span className="text-[10px] text-text-dim ml-auto">{timeAgo(entry.created_at)}</span>
+            <span className="text-[12px]" style={{ color: 'rgba(62,207,142,0.75)' }}>
+              {actionLabel}
+            </span>
+            <span className="text-[10px] ml-auto" style={{ color: 'var(--text-dim)' }}>
+              {timeAgo(entry.created_at)}
+            </span>
           </div>
           {entry.new_value && (
-            <p className="text-[11px] text-emerald/70 mt-0.5 truncate">"{entry.new_value}"</p>
+            <p className="text-[11px] mt-0.5 truncate" style={{ color: 'rgba(62,207,142,0.60)' }}>
+              "{entry.new_value}"
+            </p>
           )}
         </div>
       </div>
@@ -196,39 +304,56 @@ function HistoryEntry({ entry }: { entry: TaskHistory }) {
   }
 
   return (
-    <div className="flex gap-3">
+    <div className="flex gap-2.5">
       <Avatar name={entry.user.first_name} isCreation={false} />
-      <div className="flex-1 min-w-0 pt-0.5">
+      <div className="flex-1 min-w-0" style={cardBase}>
+        {/* Name + action + time */}
         <div className="flex items-baseline gap-1.5 flex-wrap mb-1">
-          <span className="text-[13px] font-semibold text-text-primary leading-none">
+          <span className="text-[13px] font-semibold leading-none" style={{ color: 'var(--text-primary)' }}>
             {entry.user.first_name}
           </span>
           {entry.user.username && (
-            <span className="text-[11px] text-text-dim">@{entry.user.username}</span>
+            <span className="text-[11px]" style={{ color: 'var(--text-dim)' }}>
+              @{entry.user.username}
+            </span>
           )}
-          <span className="text-[12px] text-text-secondary">{actionLabel}</span>
-          <span className="text-[10px] text-text-dim ml-auto whitespace-nowrap">
+          <span className="text-[12px]" style={{ color: 'var(--text-secondary)' }}>
+            {actionLabel}
+          </span>
+          <span className="text-[10px] ml-auto whitespace-nowrap" style={{ color: 'var(--text-dim)' }}>
             {timeAgo(entry.created_at)}
           </span>
         </div>
 
+        {/* Subtask name chip */}
         {isSubtask && subtaskName && entry.action_type !== 'subtask_reordered' && (
-          <span className={cn(
-            'inline-block text-[11px] px-2 py-0.5 rounded-md bg-bg-hover text-text-primary border border-bg-border/60 max-w-[200px] truncate mb-1',
-            entry.action_type === 'subtask_deleted' && 'line-through text-text-dim'
-          )}>
+          <span
+            className="inline-block text-[11px] px-2 py-0.5 rounded-md max-w-[200px] truncate mb-1"
+            style={{
+              background:     'rgba(255,255,255,0.06)',
+              border:         '1px solid rgba(255,255,255,0.08)',
+              color:          entry.action_type === 'subtask_deleted'
+                                ? 'var(--text-dim)'
+                                : 'var(--text-primary)',
+              textDecoration: entry.action_type === 'subtask_deleted' ? 'line-through' : 'none',
+            }}
+          >
             {subtaskName}
           </span>
         )}
 
+        {/* Diff old → new */}
         {cfg.showDiff && (entry.old_value != null || entry.new_value != null) && (
           <div className="flex items-center gap-1.5 flex-wrap">
             {entry.old_value != null && entry.old_value !== 'null' && (
               <>
                 <DiffBadge value={prettyValue(entry.old_value)} variant="old" />
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                <svg
+                  width="10" height="10" viewBox="0 0 24 24"
+                  fill="none" stroke="currentColor"
                   strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                  className="text-text-dim flex-shrink-0">
+                  style={{ color: 'var(--text-dim)', flexShrink: 0 }}
+                >
                   <path d="M5 12h14M13 6l6 6-6 6" />
                 </svg>
               </>
@@ -241,20 +366,13 @@ function HistoryEntry({ entry }: { entry: TaskHistory }) {
       </div>
     </div>
   )
-}
+})
 
 // ─────────────────────────────────────────────────────────────
-//  FilterTabs
+//  FilterTabs — memo
 // ─────────────────────────────────────────────────────────────
 
-const FILTER_TABS: { key: FilterGroup; label: string; emoji: string }[] = [
-  { key: 'all',      label: 'All',      emoji: '📋' },
-  { key: 'fields',   label: 'Fields',   emoji: '✏️' },
-  { key: 'subtasks', label: 'Subtasks', emoji: '☑️' },
-  { key: 'created',  label: 'Created',  emoji: '✨' },
-]
-
-function FilterTabs({
+const FilterTabs = memo(function FilterTabs({
   active,
   onChange,
   counts,
@@ -264,33 +382,46 @@ function FilterTabs({
   counts:   Record<FilterGroup, number>
 }) {
   return (
-    <div className="flex gap-1.5 overflow-x-auto pb-0.5 mt-3" style={{ scrollbarWidth: 'none' }}>
-      {FILTER_TABS.map(tab => (
-        <button
-          key={tab.key}
-          onClick={() => onChange(tab.key)}
-          className={cn(
-            'flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium whitespace-nowrap transition-all flex-shrink-0',
-            active === tab.key
-              ? 'bg-accent text-white'
-              : 'bg-bg-hover text-text-secondary hover:bg-bg-border'
-          )}
-        >
-          <span>{tab.emoji}</span>
-          {tab.label}
-          {counts[tab.key] > 0 && (
-            <span className={cn(
-              'text-[9px] px-1 py-0.5 rounded-full tabular-nums',
-              active === tab.key ? 'bg-white/20' : 'bg-bg-border text-text-dim'
-            )}>
-              {counts[tab.key]}
-            </span>
-          )}
-        </button>
-      ))}
+    <div
+      className="flex gap-1.5 overflow-x-auto pb-0.5 mt-3 px-0.5"
+      // Momentum scroll on iOS, no scrollbar
+      style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' } as React.CSSProperties}
+    >
+      {FILTER_TABS.map(tab => {
+        const isActive = active === tab.key
+        return (
+          <button
+            key={tab.key}
+            onClick={() => onChange(tab.key)}
+            className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium whitespace-nowrap flex-shrink-0 transition-all duration-150 active:scale-95"
+            style={isActive
+              ? { background: 'var(--c-accent)', color: '#fff' }
+              : {
+                  background: 'rgba(255,255,255,0.06)',
+                  border:     '1px solid rgba(255,255,255,0.08)',
+                  color:      'var(--text-secondary)',
+                }
+            }
+          >
+            <span>{tab.emoji}</span>
+            {tab.label}
+            {counts[tab.key] > 0 && (
+              <span
+                className="text-[9px] px-1 py-0.5 rounded-full tabular-nums"
+                style={isActive
+                  ? { background: 'rgba(255,255,255,0.22)', color: '#fff' }
+                  : { background: 'rgba(255,255,255,0.08)', color: 'var(--text-dim)' }
+                }
+              >
+                {counts[tab.key]}
+              </span>
+            )}
+          </button>
+        )
+      })}
     </div>
   )
-}
+})
 
 // ─────────────────────────────────────────────────────────────
 //  Props
@@ -300,7 +431,7 @@ interface Props {
   taskId:      string
   userId:      number
   initial?:    TaskHistory[]
-  /** Bump this to force a refetch (e.g. after task save) */
+  /** Bump to silently re-fetch — e.g. after task save */
   refetchKey?: number
 }
 
@@ -319,13 +450,13 @@ export function TaskHistoryPanel({ taskId, userId, initial = [], refetchKey }: P
   const [filterGroup, setFilterGroup] = useState<FilterGroup>('all')
   const [refreshing,  setRefreshing]  = useState(false)
 
-  // Track previous refetchKey so we only re-fetch on actual bumps
   const prevRefetchKey = useRef(refetchKey)
+  const timeAgo        = useTimeAgo()
 
-  // ── fetch ────────────────────────────────────────────────
+  // ── fetch ───────────────────────────────────────────────
   const fetchHistory = useCallback(async (silent = false) => {
     if (!silent) setLoading(true)
-    else setRefreshing(true)
+    else         setRefreshing(true)
     try {
       const res  = await fetch(`/api/tasks/history?taskId=${taskId}&userId=${userId}`)
       const data = await res.json()
@@ -333,10 +464,10 @@ export function TaskHistoryPanel({ taskId, userId, initial = [], refetchKey }: P
       setFetched(true)
     } catch {}
     if (!silent) setLoading(false)
-    else setRefreshing(false)
+    else         setRefreshing(false)
   }, [taskId, userId])
 
-  // ── open / close ────────────────────────────────────────
+  // ── toggle ──────────────────────────────────────────────
   async function handleToggle() {
     if (open) { setOpen(false); return }
     if (!fetched) await fetchHistory()
@@ -351,9 +482,6 @@ export function TaskHistoryPanel({ taskId, userId, initial = [], refetchKey }: P
   }
 
   // ── refetchKey watcher ───────────────────────────────────
-  // When parent bumps refetchKey (e.g. after save), silently
-  // refresh if the panel is already open, or invalidate so
-  // next open triggers a fresh fetch.
   useEffect(() => {
     if (refetchKey === prevRefetchKey.current) return
     prevRefetchKey.current = refetchKey
@@ -364,30 +492,25 @@ export function TaskHistoryPanel({ taskId, userId, initial = [], refetchKey }: P
     }
   }, [refetchKey, open, fetchHistory])
 
-  // ── filter + pagination (memoized) ───────────────────────
-  const filtered = useMemo(() => {
-    if (filterGroup === 'all') return entries
-    return entries.filter(e => getActionCfg(e.action_type).filterGroup === filterGroup)
-  }, [entries, filterGroup])
+  // ── derived (all memoized) ───────────────────────────────
+  const filtered = useMemo(() =>
+    filterGroup === 'all'
+      ? entries
+      : entries.filter(e => getActionCfg(e.action_type).filterGroup === filterGroup),
+  [entries, filterGroup])
 
   const paginated = useMemo(() => filtered.slice(0, page * PAGE_SIZE), [filtered, page])
   const hasMore   = paginated.length < filtered.length
 
-  // ── filter counts (memoized) ─────────────────────────────
   const counts = useMemo((): Record<FilterGroup, number> => {
     const c: Record<FilterGroup, number> = { all: entries.length, fields: 0, subtasks: 0, created: 0 }
-    for (const e of entries) {
-      const g = getActionCfg(e.action_type).filterGroup
-      c[g] = (c[g] ?? 0) + 1
-    }
+    for (const e of entries) c[getActionCfg(e.action_type).filterGroup]++
     return c
   }, [entries])
 
-  // ── group paginated entries by date (memoized) ───────────
   const grouped = useMemo(() => {
+    const now    = new Date()
     const groups: { label: string; items: TaskHistory[] }[] = []
-    const now = new Date()
-
     for (const entry of paginated) {
       const d           = new Date(entry.created_at)
       const isToday     = d.toDateString() === now.toDateString()
@@ -403,45 +526,91 @@ export function TaskHistoryPanel({ taskId, userId, initial = [], refetchKey }: P
   }, [paginated, t])
 
   // ─────────────────────────────────────────────────────────
+  //  Render
+  // ─────────────────────────────────────────────────────────
+
   return (
     <div>
-      {/* Trigger button */}
+      {/* ── Trigger button ────────────────────────────── */}
       <button
         onClick={handleToggle}
-        className="w-full flex items-center justify-between px-3 py-2.5 bg-bg-card rounded-2xl border border-bg-border/60 text-sm text-text-secondary hover:bg-bg-hover transition-colors"
+        className="w-full flex items-center justify-between px-3 py-2.5 text-sm transition-all duration-200 active:scale-[0.98]"
+        style={{
+          borderRadius: 16,
+          background:   open
+            ? 'rgba(129,115,245,0.09)'
+            : 'rgba(255,255,255,0.04)',
+          border: open
+            ? '1px solid rgba(129,115,245,0.28)'
+            : '1px solid rgba(255,255,255,0.08)',
+        }}
       >
-        <span className="flex items-center gap-2">
+        <span className="flex items-center gap-2" style={{ color: 'var(--text-secondary)' }}>
           <History size={14} />
           {t('editHistory')}
           {entries.length > 0 && (
-            <span className="text-xs bg-bg-hover px-1.5 py-0.5 rounded-full tabular-nums">
+            <span
+              className="text-xs px-1.5 py-0.5 rounded-full tabular-nums"
+              style={{
+                background: 'rgba(255,255,255,0.07)',
+                color:      'var(--text-dim)',
+              }}
+            >
               {entries.length}
             </span>
           )}
         </span>
+
         <div className="flex items-center gap-2">
           {open && (
             <button
               onClick={handleRefresh}
-              className={cn(
-                'p-1 rounded-lg text-text-dim hover:text-accent hover:bg-accent/10 transition-all',
-                refreshing && 'animate-spin text-accent'
-              )}
+              className="p-1 rounded-lg"
+              style={{ color: refreshing ? 'var(--c-accent)' : 'var(--text-dim)' }}
               title="Refresh history"
             >
-              <RefreshCw size={12} />
+              <RefreshCw
+                size={12}
+                style={{ animation: refreshing ? 'hp-spin 0.7s linear infinite' : 'none' }}
+              />
             </button>
           )}
           {loading
-            ? <div className="w-3.5 h-3.5 border-2 border-text-dim border-t-accent rounded-full animate-spin" />
-            : open ? <ChevronUp size={14} /> : <ChevronDown size={14} />
+            ? (
+              <div
+                className="w-3.5 h-3.5 rounded-full border-2 flex-shrink-0"
+                style={{
+                  borderColor:    'rgba(255,255,255,0.12)',
+                  borderTopColor: 'var(--c-accent)',
+                  animation:      'hp-spin 0.7s linear infinite',
+                }}
+              />
+            )
+            : open
+              ? <ChevronUp   size={14} style={{ color: 'var(--c-accent)' }} />
+              : <ChevronDown size={14} style={{ color: 'var(--text-dim)'  }} />
           }
         </div>
       </button>
 
+      {/* ── Glass panel ────────────────────────────────── */}
       {open && (
-        <div className="mt-2 animate-fade-up">
-          {/* Filter tabs — only show when there are entries */}
+        <div
+          className="hp-panel"
+          style={{
+            marginTop:           10,
+            borderRadius:        18,
+            padding:             '12px 12px 14px',
+            // THE one backdrop-blur — only this element gets a compositing layer
+            backdropFilter:      'blur(16px)',
+            WebkitBackdropFilter:'blur(16px)',
+            background:          'rgba(14,16,26,0.55)',
+            border:              '1px solid rgba(255,255,255,0.09)',
+            // Top-edge highlight → glass illusion
+            boxShadow:           'inset 0 1px 0 rgba(255,255,255,0.07), 0 8px 24px rgba(0,0,0,0.22)',
+          }}
+        >
+          {/* Filter tabs */}
           {entries.length > 0 && (
             <FilterTabs
               active={filterGroup}
@@ -450,31 +619,40 @@ export function TaskHistoryPanel({ taskId, userId, initial = [], refetchKey }: P
             />
           )}
 
-          <div className="mt-3">
+          <div style={{ marginTop: 12 }}>
             {filtered.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-8 text-center">
                 <span className="text-2xl mb-2">
                   {entries.length === 0 ? '📋' : '🔍'}
                 </span>
-                <p className="text-xs text-text-dim">
+                <p className="text-xs" style={{ color: 'var(--text-dim)' }}>
                   {entries.length === 0 ? t('noHistory') : 'No entries for this filter'}
                 </p>
                 {entries.length === 0 && (
-                  <p className="text-[11px] text-text-dim mt-0.5">{t('noHistoryDesc')}</p>
+                  <p className="text-[11px] mt-0.5" style={{ color: 'var(--text-dim)' }}>
+                    {t('noHistoryDesc')}
+                  </p>
                 )}
               </div>
             ) : (
               <div className="relative">
-                {/* Vertical timeline line */}
-                <div className="absolute left-[13px] top-0 bottom-0 w-px bg-bg-border/50" />
+                {/* Timeline line */}
+                <div
+                  className="absolute top-0 bottom-0 w-px pointer-events-none"
+                  style={{ left: 13, background: 'rgba(255,255,255,0.07)' }}
+                />
 
-                <div className="space-y-3">
+                <div className="space-y-2">
                   {grouped.map(group => (
                     <div key={group.label}>
                       <DateSeparator label={group.label} />
-                      <div className="space-y-3">
+                      <div className="space-y-2">
                         {group.items.map(entry => (
-                          <HistoryEntry key={entry.id} entry={entry} />
+                          <HistoryEntry
+                            key={entry.id}
+                            entry={entry}
+                            timeAgo={timeAgo}
+                          />
                         ))}
                       </div>
                     </div>
@@ -485,10 +663,15 @@ export function TaskHistoryPanel({ taskId, userId, initial = [], refetchKey }: P
                 {hasMore && (
                   <button
                     onClick={() => setPage(p => p + 1)}
-                    className="w-full mt-4 py-2 text-xs text-accent font-medium hover:bg-accent/5 rounded-xl transition-colors border border-accent/20"
+                    className="w-full mt-3 py-2 text-xs font-medium rounded-xl transition-all duration-150 active:scale-[0.98]"
+                    style={{
+                      color:      'var(--c-accent)',
+                      background: 'rgba(129,115,245,0.07)',
+                      border:     '1px solid rgba(129,115,245,0.18)',
+                    }}
                   >
                     Load {Math.min(PAGE_SIZE, filtered.length - paginated.length)} more
-                    <span className="text-text-dim ml-1">
+                    <span className="ml-1" style={{ color: 'var(--text-dim)' }}>
                       ({filtered.length - paginated.length} remaining)
                     </span>
                   </button>
@@ -498,6 +681,25 @@ export function TaskHistoryPanel({ taskId, userId, initial = [], refetchKey }: P
           </div>
         </div>
       )}
+
+      {/*
+        Keyframes:
+        ─ hp-panel-in: opacity + translateY только → GPU composited, no layout
+        ─ hp-spin: rotate → GPU composited
+        Scoped prefix "hp-" → no collisions with globals
+      */}
+      <style>{`
+        @keyframes hp-panel-in {
+          from { opacity: 0; transform: translateY(6px); }
+          to   { opacity: 1; transform: translateY(0);   }
+        }
+        .hp-panel {
+          animation: hp-panel-in 0.22s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+        }
+        @keyframes hp-spin {
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   )
 }
