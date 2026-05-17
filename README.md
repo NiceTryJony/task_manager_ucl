@@ -169,3 +169,142 @@ src/
 - Telegram `initData` is verified server-side with HMAC-SHA256
 - Row-level access enforced in every API route (not RLS — service role)
 - Auth date checked (max 1 hour validity)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# TaskFlow TMA
+
+**Modern Task Manager as a Telegram Mini App**
+
+A fast, beautiful and powerful task management application built for Telegram.
+
+![Demo](https://via.placeholder.com/800x420/1a1a2e/00ffaa?text=TaskFlow+Demo)
+
+[![Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?style=flat&logo=vercel&logoColor=white)](https://task-manager-ucl.vercel.app)
+[![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org/)
+[![Supabase](https://img.shields.io/badge/Supabase-3ECF8E?logo=supabase&logoColor=white)](https://supabase.com)
+
+
+## ✨ Features
+
+- Full CRUD for tasks and subtasks (checklists)
+- Priority levels: Low, Medium, High, **Urgent**
+- Due dates with automatic color-coded urgency indicators
+- Smooth Drag & Drop sorting (dnd-kit + GSAP animations)
+- Smart filters (All / To Do / Doing / Done)
+- Shared task lists — invite members via Telegram
+- Real-time synchronization with Supabase Realtime
+- Export lists as formatted text with native sharing
+- Telegram Haptic Feedback support
+- Dark theme that follows Telegram settings
+- Notification queue via Telegram Bot
+
+## 🛠 Tech Stack
+
+| Layer                | Technology                          |
+|----------------------|-------------------------------------|
+| **Framework**        | Next.js 14 (App Router)            |
+| **Language**         | TypeScript                         |
+| **Styling**          | Tailwind CSS + Custom Design System|
+| **Animations**       | GSAP 3                             |
+| **Drag & Drop**      | dnd-kit                            |
+| **State Management** | Zustand                            |
+| **Database**         | Supabase (PostgreSQL + Realtime)   |
+| **Auth**             | Telegram `initData` + HMAC-SHA256  |
+| **Hosting**          | Vercel                             |
+
+## 🚀 Quick Start
+
+### 1. Environment Setup
+
+```bash
+cp .env.local.example .env.local
+Fill the variables in .env.local:
+envNEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+BOT_TOKEN=
+NEXT_PUBLIC_APP_URL=
+```
+2. Database Setup
+
+Create a new project on Supabase
+Run the SQL migration: supabase/schema.sql
+Enable necessary extensions (if needed)
+
+3. Local Development
+Bashnpm install
+npm run dev
+Development mode uses mocked Telegram authentication for easier testing.
+4. Deployment
+Bashvercel deploy
+After deployment, register your Mini App in BotFather using /newapp.
+📁 Project Structure
+```
+src/
+├── app/
+│   ├── api/                 # Server API routes
+│   ├── page.tsx
+│   └── layout.tsx
+├── components/              # UI Components
+├── hooks/
+├── lib/
+│   ├── supabase.ts
+│   ├── store.ts             # Zustand store
+│   └── utils.ts
+├── types/
+└── supabase/
+    └── schema.sql
+```
+🔐 Security
+
+All data mutations are handled through protected API routes
+Telegram initData is validated server-side with HMAC-SHA256
+Session expiration is handled
+Row Level Security is enforced
+
+📸 Screenshots
+
+🚧 Roadmap
+
+ Push notifications via Telegram Bot
+ Recurring tasks
+ Labels and tags
+ Full-text search
+ Statistics and analytics
+ Customization options
+
+🤝 Contributing
+Contributions, issues, and feature requests are welcome!
+Feel free to check the issues page.
+License
+MIT License
+
+Built with ❤️ for Telegram Mini Apps
+[![Open App](https://task-manager-ucl.vercel.app)] →
