@@ -7,8 +7,6 @@ import { PRIORITY_CONFIG, STATUS_CONFIG, cn } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n-context'
 import type { Priority, TaskStatus } from '@/types'
 
-// ── Types ──────────────────────────────────────────────────────
-
 interface SearchResult {
   task: {
     id:       string
@@ -29,17 +27,12 @@ interface SearchResult {
 
 interface Props {
   userId:       number
-  /** Pass non-null to show the "Current List" tab */
   activeListId: string | null
   onClose:      () => void
-  /** Called when user picks a result — navigate to list and open task */
   onSelectTask: (listId: string, taskId: string) => void
 }
 
 type Tab = 'all' | 'current'
-
-// ── Highlight ──────────────────────────────────────────────────
-// Wraps the matched substring in a styled <mark> inline.
 
 function Highlight({ text, query }: { text: string; query: string }) {
   if (!query.trim()) return <>{text}</>
@@ -49,7 +42,10 @@ function Highlight({ text, query }: { text: string; query: string }) {
   return (
     <>
       {text.slice(0, idx)}
-      <mark className="bg-accent/25 text-accent rounded-sm not-italic font-semibold">
+      <mark
+        className="not-italic font-semibold rounded-sm"
+        style={{ background: 'rgba(129,115,245,0.25)', color: 'var(--c-accent)' }}
+      >
         {text.slice(idx, idx + query.length)}
       </mark>
       {text.slice(idx + query.length)}
@@ -57,17 +53,7 @@ function Highlight({ text, query }: { text: string; query: string }) {
   )
 }
 
-// ── ResultCard ─────────────────────────────────────────────────
-
-function ResultCard({
-  result,
-  query,
-  onClick,
-}: {
-  result:  SearchResult
-  query:   string
-  onClick: () => void
-}) {
+function ResultCard({ result, query, onClick }: { result: SearchResult; query: string; onClick: () => void }) {
   const { t } = useI18n()
   const priority = PRIORITY_CONFIG[result.task.priority]
   const status   = STATUS_CONFIG[result.task.status]
@@ -75,13 +61,21 @@ function ResultCard({
   return (
     <button
       onClick={onClick}
-      className="w-full text-left card p-0 overflow-hidden hover:bg-bg-hover active:scale-[0.983] transition-all duration-150"
+      className="w-full text-left overflow-hidden active:scale-[0.983] transition-all duration-150"
+      style={{
+        borderRadius: 18,
+        background:   'rgba(255,255,255,0.04)',
+        border:       '0.5px solid rgba(255,255,255,0.08)',
+        boxShadow:    'inset 0 1px 0 rgba(255,255,255,0.05)',
+      }}
+      onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.07)' }}
+      onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)' }}
     >
       <div className="flex gap-0">
         {/* Color accent stripe */}
         <div
           className="w-1 flex-shrink-0 self-stretch"
-          style={{ background: result.list.color }}
+          style={{ background: result.list.color, borderRadius: '18px 0 0 18px' }}
         />
 
         <div className="flex-1 min-w-0 px-3.5 py-3 space-y-1.5">
@@ -91,7 +85,7 @@ function ResultCard({
             <span
               className="text-[10px] font-semibold px-2 py-0.5 rounded-full leading-none"
               style={{
-                background: `${result.list.color}22`,
+                background: `${result.list.color}1E`,
                 color:      result.list.color,
               }}
             >
@@ -99,12 +93,10 @@ function ResultCard({
             </span>
           </div>
 
-          {/* Task title — highlight match */}
           <p className="text-sm font-medium text-text-primary leading-snug">
             <Highlight text={result.task.title} query={query} />
           </p>
 
-          {/* Priority + Status chips */}
           <div className="flex items-center gap-1.5">
             <span className={cn('text-[11px] px-2 py-0.5 rounded-full font-medium', priority.color, priority.bg)}>
               {priority.label}
@@ -114,7 +106,6 @@ function ResultCard({
             </span>
           </div>
 
-          {/* Snippet for description / subtask matches */}
           {result.matchSnippet && result.matchType !== 'title' && (
             <div className="flex items-baseline gap-1.5 pt-0.5">
               <span className="text-[9px] font-semibold uppercase tracking-wider text-text-dim flex-shrink-0">
@@ -131,8 +122,6 @@ function ResultCard({
   )
 }
 
-// ── GlobalSearchSheet ──────────────────────────────────────────
-
 export function GlobalSearchSheet({ userId, activeListId, onClose, onSelectTask }: Props) {
   const { t } = useI18n()
 
@@ -140,7 +129,7 @@ export function GlobalSearchSheet({ userId, activeListId, onClose, onSelectTask 
   const [query,   setQuery]   = useState('')
   const [results, setResults] = useState<SearchResult[]>([])
   const [loading, setLoading] = useState(false)
-  const [touched, setTouched] = useState(false)   // true once user has typed something
+  const [touched, setTouched] = useState(false)
 
   const sheetRef    = useRef<HTMLDivElement>(null)
   const overlayRef  = useRef<HTMLDivElement>(null)
@@ -148,11 +137,9 @@ export function GlobalSearchSheet({ userId, activeListId, onClose, onSelectTask 
   const debounceRef = useRef<ReturnType<typeof setTimeout>>()
   const abortRef    = useRef<AbortController>()
 
-  // ── Sheet animation ────────────────────────────────────────
   useEffect(() => {
     gsap.fromTo(overlayRef.current, { opacity: 0 }, { opacity: 1, duration: 0.2 })
     gsap.fromTo(sheetRef.current,   { y: '100%' },  { y: 0, duration: 0.32, ease: 'power3.out' })
-    // Focus after animation
     const t = setTimeout(() => inputRef.current?.focus(), 340)
     return () => clearTimeout(t)
   }, [])
@@ -162,7 +149,6 @@ export function GlobalSearchSheet({ userId, activeListId, onClose, onSelectTask 
     gsap.to(overlayRef.current, { opacity: 0, duration: 0.2, onComplete: onClose })
   }
 
-  // ── Search logic ───────────────────────────────────────────
   const doSearch = useCallback(async (q: string, currentTab: Tab) => {
     if (!q.trim()) { setResults([]); setLoading(false); return }
 
@@ -209,15 +195,23 @@ export function GlobalSearchSheet({ userId, activeListId, onClose, onSelectTask 
 
   function handleSelect(result: SearchResult) {
     close()
-    // Let the close animation start before triggering navigation
     setTimeout(() => onSelectTask(result.list.id, result.task.id), 80)
   }
 
-  // ── Render states ──────────────────────────────────────────
   const isEmpty      = touched && !loading && query.trim() && results.length === 0
   const hasResults   = !loading && results.length > 0
   const showIdleHint = !query.trim() && !touched
   const showCurrent  = activeListId !== null
+
+  const tabStyle = (active: boolean): React.CSSProperties => active
+    ? { background: 'var(--c-accent)', color: '#fff', borderRadius: 12, border: 'none' }
+    : {
+        background:  'rgba(255,255,255,0.05)',
+        border:      '0.5px solid rgba(255,255,255,0.09)',
+        boxShadow:   'inset 0 1px 0 rgba(255,255,255,0.05)',
+        color:       'var(--text-secondary)',
+        borderRadius: 12,
+      }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end">
@@ -225,19 +219,36 @@ export function GlobalSearchSheet({ userId, activeListId, onClose, onSelectTask 
 
       <div
         ref={sheetRef}
-        className="relative w-full h-[94dvh] bg-bg-surface rounded-t-3xl border-t border-bg-border z-10 flex flex-col"
+        className="relative w-full flex flex-col"
+        style={{
+          height:              '94dvh',
+          // ── glassmorphism ──────────────────────────────
+          background:          'var(--sheet-bg)',
+          backdropFilter:      'var(--glass-blur)',
+          WebkitBackdropFilter:'var(--glass-blur)',
+          borderRadius:        '24px 24px 0 0',
+          borderTop:           '0.5px solid var(--glass-border-top)',
+          boxShadow:           'var(--glass-shadow)',
+        }}
       >
+        {/* Top-edge shimmer */}
+        <div
+          className="absolute top-0 left-12 right-12 h-px pointer-events-none"
+          style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.14), transparent)' }}
+        />
+
         {/* Handle */}
         <div className="flex justify-center pt-3 flex-shrink-0">
-          <div className="w-9 h-1 bg-bg-border rounded-full" />
+          <div className="w-9 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }} />
         </div>
 
-        {/* Search input row */}
+        {/* Search input */}
         <div className="flex-shrink-0 flex items-center gap-2 px-4 pt-3 pb-2">
           <div className="relative flex-1">
             <Search
               size={15}
-              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-text-dim pointer-events-none"
+              className="absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none"
+              style={{ color: 'var(--text-dim)' }}
             />
             <input
               ref={inputRef}
@@ -251,7 +262,6 @@ export function GlobalSearchSheet({ userId, activeListId, onClose, onSelectTask 
               spellCheck={false}
               type="search"
             />
-            {/* Right indicator: spinner or clear button */}
             <div className="absolute right-3 top-1/2 -translate-y-1/2">
               {loading ? (
                 <Loader2 size={14} className="text-accent animate-spin" />
@@ -266,37 +276,25 @@ export function GlobalSearchSheet({ userId, activeListId, onClose, onSelectTask 
             </div>
           </div>
 
-          {/* Cancel button */}
-          <button
-            onClick={close}
-            className="flex-shrink-0 text-sm text-accent font-medium px-1 py-2"
-          >
+          <button onClick={close} className="flex-shrink-0 text-sm text-accent font-medium px-1 py-2">
             {t('cancel')}
           </button>
         </div>
 
-        {/* Tabs — only if current list is known */}
+        {/* Tabs */}
         <div className="flex-shrink-0 flex gap-2 px-4 pb-3">
           <button
             onClick={() => handleTabChange('all')}
-            className={cn(
-              'px-4 py-1.5 rounded-xl text-sm font-medium transition-all',
-              tab === 'all'
-                ? 'bg-accent text-white'
-                : 'bg-bg-card text-text-secondary border border-bg-border/60 hover:bg-bg-hover'
-            )}
+            className="px-4 py-1.5 text-sm font-medium transition-all"
+            style={tabStyle(tab === 'all')}
           >
             {t('searchAll')}
           </button>
           {showCurrent && (
             <button
               onClick={() => handleTabChange('current')}
-              className={cn(
-                'px-4 py-1.5 rounded-xl text-sm font-medium transition-all',
-                tab === 'current'
-                  ? 'bg-accent text-white'
-                  : 'bg-bg-card text-text-secondary border border-bg-border/60 hover:bg-bg-hover'
-              )}
+              className="px-4 py-1.5 text-sm font-medium transition-all"
+              style={tabStyle(tab === 'current')}
             >
               {t('searchCurrent')}
             </button>
@@ -304,12 +302,11 @@ export function GlobalSearchSheet({ userId, activeListId, onClose, onSelectTask 
         </div>
 
         {/* Divider */}
-        <div className="h-px bg-bg-border/60 flex-shrink-0" />
+        <div className="h-px flex-shrink-0" style={{ background: 'rgba(255,255,255,0.06)' }} />
 
-        {/* Results / states */}
+        {/* Results */}
         <div className="flex-1 min-h-0 overflow-y-auto scrollable px-4 py-4">
 
-          {/* Idle — waiting for input */}
           {showIdleHint && (
             <div className="flex flex-col items-center justify-center h-52 text-center select-none">
               <Search size={36} className="text-text-dim opacity-25 mb-3" />
@@ -317,7 +314,6 @@ export function GlobalSearchSheet({ userId, activeListId, onClose, onSelectTask 
             </div>
           )}
 
-          {/* Empty state */}
           {isEmpty && (
             <div className="flex flex-col items-center justify-center h-52 text-center animate-fade-up select-none">
               <p className="text-3xl mb-2">🔍</p>
@@ -326,7 +322,6 @@ export function GlobalSearchSheet({ userId, activeListId, onClose, onSelectTask 
             </div>
           )}
 
-          {/* Results */}
           {hasResults && (
             <div className="space-y-2 animate-fade-up">
               {results.map(result => (

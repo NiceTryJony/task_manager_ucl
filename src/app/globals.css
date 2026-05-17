@@ -2,59 +2,73 @@
    CSS VARIABLES — THEMES
    ═══════════════════════════════════════════════════════════ */
 
-/*
-  DARK — "Soft Midnight"
-  Отказ от чистого чёрного: поднятый тёмный сланец с лёгким
-  сине-фиолетовым оттенком. Текст — не белый, а молочно-
-  голубоватый. Акцент — мягкий фиолет вместо неонового cyan.
-  Результат: глаза не устают, всё хорошо читается.
-*/
 :root,
 [data-theme="dark"] {
 
-  /* ── Фоны (слоистая глубина, не чёрный) ─────────────── */
-  --bg-base:      #0F1117;          /* основной фон — тёмный сланец */
-  --bg-surface:   #161922;          /* поверхность (шторки, карточки) */
-  --bg-card:      rgba(28, 30, 42, 0.92); /* карточки */
+  /* ── Фоны ────────────────────────────────────────────── */
+  --bg-base:      #0F1117;
+  --bg-surface:   rgba(18, 21, 32, 0.82);      /* glass-ready */
+  --bg-card:      rgba(22, 26, 40, 0.68);       /* более прозрачно */
   --bg-hover:     rgba(255, 255, 255, 0.055);
   --bg-border:    rgba(255, 255, 255, 0.09);
 
-  /* ── Акцент — мягкий фиолет, совпадает с бренд-цветом ─ */
+  /* ── Акцент ──────────────────────────────────────────── */
   --c-accent:     #8173F5;
   --c-accent-h:   #9487F7;
   --c-accent-dim: rgba(129, 115, 245, 0.16);
 
-  /* ── Текст — молочно-голубой, не белый ──────────────── */
+  /* ── Текст ───────────────────────────────────────────── */
   --text-primary:   #D8DCF0;
   --text-secondary: rgba(216, 220, 240, 0.64);
   --text-dim:       rgba(216, 220, 240, 0.36);
 
-  /* ── Статусные цвета — чуть приглушённее ─────────────── */
+  /* ── Статусные ───────────────────────────────────────── */
   --c-emerald:  #3ECF8E;
   --c-amber:    #F5A623;
   --c-pink:     #E879A0;
   --c-danger:   #F07070;
 
-  /* ── UI-утилиты ───────────────────────────────────────── */
-  --scrollbar-thumb:  rgba(129, 115, 245, 0.28);
+  /* ── Glass-специфичные токены ────────────────────────── */
+  --glass-bg:          rgba(14, 16, 26, 0.55);
+  --glass-border:      rgba(255, 255, 255, 0.09);
+  --glass-border-top:  rgba(255, 255, 255, 0.13);  /* верхняя грань */
+  --glass-shadow:      inset 0 1px 0 rgba(255,255,255,0.07), 0 8px 32px rgba(0,0,0,0.35);
+  --glass-blur:        blur(18px);
+
+  /* Карточка — стекло */
+  --card-bg:           rgba(22, 26, 40, 0.68);
+  --card-border:       rgba(255, 255, 255, 0.075);
+  --card-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.07),
+    0 1px 2px  rgba(0,0,0,0.4),
+    0 4px 16px rgba(0,0,0,0.3);
+
+  /* Дропдаун/меню */
+  --dropdown-bg:       rgba(18, 21, 34, 0.88);
+  --dropdown-border:   rgba(255, 255, 255,0.11);
+  --dropdown-shadow:   0 12px 40px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.07);
+
+  /* Input */
+  --input-bg:          rgba(255, 255, 255, 0.05);
+  --input-border:      rgba(255, 255, 255, 0.10);
+  --input-focus-border: rgba(129, 115, 245, 0.50);
+  --input-focus-ring:   rgba(129, 115, 245, 0.09);
+  --input-focus-bg:     rgba(129, 115, 245, 0.06);
+
+  /* Overlay / sheet */
   --overlay-bg:       rgba(6, 8, 14, 0.72);
+  --sheet-bg:         rgba(14, 16, 26, 0.78);
+
+  --scrollbar-thumb:  rgba(129, 115, 245, 0.28);
   --autofill-bg:      #161922;
   --autofill-text:    #D8DCF0;
 
-  /* btn-primary теперь фиолетовый, не белый */
   --btn-primary-bg:   #8173F5;
   --btn-primary-fg:   #FFFFFF;
-
-  /* Тень карточки — мягче, с лёгким свечением */
-  --shadow-card:
-    0 1px 2px  rgba(0, 0, 0, 0.35),
-    0 4px 16px rgba(0, 0, 0, 0.30),
-    0 0 0 0.5px rgba(255, 255, 255, 0.055);
 
   --skeleton-from:    rgba(255, 255, 255, 0.04);
   --skeleton-mid:     rgba(255, 255, 255, 0.09);
 
-  /* Градиентная обводка карточек — тоньше */
   --card-shell-grad:
     linear-gradient(
       145deg,
@@ -63,30 +77,15 @@
       rgba(255, 255, 255, 0.01) 100%
     );
 
-  --glass-bg:
-    linear-gradient(
-      135deg,
-      rgba(129, 115, 245, 0.07) 0%,
-      rgba(255, 255, 255, 0.02) 100%
-    );
-
-  --input-focus-border: rgba(129, 115, 245, 0.50);
-  --input-focus-ring:   rgba(129, 115, 245, 0.09);
-  --input-focus-bg:     rgba(129, 115, 245, 0.04);
-
-  /* Для обёртки приложения на десктопе */
   --bg-outer:
     radial-gradient(ellipse 80% 60% at 50% 0%, rgba(129,115,245,0.07) 0%, transparent 70%),
     #080A10;
 }
 
-/*
-  LIGHT — "Warm Parchment" (без изменений)
-*/
 [data-theme="light"] {
   --bg-base:      #EDE0D0;
-  --bg-surface:   #F5EDE0;
-  --bg-card:      rgba(255, 251, 245, 0.90);
+  --bg-surface:   rgba(245, 237, 224, 0.85);
+  --bg-card:      rgba(255, 251, 245, 0.72);
   --bg-hover:     rgba(139, 90, 43, 0.07);
   --bg-border:    rgba(139, 90, 43, 0.13);
 
@@ -103,22 +102,44 @@
   --c-pink:     #A8405A;
   --c-danger:   #B03020;
 
+  --glass-bg:         rgba(245, 237, 224, 0.70);
+  --glass-border:     rgba(139, 90, 43, 0.13);
+  --glass-border-top: rgba(255, 255, 255, 0.55);
+  --glass-shadow:     inset 0 1px 0 rgba(255,255,255,0.50), 0 8px 24px rgba(61,38,18,0.12);
+  --glass-blur:       blur(18px);
+
+  --card-bg:     rgba(255, 251, 245, 0.72);
+  --card-border: rgba(139, 90, 43, 0.10);
+  --card-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.55),
+    0 1px 2px rgba(61,38,18,0.07),
+    0 4px 16px rgba(61,38,18,0.10);
+
+  --dropdown-bg:     rgba(250, 244, 234, 0.92);
+  --dropdown-border: rgba(139, 90, 43, 0.15);
+  --dropdown-shadow: 0 12px 40px rgba(61,38,18,0.18), inset 0 1px 0 rgba(255,255,255,0.55);
+
+  --input-bg:          rgba(139, 90, 43, 0.05);
+  --input-border:      rgba(139, 90, 43, 0.14);
+  --input-focus-border: rgba(176,107,46,0.50);
+  --input-focus-ring:   rgba(176,107,46,0.10);
+  --input-focus-bg:     rgba(176,107,46,0.06);
+
+  --overlay-bg:  rgba(45, 26, 14, 0.58);
+  --sheet-bg:    rgba(240, 230, 216, 0.84);
+
   --scrollbar-thumb:  rgba(176, 107, 46, 0.22);
-  --overlay-bg:       rgba(45, 26, 14, 0.58);
   --autofill-bg:      #F5EDE0;
   --autofill-text:    #2D1A0E;
   --btn-primary-bg:   #B06B2E;
   --btn-primary-fg:   #FAF3EB;
-  --shadow-card:      0 1px 2px rgba(61,38,18,0.07), 0 4px 16px rgba(61,38,18,0.10);
+
   --skeleton-from:    rgba(139,90,43,0.05);
   --skeleton-mid:     rgba(139,90,43,0.10);
+
   --card-shell-grad:
     linear-gradient(135deg, rgba(255,255,255,0.55) 0%, rgba(255,255,255,0.22) 50%, rgba(255,255,255,0.06) 100%);
-  --glass-bg:
-    linear-gradient(135deg, rgba(255,255,255,0.38) 0%, rgba(255,255,255,0.12) 100%);
-  --input-focus-border: rgba(176,107,46,0.50);
-  --input-focus-ring:   rgba(176,107,46,0.10);
-  --input-focus-bg:     rgba(176,107,46,0.04);
+
   --bg-outer: #D4C4B0;
 }
 
@@ -165,7 +186,6 @@
     -moz-osx-font-smoothing: grayscale;
   }
 
-  /* ── Desktop wrapper background ───────────────────────── */
   @media (min-width: 640px) {
     html { overflow: auto; }
     body {
@@ -178,7 +198,6 @@
     }
   }
 
-  /* ── Scrollbar ─────────────────────────────────────────── */
   ::-webkit-scrollbar { width: 3px; height: 3px; }
   ::-webkit-scrollbar-track { background: transparent; }
   ::-webkit-scrollbar-thumb {
@@ -186,7 +205,6 @@
     border-radius: 9999px;
   }
 
-  /* ── Autofill ──────────────────────────────────────────── */
   input:-webkit-autofill,
   input:-webkit-autofill:hover,
   input:-webkit-autofill:focus {
@@ -205,17 +223,41 @@
 
 @layer components {
 
-  /* ── Glass ─────────────────────────────────────────────── */
+  /* ── Glass utilities ─────────────────────────────────── */
   .glass {
-    background: var(--glass-bg);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    border: 0.5px solid rgba(255, 255, 255, 0.08);
+    background:          var(--glass-bg);
+    backdrop-filter:     var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border:              0.5px solid var(--glass-border);
+    box-shadow:          var(--glass-shadow);
   }
 
-  /* ── Gradient-border shell ──────────────────────────────
-     Обёртка вокруг .card — создаёт эффект «светлого края».
-  ─────────────────────────────────────────────────────────── */
+  /* Полная стеклянная панель — для шторок, модалов */
+  .glass-panel {
+    background:          var(--sheet-bg);
+    backdrop-filter:     var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border-top:          0.5px solid var(--glass-border-top);
+    box-shadow:          var(--glass-shadow);
+  }
+
+  /* Стеклянный дропдаун / меню */
+  .glass-dropdown {
+    background:          var(--dropdown-bg);
+    backdrop-filter:     var(--glass-blur);
+    -webkit-backdrop-filter: var(--glass-blur);
+    border:              0.5px solid var(--dropdown-border);
+    box-shadow:          var(--dropdown-shadow);
+  }
+
+  /* Стеклянная карточка — лёгкий вариант без blur (дети card-shell) */
+  .glass-card {
+    background:   var(--card-bg);
+    border:       0.5px solid var(--card-border);
+    box-shadow:   var(--card-shadow);
+  }
+
+  /* ── Gradient-border shell ───────────────────────────── */
   .card-shell {
     background: var(--card-shell-grad);
     padding: 0.75px;
@@ -223,11 +265,12 @@
     transition: transform 150ms ease, box-shadow 150ms ease;
   }
 
-  /* ── Card ──────────────────────────────────────────────── */
+  /* ── Card — glassmorphism ────────────────────────────── */
   .card {
-    background: var(--bg-card);
-    box-shadow: var(--shadow-card);
-    backdrop-filter: blur(12px);
+    background:          var(--card-bg);
+    box-shadow:          var(--card-shadow);
+    /* Один backdrop-filter на карточку */
+    backdrop-filter:     blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border-radius: 23.25px;
     border: none;
@@ -236,7 +279,7 @@
   }
   .card:active { transform: scale(0.985); }
 
-  /* ── Buttons ────────────────────────────────────────────── */
+  /* ── Buttons ─────────────────────────────────────────── */
   .btn-primary {
     background: var(--btn-primary-bg);
     color:      var(--btn-primary-fg);
@@ -265,14 +308,14 @@
   }
   .btn-ghost:hover  {
     color: var(--text-primary);
-    background: var(--bg-hover);
+    background: rgba(255,255,255,0.06);
   }
   .btn-ghost:active { transform: scale(0.92); }
 
-  /* ── Input ──────────────────────────────────────────────── */
+  /* ── Input — glass style ─────────────────────────────── */
   .input-field {
-    background:   var(--bg-hover);
-    border: 0.75px solid var(--bg-border);
+    background:   var(--input-bg);
+    border: 0.75px solid var(--input-border);
     color:        var(--text-primary);
     border-radius: 14px;
     padding: 11px 14px;
@@ -280,6 +323,8 @@
     font-size: 10.5px;
     width: 100%;
     outline: none;
+    /* Тонкая верхняя грань — стекольный эффект */
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.05);
     transition: border-color 150ms ease, box-shadow 150ms ease, background 150ms ease;
   }
   .input-field::placeholder {
@@ -288,11 +333,11 @@
   }
   .input-field:focus {
     border-color: var(--input-focus-border);
-    box-shadow:   0 0 0 3px var(--input-focus-ring);
+    box-shadow:   0 0 0 3px var(--input-focus-ring), inset 0 1px 0 rgba(255,255,255,0.05);
     background:   var(--input-focus-bg);
   }
 
-  /* ── Skeleton ───────────────────────────────────────────── */
+  /* ── Skeleton ────────────────────────────────────────── */
   .skeleton {
     background: linear-gradient(
       90deg,
@@ -305,7 +350,7 @@
     border-radius: 10px;
   }
 
-  /* ── Page layout ────────────────────────────────────────── */
+  /* ── Page layout ─────────────────────────────────────── */
   .page-container {
     height: 100dvh;
     padding-top:    var(--safe-top);
@@ -316,13 +361,11 @@
     background: var(--bg-base);
   }
 
-  /* Desktop: телефонная рамка по центру */
   @media (min-width: 640px) {
     .page-container {
       width: 430px;
       height: 100vh;
       margin: 0 auto;
-      /* Лёгкая тень-рамка вокруг «телефона» */
       box-shadow:
         0 0 0 0.5px rgba(255, 255, 255, 0.07),
         0 24px 80px rgba(0, 0, 0, 0.55),
@@ -347,7 +390,7 @@
     }
   }
 
-  /* ── Checkbox ───────────────────────────────────────────── */
+  /* ── Checkbox — glass variant ────────────────────────── */
   .custom-checkbox {
     width: 18px;
     height: 18px;
@@ -357,6 +400,8 @@
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
+    /* Тонкая стеклянная грань */
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.07);
     transition:
       background  0.18s cubic-bezier(0.34, 1.56, 0.64, 1),
       border-color 0.18s ease,
@@ -366,6 +411,7 @@
   .custom-checkbox.checked {
     background:   var(--c-accent-dim);
     border-color: var(--c-accent);
+    box-shadow:   inset 0 1px 0 rgba(255,255,255,0.10), 0 0 8px rgba(129,115,245,0.20);
     transform: scale(1.06);
   }
   .custom-checkbox.unchecked {
@@ -376,7 +422,7 @@
     background: var(--c-accent-dim);
   }
 
-  /* ── Sheet overlay ──────────────────────────────────────── */
+  /* ── Sheet overlay ───────────────────────────────────── */
   .sheet-overlay {
     background: var(--overlay-bg);
     backdrop-filter: blur(10px);
@@ -391,7 +437,6 @@
 
 @layer utilities {
 
-  /* ── Gradient text ──────────────────────────────────────── */
   .text-gradient {
     background: linear-gradient(135deg, #8173F5 0%, #C084FC 100%);
     -webkit-background-clip: text;
@@ -399,7 +444,6 @@
     background-clip: text;
   }
 
-  /* ── Scroll ─────────────────────────────────────────────── */
   .scrollable {
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
@@ -408,9 +452,16 @@
 
   .scrollable-dnd { touch-action: auto; }
 
-  /* ── Page enter ─────────────────────────────────────────── */
   .page-enter {
     animation: page-slide-in 0.32s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+  }
+
+  /* Glass chip — для маленьких бейджей */
+  .glass-chip {
+    background: rgba(255,255,255,0.07);
+    border: 0.5px solid rgba(255,255,255,0.10);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+    border-radius: 9999px;
   }
 }
 
@@ -471,7 +522,6 @@
 .animate-float      { animation: float      3s    ease-in-out                     infinite; }
 .animate-pulse-glow { animation: pulse-glow 2s    ease-in-out                     infinite; }
 
-/* Stagger */
 .stagger > *:nth-child(1) { animation-delay:   0ms; }
 .stagger > *:nth-child(2) { animation-delay:  55ms; }
 .stagger > *:nth-child(3) { animation-delay: 110ms; }
@@ -482,12 +532,9 @@
 
 /* ═══════════════════════════════════════════════════════════
    DESKTOP AMBIENT BACKGROUND
-   Красивый фон «вокруг телефона» на больших экранах.
    ═══════════════════════════════════════════════════════════ */
 
 @media (min-width: 640px) {
-  /* Анти-блик: скрипт в layout.tsx применяет data-theme до рендера,
-     поэтому переменная --bg-outer уже правильная */
   body::before {
     content: '';
     position: fixed;
@@ -497,7 +544,6 @@
     pointer-events: none;
   }
 
-  /* Тонкий узор для лёгкой текстуры */
   body::after {
     content: '';
     position: fixed;
@@ -512,28 +558,21 @@
 }
 
 
-
-
 /* ═══════════════════════════════════════════════════════════
-   SWAPY — Drag-to-swap styles
-   Добавить в конец src/app/globals.css
+   SWAPY
    ═══════════════════════════════════════════════════════════ */
 
-/* Slot wrapper — занимает место в потоке, не имеет визуального стиля по умолчанию */
 .swapy-slot {
-  /* Минимальная высота чтобы пустой слот был видим как drop-zone */
   min-height: 56px;
   border-radius: 24px;
   transition: min-height 150ms ease;
 }
 
-/* Highlighted slot — куда упадёт карточка при отпускании */
 [data-swapy-highlighted] {
   background: var(--c-accent-dim) !important;
   outline: 1.5px dashed var(--c-accent);
   outline-offset: -1px;
   border-radius: 24px;
-  /* Слот "пульсирует" пока над ним держат карточку */
   animation: swapy-slot-pulse 900ms ease-in-out infinite alternate;
 }
 
@@ -542,24 +581,18 @@
   to   { background: rgba(129, 115, 245, 0.14) !important;         }
 }
 
-/* Карточка во время перетаскивания */
 [data-swapy-item][data-swapy-dragging] {
-  /* Поднимаем над остальными */
   z-index: 50 !important;
-  /* Лёгкий туман чтобы видно где «настоящее» место */
   opacity: 0.92;
-  /* Объёмная тень — карточка «отрывается» от поверхности */
   filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.55))
           drop-shadow(0 0 0 0.5px rgba(129, 115, 245, 0.3));
   cursor: grabbing !important;
-  /* Лёгкое масштабирование — тактильный отклик */
   transform: scale(1.025);
   transition: transform 150ms cubic-bezier(0.34, 1.56, 0.64, 1),
               opacity 150ms ease,
               filter 150ms ease;
 }
 
-/* Grip handle — базовый вид */
 [data-swapy-handle] {
   cursor: grab;
   touch-action: none;
@@ -571,7 +604,6 @@
   cursor: grabbing;
 }
 
-/* В светлой теме — адаптируем цвета */
 [data-theme="light"] [data-swapy-highlighted] {
   background: rgba(176, 107, 46, 0.10) !important;
   outline-color: var(--c-accent);
@@ -584,8 +616,11 @@
 
 /* Driver.js override */
 .driver-popover {
-  background: var(--bg-surface) !important;
-  border: 1px solid var(--bg-border) !important;
+  background: var(--dropdown-bg) !important;
+  backdrop-filter: var(--glass-blur) !important;
+  -webkit-backdrop-filter: var(--glass-blur) !important;
+  border: 0.5px solid var(--dropdown-border) !important;
+  box-shadow: var(--dropdown-shadow) !important;
   color: var(--text-primary) !important;
   border-radius: 16px !important;
 }
@@ -605,7 +640,7 @@
 }
 .driver-popover-prev-btn {
   color: var(--text-secondary) !important;
-  border-color: var(--bg-border) !important;
+  border-color: var(--glass-border) !important;
   border-radius: 10px !important;
 }
 

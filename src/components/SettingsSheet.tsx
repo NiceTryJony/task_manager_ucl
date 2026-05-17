@@ -75,10 +75,7 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
   const pinsMatch      = newPinFull.length === 4 && newPinFull === confirmPinFull
 
   async function handleSaveName() {
-    if (currentPin.join('').length < 4) {
-      setError(t('enterCurrentPinConfirm'))
-      return
-    }
+    if (currentPin.join('').length < 4) { setError(t('enterCurrentPinConfirm')); return }
     if (!newFirstName.trim()) { setError(t('nameEmpty')); return }
 
     setSaving(true); setError(null)
@@ -129,6 +126,20 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
     window.location.reload()
   }
 
+  // Glass PIN input style
+  const pinInputStyle = (digit: string): React.CSSProperties => ({
+    background:   digit ? 'rgba(129,115,245,0.10)' : 'rgba(255,255,255,0.05)',
+    border:       `1.5px solid ${digit ? 'var(--c-accent)' : 'rgba(255,255,255,0.10)'}`,
+    boxShadow:    digit ? 'inset 0 1px 0 rgba(255,255,255,0.08)' : 'inset 0 1px 0 rgba(255,255,255,0.04)',
+    color:        digit ? 'var(--c-accent)' : 'var(--text-primary)',
+    width: 48, height: 48,
+    borderRadius: 12,
+    textAlign:    'center' as const,
+    fontSize: 18, fontWeight: 700,
+    outline: 'none',
+    transition: 'all 150ms ease',
+  })
+
   function PinRow({
     label, values, refs, show, onToggleShow, handlers,
   }: {
@@ -143,7 +154,7 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
       <div>
         <div className="flex items-center justify-between mb-2">
           <label className="text-xs text-text-secondary">{label}</label>
-          <button onClick={onToggleShow} className="text-text-dim hover:text-text-secondary p-1">
+          <button onClick={onToggleShow} className="text-text-dim hover:text-text-secondary p-1 transition-colors">
             {show ? <EyeOff size={13} /> : <Eye size={13} />}
           </button>
         </div>
@@ -158,11 +169,7 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
               onChange={e => handlers.onChange(i, e.target.value)}
               onKeyDown={e => handlers.onKeyDown(i, e)}
               onFocus={e => e.target.select()}
-              className={cn(
-                'w-12 h-12 text-center text-lg font-bold rounded-xl border-2 bg-bg-card',
-                'focus:outline-none transition-all duration-150',
-                d ? 'border-accent text-accent' : 'border-bg-border focus:border-accent/60'
-              )}
+              style={pinInputStyle(d)}
               maxLength={1}
             />
           ))}
@@ -171,24 +178,57 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
     )
   }
 
+  // Glass section card style
+  const sectionCard: React.CSSProperties = {
+    background:  'rgba(255,255,255,0.04)',
+    border:      '0.5px solid rgba(255,255,255,0.08)',
+    boxShadow:   'inset 0 1px 0 rgba(255,255,255,0.05)',
+    borderRadius: 18,
+    padding:     '16px',
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-end">
       <div ref={overlayRef} className="absolute inset-0 sheet-overlay" onClick={close} />
-      <div ref={sheetRef} className="relative w-full bg-bg-surface rounded-t-3xl border-t border-bg-border z-10 max-h-[90dvh] flex flex-col">
+      <div
+        ref={sheetRef}
+        className="relative w-full max-h-[90dvh] flex flex-col"
+        style={{
+          background:          'var(--sheet-bg)',
+          backdropFilter:      'var(--glass-blur)',
+          WebkitBackdropFilter:'var(--glass-blur)',
+          borderRadius:        '24px 24px 0 0',
+          borderTop:           '0.5px solid var(--glass-border-top)',
+          boxShadow:           'var(--glass-shadow)',
+        }}
+      >
+        {/* Top shimmer */}
+        <div
+          className="absolute top-0 left-12 right-12 h-px pointer-events-none"
+          style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.14), transparent)' }}
+        />
 
         <div className="flex-shrink-0 px-4 pt-3 pb-4">
-          <div className="w-10 h-1 bg-bg-border rounded-full mx-auto mb-4" />
+          <div className="w-10 h-1 rounded-full mx-auto mb-4" style={{ background: 'rgba(255,255,255,0.12)' }} />
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold">{t('settings')}</h2>
             <button onClick={close} className="btn-ghost p-2"><X size={18} /></button>
           </div>
         </div>
 
-        <div className="flex-1 scrollable px-4 pb-8 space-y-6">
+        <div className="flex-1 scrollable px-4 pb-8 space-y-5">
 
           {/* Avatar */}
           <div className="flex flex-col items-center py-2">
-            <div className="w-16 h-16 rounded-2xl bg-accent/20 flex items-center justify-center text-2xl font-bold text-accent mb-2">
+            <div
+              className="w-16 h-16 rounded-2xl flex items-center justify-center text-2xl font-bold mb-2"
+              style={{
+                background: 'rgba(129,115,245,0.14)',
+                border:     '0.5px solid rgba(129,115,245,0.25)',
+                boxShadow:  'inset 0 1px 0 rgba(255,255,255,0.08)',
+                color:      'var(--c-accent)',
+              }}
+            >
               {newFirstName[0]?.toUpperCase() ?? '?'}
             </div>
             <p className="font-semibold">{firstName}</p>
@@ -214,7 +254,7 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
           </div>
 
           {/* Current PIN */}
-          <div>
+          <div style={sectionCard}>
             <p className="text-xs font-semibold text-text-secondary uppercase tracking-widest mb-3">
               {t('confirmWithPin')}
             </p>
@@ -244,14 +284,14 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
           <div>
             <button
               onClick={() => setPinSection(v => !v)}
-              className="flex items-center gap-2 text-sm font-medium text-accent"
+              className="flex items-center gap-2 text-sm font-medium text-accent transition-colors"
             >
               <Lock size={15} />
               {pinSection ? t('cancelPinChange') : t('changePin')}
             </button>
 
             {pinSection && (
-              <div className="mt-4 space-y-4 animate-fade-up">
+              <div className="mt-4 space-y-4 animate-fade-up" style={{ ...sectionCard }}>
                 <PinRow
                   label={t('newPin')}
                   values={newPin}
@@ -286,27 +326,35 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
           </div>
 
           {error && (
-            <div className="flex items-center gap-2 p-3 bg-danger/10 border border-danger/20 rounded-xl text-sm text-danger">
+            <div
+              className="flex items-center gap-2 p-3 rounded-xl text-sm text-danger"
+              style={{
+                background: 'rgba(240,112,112,0.08)',
+                border:     '0.5px solid rgba(240,112,112,0.22)',
+              }}
+            >
               <AlertCircle size={15} /> {error}
             </div>
           )}
 
           {/* Account info */}
-          <div className="bg-bg-card rounded-2xl p-4 border border-bg-border space-y-2">
+          <div style={sectionCard}>
             <p className="text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2">{t('account')}</p>
-            <div className="flex justify-between text-sm">
-              <span className="text-text-secondary">{t('userId')}</span>
-              <span className="font-mono text-xs text-text-primary">{userId}</span>
-            </div>
-            <div className="flex justify-between text-sm">
-              <span className="text-text-secondary">{t('username')}</span>
-              <span className="text-text-primary">@{username}</span>
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-text-secondary">{t('userId')}</span>
+                <span className="font-mono text-xs text-text-primary">{userId}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span className="text-text-secondary">{t('username')}</span>
+                <span className="text-text-primary">@{username}</span>
+              </div>
             </div>
           </div>
 
           {/* Language */}
-          <div className="bg-bg-card rounded-2xl p-4 border border-bg-border space-y-3">
-            <p className="text-xs font-semibold text-text-secondary uppercase tracking-widest">
+          <div style={sectionCard}>
+            <p className="text-xs font-semibold text-text-secondary uppercase tracking-widest mb-3">
               {t('language')}
             </p>
             <div className="flex gap-2">
@@ -314,12 +362,15 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
                 <button
                   key={l}
                   onClick={() => setLang(l)}
-                  className={cn(
-                    'flex-1 py-2.5 rounded-xl text-sm font-medium transition-all',
-                    lang === l
-                      ? 'bg-accent text-white'
-                      : 'bg-bg-hover text-text-secondary hover:bg-bg-border'
-                  )}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-all"
+                  style={lang === l
+                    ? { background: 'var(--c-accent)', color: '#fff' }
+                    : {
+                        background: 'rgba(255,255,255,0.05)',
+                        border:     '0.5px solid rgba(255,255,255,0.09)',
+                        color:      'var(--text-secondary)',
+                      }
+                  }
                 >
                   {l === 'en' ? '🇬🇧 English' : '🇺🇦 Українська'}
                 </button>
@@ -330,7 +381,13 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
           {/* Sign out */}
           <button
             onClick={handleSignOut}
-            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium text-danger hover:bg-danger/10 border border-danger/20 transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-medium text-danger transition-colors"
+            style={{
+              background: 'rgba(240,112,112,0.06)',
+              border:     '0.5px solid rgba(240,112,112,0.18)',
+            }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(240,112,112,0.10)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(240,112,112,0.06)' }}
           >
             <LogOut size={15} /> {t('signOut')}
           </button>

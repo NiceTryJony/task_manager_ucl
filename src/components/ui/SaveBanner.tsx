@@ -30,22 +30,52 @@ export function SaveBanner() {
 
   if (status === 'idle') return null
 
+  // Glass pill — один backdrop-filter, без дочерних blur
+  const glassBase: React.CSSProperties = {
+    backdropFilter:      'blur(20px)',
+    WebkitBackdropFilter:'blur(20px)',
+    boxShadow:           'inset 0 1px 0 rgba(255,255,255,0.10), 0 4px 24px rgba(0,0,0,0.40)',
+  }
+
+  const variants: Record<'saving' | 'saved' | 'error', React.CSSProperties> = {
+    saving: {
+      background: 'rgba(18, 21, 34, 0.82)',
+      border:     '0.5px solid rgba(129,115,245,0.35)',
+      color:      'var(--text-primary)',
+    },
+    saved: {
+      background: 'rgba(62, 207, 142, 0.12)',
+      border:     '0.5px solid rgba(62,207,142,0.30)',
+      color:      'var(--c-emerald)',
+    },
+    error: {
+      background: 'rgba(240,112,112,0.12)',
+      border:     '0.5px solid rgba(240,112,112,0.30)',
+      color:      'var(--c-danger)',
+    },
+  }
+
   return (
     <div
       className={cn(
         'fixed left-1/2 -translate-x-1/2 z-[300]',
         'flex items-center gap-2 px-4 py-2 rounded-full',
         'text-xs font-semibold select-none pointer-events-none',
-        'shadow-[0_4px_20px_rgba(0,0,0,0.5)] animate-fade-up',
+        'animate-fade-up',
         'top-[calc(var(--safe-top)+12px)]',
-        status === 'saving' && 'bg-bg-surface border border-accent/40 text-text-primary',
-        status === 'saved'  && 'bg-emerald/15 border border-emerald/30 text-emerald',
-        status === 'error'  && 'bg-danger/15 border border-danger/30 text-danger',
       )}
+      // style={{ ...glassBase, ...(status !== 'idle' ? variants[status] : {}) }}
     >
       {status === 'saving' && (
         <>
-          <div className="w-3 h-3 border-2 border-accent/30 border-t-accent rounded-full animate-spin flex-shrink-0" />
+          <div
+            className="w-3 h-3 rounded-full border-2 flex-shrink-0"
+            style={{
+              borderColor:    'rgba(129,115,245,0.30)',
+              borderTopColor: 'var(--c-accent)',
+              animation:      'spin 0.7s linear infinite',
+            }}
+          />
           {t('saving')}
         </>
       )}

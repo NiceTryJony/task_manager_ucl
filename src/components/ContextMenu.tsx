@@ -24,8 +24,8 @@ export function ContextMenu({ items, x, y, onClose }: Props) {
 
   useEffect(() => {
     gsap.fromTo(menuRef.current,
-      { scale: 0.85, opacity: 0 },
-      { scale: 1, opacity: 1, duration: 0.2, ease: 'back.out(2)' }
+      { scale: 0.85, opacity: 0, y: -4 },
+      { scale: 1, opacity: 1, y: 0, duration: 0.22, ease: 'back.out(2)' }
     )
     const handler = (e: TouchEvent | MouseEvent) => {
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) close()
@@ -40,7 +40,7 @@ export function ContextMenu({ items, x, y, onClose }: Props) {
 
   function close() {
     gsap.to(menuRef.current, {
-      scale: 0.85, opacity: 0, duration: 0.15, ease: 'power2.in',
+      scale: 0.85, opacity: 0, y: -4, duration: 0.15, ease: 'power2.in',
       onComplete: onClose,
     })
   }
@@ -50,46 +50,55 @@ export function ContextMenu({ items, x, y, onClose }: Props) {
   const PAD     = 16
   const menuH   = items.length * ITEM_H + 16
 
-  // Clamp X — не выходить за края экрана
-  const clampedX = Math.min(
-    Math.max(PAD, x),
-    window.innerWidth - MENU_W - PAD
-  )
-
-  // Flip вверх если не влезает снизу
+  const clampedX = Math.min(Math.max(PAD, x), window.innerWidth - MENU_W - PAD)
   const fitsBelow = y + menuH + PAD < window.innerHeight
-  const clampedY  = fitsBelow
-    ? Math.max(PAD, y)
-    : Math.max(PAD, y - menuH - 10)
+  const clampedY  = fitsBelow ? Math.max(PAD, y) : Math.max(PAD, y - menuH - 10)
+  const origin    = fitsBelow ? 'top right' : 'bottom right'
 
-  const origin = fitsBelow ? 'top right' : 'bottom right'
-
-  // ✅ Portal — рендерим прямо в document.body, минуя
-  //    трансформированный .page-container на десктопе.
-  //    Иначе position:fixed позиционируется относительно
-  //    transformed ancestor, а не viewport.
   return createPortal(
     <div className="fixed inset-0 z-[9999]" style={{ pointerEvents: 'none' }}>
       <div
         ref={menuRef}
-        className="absolute bg-bg-surface border border-bg-border rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.5)] py-2 overflow-hidden"
+        className="absolute py-2 overflow-hidden"
         style={{
           left:            clampedX,
           top:             clampedY,
           width:           MENU_W,
           pointerEvents:   'all',
           transformOrigin: origin,
+          borderRadius:    18,
+          // ── glassmorphism ──────────────────────────────────
+          background:          'var(--dropdown-bg)',
+          backdropFilter:      'var(--glass-blur)',
+          WebkitBackdropFilter:'var(--glass-blur)',
+          border:              '0.5px solid var(--dropdown-border)',
+          boxShadow:           'var(--dropdown-shadow)',
         }}
       >
+        {/* Top-edge highlight */}
+        <div
+          className="absolute top-0 left-0 right-0 h-px"
+          style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent)' }}
+        />
+
         {items.map((item, i) => (
           <button
             key={i}
             onClick={() => { item.onClick(); close() }}
             className={cn(
-              'w-full flex items-center gap-3 px-4 py-3 text-sm font-medium',
-              'hover:bg-bg-hover active:bg-bg-hover transition-colors text-left',
+              'w-full flex items-center gap-3 px-4 py-3 text-sm font-medium text-left',
+              'transition-colors duration-100',
               item.color ?? 'text-text-primary'
             )}
+            style={{
+              background: 'transparent',
+            }}
+            onMouseEnter={e => {
+              (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.06)'
+            }}
+            onMouseLeave={e => {
+              (e.currentTarget as HTMLElement).style.background = 'transparent'
+            }}
           >
             <span className="text-base">{item.icon}</span>
             {item.label}

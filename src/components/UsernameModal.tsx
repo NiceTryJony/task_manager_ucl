@@ -74,13 +74,8 @@ export function UsernameModal({ onIdentified }: Props) {
     return () => clearTimeout(timer)
   }, [username])
 
-
-  // Внутри компонента UsernameModal, после объявления рефов:
   useEffect(() => {
-    // Показываем только один раз
     if (localStorage.getItem('taskflow_onboarding_done')) return
-
-    // Небольшая задержка чтобы поля успели отрендериться
     const timer = setTimeout(() => {
       const driverObj = driver({
         showProgress: false,
@@ -121,7 +116,6 @@ export function UsernameModal({ onIdentified }: Props) {
           localStorage.setItem('taskflow_onboarding_done', '1')
         },
       })
-
       driverObj.drive()
     }, 600)
 
@@ -214,13 +208,46 @@ export function UsernameModal({ onIdentified }: Props) {
     mode === 'new'      ? t('choosePinProtect') :
                           t('enterNameUsername')
 
+  // PIN input style
+  const pinInputStyle = (digit: string, hasError: boolean): React.CSSProperties => ({
+    background:  hasError ? 'rgba(240,112,112,0.08)' : digit ? 'rgba(129,115,245,0.10)' : 'rgba(255,255,255,0.05)',
+    border:      `1.5px solid ${hasError ? 'rgba(240,112,112,0.50)' : digit ? 'var(--c-accent)' : 'rgba(255,255,255,0.12)'}`,
+    boxShadow:   digit && !hasError ? 'inset 0 1px 0 rgba(255,255,255,0.08), 0 0 10px rgba(129,115,245,0.15)' : 'inset 0 1px 0 rgba(255,255,255,0.05)',
+    color:       hasError ? 'var(--c-danger)' : digit ? 'var(--c-accent)' : 'var(--text-primary)',
+    borderRadius: 16,
+    width: 56, height: 56,
+    textAlign: 'center' as const,
+    fontSize: 20, fontWeight: 700,
+    outline: 'none',
+    transition: 'all 150ms ease',
+  })
+
   return (
     <div className="fixed inset-0 z-[200] flex items-center justify-center px-4">
       <div ref={overlayRef} className="absolute inset-0 sheet-overlay" />
 
-      <div ref={modalRef} className="relative w-full max-w-sm bg-bg-surface border border-bg-border rounded-3xl p-6 shadow-[0_24px_64px_rgba(0,0,0,0.6)]">
+      <div
+        ref={modalRef}
+        className="relative w-full max-w-sm p-6"
+        style={{
+          // ── glassmorphism modal ─────────────────────────
+          background:          'var(--sheet-bg)',
+          backdropFilter:      'var(--glass-blur)',
+          WebkitBackdropFilter:'var(--glass-blur)',
+          border:              '0.5px solid var(--glass-border-top)',
+          borderRadius:        28,
+          boxShadow:           'inset 0 1px 0 rgba(255,255,255,0.09), 0 32px 80px rgba(0,0,0,0.55)',
+        }}
+      >
+        {/* Top-edge highlight */}
+        <div
+          className="absolute top-0 left-8 right-8 h-px"
+          style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.14), transparent)' }}
+        />
 
-        <div className="w-14 h-14 rounded-2xl bg-accent/15 flex items-center justify-center mb-5 mx-auto animate-float">
+        <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-5 mx-auto animate-float"
+          style={{ background: 'rgba(129,115,245,0.12)', border: '0.5px solid rgba(129,115,245,0.22)' }}
+        >
           <User size={26} className="text-accent" />
         </div>
         <h2 className="text-xl font-bold text-center mb-1">{titleText}</h2>
@@ -277,10 +304,13 @@ export function UsernameModal({ onIdentified }: Props) {
               spellCheck={false}
             />
             {mode && (
-              <span className={cn(
-                'absolute right-3 top-1/2 -translate-y-1/2 text-xs px-2 py-0.5 rounded-full font-medium',
-                mode === 'new' ? 'bg-accent/20 text-accent' : 'bg-emerald/20 text-emerald'
-              )}>
+              <span
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs px-2 py-0.5 rounded-full font-medium"
+                style={mode === 'new'
+                  ? { background: 'rgba(129,115,245,0.15)', color: 'var(--c-accent)' }
+                  : { background: 'rgba(62,207,142,0.15)',  color: 'var(--c-emerald)' }
+                }
+              >
                 {mode === 'new' ? 'New' : 'Found'}
               </span>
             )}
@@ -316,15 +346,7 @@ export function UsernameModal({ onIdentified }: Props) {
                 onChange={e => handlePinChange(idx, e.target.value)}
                 onKeyDown={e => handlePinKeyDown(idx, e)}
                 onFocus={e => e.target.select()}
-                className={cn(
-                  'w-14 h-14 text-center text-xl font-bold rounded-2xl border-2 bg-bg-card',
-                  'focus:outline-none transition-all duration-150',
-                  pinError
-                    ? 'border-danger/60 bg-danger/5'
-                    : digit
-                    ? 'border-accent text-accent'
-                    : 'border-bg-border text-text-primary focus:border-accent/60'
-                )}
+                style={pinInputStyle(digit, !!pinError)}
                 maxLength={1}
               />
             ))}
