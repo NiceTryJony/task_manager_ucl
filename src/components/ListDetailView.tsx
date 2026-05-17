@@ -119,6 +119,7 @@ export function ListDetailView({ onBack }: Props) {
   const activeTasks   = allTasks.filter(t => !t.archived)
   const archivedTasks = allTasks.filter(t => t.archived)
 
+  const isSwipingRef = useRef(false)
   
 
   const baseList = filter === 'archived' ? archivedTasks
@@ -684,6 +685,8 @@ export function ListDetailView({ onBack }: Props) {
                         if (!task.archived) handleArchive(task)
                       }}
                       disabled={isDragMode && !!draggingId}
+                      onSwipeStart={() => { isSwipingRef.current = true }}
+                      onSwipeEnd={()   => { setTimeout(() => { isSwipingRef.current = false }, 50) }}
                     >
                       <SortableTaskCard
                         task={task}
@@ -693,6 +696,7 @@ export function ListDetailView({ onBack }: Props) {
                         onToggle={() => handleStatusToggle(task)}
                         onOpen={() => isViewer ? setViewerTask(task) : setActiveTask(task)}
                         onLongPress={(x, y) => { setContextMenu({ task, x, y }); haptic.medium() }}
+                        isSwiping={isSwipingRef}
                       />
                     </SwipeableTaskCard>
                   ))}
@@ -773,9 +777,10 @@ interface SortableCardProps {
   onToggle:    () => void
   onOpen:      () => void
   onLongPress: (x: number, y: number) => void
+  isSwiping?: React.MutableRefObject<boolean>
 }
 
-function SortableTaskCard({ task, isViewer, isDragMode, isDragging, onToggle, onOpen, onLongPress }: SortableCardProps) {
+function SortableTaskCard({ task, isViewer, isDragMode, isDragging, onToggle, onOpen, onLongPress, isSwiping }: SortableCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
     id:       task.id,
     disabled: !isDragMode,
@@ -802,6 +807,7 @@ function SortableTaskCard({ task, isViewer, isDragMode, isDragging, onToggle, on
         onToggle={onToggle}
         onOpen={onOpen}
         onLongPress={onLongPress}
+        isSwiping={isSwiping}
       />
     </div>
   )
@@ -865,13 +871,11 @@ interface CardProps {
   onToggle:           () => void
   onOpen:             () => void
   onLongPress:        (x: number, y: number) => void
+  isSwiping?: React.MutableRefObject<boolean>
 }
 
-function TaskCard({
-  task, isViewer, isDragMode, isDraggingOverlay,
-  dragListeners, dragAttributes,
-  onToggle, onOpen, onLongPress,
-}: CardProps) {
+function TaskCard({ task, isViewer, isDragMode, isDraggingOverlay, dragListeners, dragAttributes, onToggle, onOpen, onLongPress, isSwiping}: 
+  CardProps) {
   const { t } = useI18n()
 
   const [isHolding, setIsHolding] = useState(false)
@@ -906,9 +910,17 @@ function TaskCard({
     if (isDraggingOverlay) return
     didLongPress.current = false
     const { clientX, clientY } = e.touches[0]
-    longPressTimer.current = setTimeout(() => { didLongPress.current = true; onLongPress(clientX, clientY) }, 500)
+    longPressTimer.current = setTimeout(() => {
+      if (isSwiping?.current) return   // ← блокировка
+      didLongPress.current = true
+      onLongPress(clientX, clientY)
+    }, 500)
   }
-  function handleTouchEnd() { clearTimeout(longPressTimer.current) }
+
+  function handleTouchEnd() {
+    clearTimeout(longPressTimer.current)
+    if (isSwiping?.current) didLongPress.current = false
+  }
   function handleClick()    { if (!didLongPress.current) onOpen() }
 
   function handleGripPointerDown(e: React.PointerEvent) {

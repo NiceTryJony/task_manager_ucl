@@ -9,7 +9,10 @@ interface Props {
   children: React.ReactNode
   onSwipeRight: () => void   // → done
   onSwipeLeft:  () => void   // → archive
+  onSwipeStart?: () => void
+  onSwipeEnd?:   () => void
   disabled?: boolean         // drag mode active — disable swipe
+  
 }
 
 const THRESHOLD        = 0.38  // 38% ширины для срабатывания
@@ -18,8 +21,9 @@ const MAX_OFFSET       = 120   // максимальный визуальный 
 const RETURN_DURATION  = '0.35s'
 const FLY_DURATION     = '0.28s'
 
-export function SwipeableTaskCard({ children, onSwipeRight, onSwipeLeft, disabled }: Props) {
+export function SwipeableTaskCard({ children, onSwipeRight, onSwipeLeft, disabled, onSwipeStart, onSwipeEnd }: Props) {
   const { t } = useI18n()
+  
 
   const containerRef  = useRef<HTMLDivElement>(null)
   const cardRef       = useRef<HTMLDivElement>(null)
@@ -40,6 +44,8 @@ export function SwipeableTaskCard({ children, onSwipeRight, onSwipeLeft, disable
   const isRight    = offset > 0
   const isLeft     = offset < 0
   const showHint   = absOffset > 8
+
+
 
   // ── Цвет подложки ─────────────────────────────────────────
   const bgOpacity  = flashing ? 1 : progress * 0.85
@@ -63,7 +69,8 @@ export function SwipeableTaskCard({ children, onSwipeRight, onSwipeLeft, disable
 
     // Блокируем вертикальный скролл только при горизонтальном свайпе
     if (Math.abs(dx) > 8) {
-      e.stopPropagation()
+        e.stopPropagation()
+        onSwipeStart?.()   // ← сообщаем наружу что начался свайп
     }
 
     const clamped = Math.max(-MAX_OFFSET, Math.min(MAX_OFFSET, dx))
@@ -77,6 +84,7 @@ export function SwipeableTaskCard({ children, onSwipeRight, onSwipeLeft, disable
 
   const onTouchEnd = useCallback(() => {
     if (!trackingRef.current || disabled) return
+    onSwipeEnd?.()
     trackingRef.current = false
 
     const dx        = currentXRef.current
