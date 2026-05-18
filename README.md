@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://static.truckersmp.com/images/vtc/logo/67270.1774438686.png/120x120/8173F5/FFFFFF?text=TF" width="96" height="96" style="border-radius: 24px" />
+<img src="https://static.truckersmp.com/images/vtc/logo/67270.1774438686.png" width="96" height="96" style="border-radius: 24px" />
 
 # TaskFlow
 
