@@ -78,13 +78,6 @@ export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET
   const auth = req.headers.get('authorization')
 
-  // ВРЕМЕННЫЙ ЛОГ — удалить после диагностики
-  console.log('SECRET_EXISTS:', !!secret)
-  console.log('SECRET_LENGTH:', secret?.length)
-  console.log('AUTH_HEADER:', auth)
-  console.log('EXPECTED:', `Bearer ${secret}`)
-  console.log('MATCH:', auth === `Bearer ${secret}`)
-
   if (secret) {
     if (auth !== `Bearer ${secret}`) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
