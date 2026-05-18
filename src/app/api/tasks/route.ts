@@ -281,7 +281,7 @@ export async function POST(req: NextRequest) {
           user_id: uid,
           task_id: task.id,
           type:    'assigned',
-          message: `📌 ${author?.first_name ?? 'Someone'} assigned you to "<b>${
+          message: `📌 <b>${author?.first_name ?? 'Хтось'}</b> призначив вас виконавцем: "<b>${
             title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
           }</b>"`,
         }))
@@ -295,7 +295,7 @@ export async function POST(req: NextRequest) {
       user_id: userId,
       task_id: task.id,
       type:    'due_soon',
-      message: `⏰ Reminder: "${title}" is due soon`,
+      message: `⏰ Нагадування: завдання "<b>${title.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</b>" скоро завершується`,
     })
   }
 
@@ -383,7 +383,7 @@ export async function PATCH(req: NextRequest) {
           user_id: uid,
           task_id: taskId,
           type:    'assigned',
-          message: `📌 ${author?.first_name ?? 'Someone'} assigned you to "<b>${
+          message: `📌 <b>${author?.first_name ?? 'Хтось'}</b> призначив вас виконавцем: "<b>${
             updated.title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
           }</b>"`,
         }))
