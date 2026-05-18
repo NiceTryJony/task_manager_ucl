@@ -232,7 +232,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
   const [priority,    setPriority]    = useState<Priority>(task?.priority ?? 'medium')
   const [dueDate,     setDueDate]     = useState('')
   const [dueTime,     setDueTime]     = useState('')
-  const [assignedTo,  setAssignedTo]  = useState<number | null>(task?.assigned_to ?? null)
+  const [assignedTo, setAssignedTo] = useState<number[]>(task?.assignees?.map(a => a.id) ?? (task?.assigned_to ? [task.assigned_to] : []))
   const [subtasks,    setSubtasks]    = useState<LocalSubtask[]>(
     task?.subtasks?.map(s => ({
       id:        s.id,
@@ -333,15 +333,16 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
           method:  'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            taskId:      task!.id,
+            taskId:       task!.id,
             userId,
-            title:       title.trim(),
+            title:        title.trim(),
             description,
             priority,
-            due_at:      buildDueAt(),
-            creator_tz:  getUserTimezone(),
-            assigned_to: assignedTo,
+            due_at:       buildDueAt(),
+            creator_tz:   getUserTimezone(),
+            assignee_ids: assignedTo,
           }),
+
         })
 
         for (const s of subtasks) {
@@ -376,12 +377,12 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
           body: JSON.stringify({
             listId,
             userId,
-            title:       title.trim(),
+            title:        title.trim(),
             description,
             priority,
-            due_at:      buildDueAt(),
-            creator_tz:  getUserTimezone(),
-            assigned_to: assignedTo,
+            due_at:       buildDueAt(),
+            creator_tz:   getUserTimezone(),
+            assignee_ids: assignedTo,
           }),
         })
         const data = await res.json()

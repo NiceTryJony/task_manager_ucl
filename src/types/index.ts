@@ -62,6 +62,13 @@ export interface Subtask {
   } | null
 }
 
+/** A resolved assignee user (from task_assignees join) */
+export interface TaskAssignee {
+  id:         number
+  first_name: string
+  username?:  string | null
+}
+
 export interface Task {
   id:           string
   list_id:      string
@@ -73,12 +80,19 @@ export interface Task {
   due_at?:      string
   creator_tz?:  string
   archived?:    boolean
+
+  /** @deprecated — kept for DB back-compat, use `assignees` instead */
   assigned_to?:   number | null
+  /** @deprecated — kept for back-compat, use `assignees` instead */
   assigned_user?: {
     id:         number
     first_name: string
     username?:  string | null
   } | null
+
+  /** Multi-assignee array — source of truth */
+  assignees?:   TaskAssignee[]
+
   position:     number
   created_by:   number
   created_at:   string
@@ -116,13 +130,16 @@ export interface SharedListInvite {
 }
 
 export type CreateTaskInput = Pick<Task, 'list_id' | 'title' | 'priority'> & {
-  description?: string
-  due_date?:    string
+  description?:  string
+  due_date?:     string
+  assignee_ids?: number[]
 }
 
 export type UpdateTaskInput = Partial<Pick<Task,
   'title' | 'description' | 'status' | 'priority' | 'due_date' | 'position'
->>
+>> & {
+  assignee_ids?: number[]
+}
 
 export interface TelegramWebApp {
   initData: string

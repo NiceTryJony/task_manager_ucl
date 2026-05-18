@@ -3,21 +3,11 @@ import { createServiceClient } from '@/lib/supabase'
 
 // ── Mention helpers ────────────────────────────────────────────
 
-/**
- * Extracts all @username mentions from a string.
- * Returns lowercase usernames without the @ prefix.
- * Example: "hey @alice and @Bob!" → ["alice", "bob"]
- */
 function extractMentions(text: string): string[] {
   const matches = text.match(/@([a-zA-Z0-9_]+)/g) ?? []
   return [...new Set(matches.map(m => m.slice(1).toLowerCase()))]
 }
 
-/**
- * Creates mention notifications for all @username mentions found in a text.
- * Skips the author themselves, users not in the database, and duplicate
- * mentions that already have an unsent notification for this task.
- */
 async function notifyMentions(
   db: ReturnType<typeof createServiceClient>,
   opts: {
@@ -31,7 +21,6 @@ async function notifyMentions(
   const usernames = extractMentions(opts.text)
   if (!usernames.length) return
 
-  // Resolve usernames to user rows
   const { data: mentionedUsers } = await db
     .from('users')
     .select('id, first_name, username')
@@ -39,11 +28,9 @@ async function notifyMentions(
 
   if (!mentionedUsers?.length) return
 
-  // Skip the author themselves
   const targets = mentionedUsers.filter(u => u.id !== opts.authorId)
   if (!targets.length) return
 
-  // Avoid duplicate unsent notifications for the same task+user
   const { data: existing } = await db
     .from('notifications')
     .select('user_id')
@@ -63,25 +50,93 @@ async function notifyMentions(
       message: `💬 ${opts.authorName} mentioned you in "${opts.taskTitle}"`,
     }))
 
-  if (rows.length) {
-    await db.from('notifications').insert(rows)
-  }
+  if (rows.length) await db.from('notifications').insert(rows)
 }
 
-// if (assigned_to && assigned_to !== userId) {
-//   const { data: author } = await db
-//     .from('users').select('first_name').eq('id', userId).single()
- 
-//   await db.from('notifications').insert({
-//     user_id: assigned_to,
-//     task_id: task.id,
-//     type:    'assigned',
-//     message: `📌 ${author?.first_name ?? 'Someone'} assigned you a task: "<b>${
-//       task.title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-//     }</b>"`,
-//   })
-// }
+// ── Assignee helpers ───────────────────────────────────────────
 
+/**
+ * Fetch assignees for an array of task IDs.
+ * Returns a Map<taskId, TaskAssignee[]>
+ */
+async function fetchAssigneesMap(
+  db:      ReturnType<typeof createServiceClient>,
+  taskIds: string[]
+): Promise<Map<string, Array<{ id: number; first_name: string; username?: string | null }>>> {
+  const map = new Map<string, Array<{ id: number; first_name: string; username?: string | null }>>()
+  if (!taskIds.length) return map
+
+  const { data: rows } = await db
+    .from('task_assignees')
+    .select('task_id, user_id')
+    .in('task_id', taskIds)
+
+  if (!rows?.length) return map
+
+  const userIds = [...new Set(rows.map(r => r.user_id))]
+  const { data: users } = await db
+    .from('users')
+    .select('id, first_name, username')
+    .in('id', userIds)
+
+  const usersMap = new Map((users ?? []).map(u => [u.id, u]))
+
+  for (const row of rows) {
+    const user = usersMap.get(row.user_id)
+    if (!user) continue
+    if (!map.has(row.task_id)) map.set(row.task_id, [])
+    map.get(row.task_id)!.push({
+      id:         user.id,
+      first_name: user.first_name,
+      username:   user.username ?? null,
+    })
+  }
+
+  return map
+}
+
+/**
+ * Replace all assignees for a task.
+ * Returns the set of newly-added user IDs (for notifications).
+ */
+async function syncAssignees(
+  db:          ReturnType<typeof createServiceClient>,
+  taskId:      string,
+  assigneeIds: number[],
+  assignedBy:  number
+): Promise<number[]> {
+  // Current assignees
+  const { data: current } = await db
+    .from('task_assignees')
+    .select('user_id')
+    .eq('task_id', taskId)
+
+  const currentIds = new Set((current ?? []).map(r => r.user_id))
+  const nextIds    = new Set(assigneeIds)
+
+  const toAdd    = assigneeIds.filter(id => !currentIds.has(id))
+  const toRemove = [...currentIds].filter(id => !nextIds.has(id))
+
+  if (toRemove.length) {
+    await db
+      .from('task_assignees')
+      .delete()
+      .eq('task_id', taskId)
+      .in('user_id', toRemove)
+  }
+
+  if (toAdd.length) {
+    await db.from('task_assignees').insert(
+      toAdd.map(uid => ({
+        task_id:     taskId,
+        user_id:     uid,
+        assigned_by: assignedBy,
+      }))
+    )
+  }
+
+  return toAdd // newly added → notify these
+}
 
 // ── GET ────────────────────────────────────────────────────────
 
@@ -112,8 +167,11 @@ export async function GET(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+  const taskList = tasks ?? []
+  const taskIds  = taskList.map(t => t.id)
+
   // Enrich subtasks with creator info
-  const allSubtasks = (tasks ?? []).flatMap(t => t.subtasks ?? [])
+  const allSubtasks = taskList.flatMap(t => t.subtasks ?? [])
   const creatorIds  = [...new Set(allSubtasks.map((s: any) => s.created_by).filter(Boolean))]
 
   let creatorsMap = new Map()
@@ -123,37 +181,22 @@ export async function GET(req: NextRequest) {
     creatorsMap = new Map((creators ?? []).map(u => [u.id, u]))
   }
 
-  // const enriched = (tasks ?? []).map(t => ({
-  //   ...t,
-  //   subtasks: (t.subtasks ?? []).map((s: any) => ({
-  //     ...s,
-  //     creator: s.created_by ? (creatorsMap.get(s.created_by) ?? null) : null,
-  //   })),
-  // }))
+  // Fetch multi-assignees
+  const assigneesMap = await fetchAssigneesMap(db, taskIds)
 
-
-  const assignedIds = [
-    ...new Set((tasks ?? []).map((t: any) => t.assigned_to).filter(Boolean))
-  ] as number[]
-
-  let assignedMap = new Map<number, { id: number; first_name: string; username?: string | null }>()
-  if (assignedIds.length) {
-    const { data: assignedUsers } = await db
-      .from('users')
-      .select('id, first_name, username')
-      .in('id', assignedIds)
-    assignedMap = new Map((assignedUsers ?? []).map(u => [u.id, u]))
-  }
-  
-  const enriched = (tasks ?? []).map(t => ({
+  const enriched = taskList.map(t => ({
     ...t,
     subtasks: (t.subtasks ?? []).map((s: any) => ({
       ...s,
       creator: s.created_by ? (creatorsMap.get(s.created_by) ?? null) : null,
     })),
-    assigned_user: t.assigned_to ? (assignedMap.get(t.assigned_to) ?? null) : null,
+    assignees: assigneesMap.get(t.id) ?? [],
+    // Keep legacy field for components not yet migrated
+    assigned_user: (() => {
+      const list = assigneesMap.get(t.id) ?? []
+      return list[0] ?? null
+    })(),
   }))
-
 
   return NextResponse.json({ tasks: enriched })
 }
@@ -162,8 +205,11 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
-  const { listId, userId, title, description, priority, due_at, creator_tz, assigned_to } = body
-
+  const {
+    listId, userId, title, description,
+    priority, due_at, creator_tz,
+    assignee_ids,        // number[]
+  } = body
 
   if (!listId || userId == null || !title) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
@@ -194,7 +240,10 @@ export async function POST(req: NextRequest) {
       creator_tz:  creator_tz ?? 'UTC',
       position:    (last?.position ?? -1) + 1,
       created_by:  userId,
-      assigned_to: assigned_to ?? null,
+      // Keep legacy column in sync with first assignee for any old queries
+      assigned_to: Array.isArray(assignee_ids) && assignee_ids.length > 0
+        ? assignee_ids[0]
+        : null,
     })
     .select().single()
 
@@ -210,7 +259,37 @@ export async function POST(req: NextRequest) {
     })
   } catch {}
 
-  // Notify due-soon watchers
+  // Insert assignees
+  const ids: number[] = Array.isArray(assignee_ids) ? assignee_ids : []
+  if (ids.length) {
+    await db.from('task_assignees').insert(
+      ids.map(uid => ({
+        task_id:     task.id,
+        user_id:     uid,
+        assigned_by: userId,
+      }))
+    )
+
+    // Notify each assignee (except self)
+    const { data: author } = await db
+      .from('users').select('first_name').eq('id', userId).single()
+
+    const toNotify = ids.filter(uid => uid !== userId)
+    if (toNotify.length) {
+      await db.from('notifications').insert(
+        toNotify.map(uid => ({
+          user_id: uid,
+          task_id: task.id,
+          type:    'assigned',
+          message: `📌 ${author?.first_name ?? 'Someone'} assigned you to "<b>${
+            title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          }</b>"`,
+        }))
+      )
+    }
+  }
+
+  // Notify due-soon
   if (due_at) {
     await db.from('notifications').insert({
       user_id: userId,
@@ -220,11 +299,10 @@ export async function POST(req: NextRequest) {
     })
   }
 
-  // Notify mentioned users
+  // Notify mentions in description
   if (description) {
     const { data: author } = await db
       .from('users').select('first_name').eq('id', userId).single()
-
     await notifyMentions(db, {
       text:       description,
       taskId:     task.id,
@@ -243,7 +321,7 @@ const TRACKED_FIELDS = ['title', 'description', 'priority', 'status', 'due_at', 
 
 export async function PATCH(req: NextRequest) {
   const body = await req.json()
-  const { taskId, userId, ...updates } = body
+  const { taskId, userId, assignee_ids, ...updates } = body
 
   if (!taskId || userId == null) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
@@ -262,6 +340,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  // Update the main task row (only non-assignee fields)
   const { data: updated, error } = await db
     .from('tasks').update(updates).eq('id', taskId).select().single()
 
@@ -283,33 +362,40 @@ export async function PATCH(req: NextRequest) {
     try { await db.from('task_history').insert(historyEntries) } catch {}
   }
 
-  const assigneeChanged =
-    'assigned_to' in updates &&
-    updates.assigned_to !== task.assigned_to &&
-    updates.assigned_to != null &&
-    updates.assigned_to !== userId
-  
-  if (assigneeChanged) {
-    const { data: author } = await db
-      .from('users').select('first_name').eq('id', userId).single()
-  
-    await db.from('notifications').insert({
-      user_id: updates.assigned_to,
-      task_id: taskId,
-      type:    'assigned',
-      message: `📌 ${author?.first_name ?? 'Someone'} assigned you to "<b>${
-        updated.title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-      }</b>"`,
-    })
+  // ── Sync assignees ─────────────────────────────────────────
+  if (Array.isArray(assignee_ids)) {
+    const newlyAdded = await syncAssignees(db, taskId, assignee_ids, userId)
+
+    // Keep legacy column in sync
+    await db
+      .from('tasks')
+      .update({ assigned_to: assignee_ids[0] ?? null })
+      .eq('id', taskId)
+
+    // Notify newly added assignees (skip self)
+    const toNotify = newlyAdded.filter(uid => uid !== userId)
+    if (toNotify.length) {
+      const { data: author } = await db
+        .from('users').select('first_name').eq('id', userId).single()
+
+      await db.from('notifications').insert(
+        toNotify.map(uid => ({
+          user_id: uid,
+          task_id: taskId,
+          type:    'assigned',
+          message: `📌 ${author?.first_name ?? 'Someone'} assigned you to "<b>${
+            updated.title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+          }</b>"`,
+        }))
+      )
+    }
   }
 
-
-
-
-  // Notify newly-mentioned users when description changes
-  const descriptionChanged = 'description' in updates
-    && updates.description !== task.description
-    && updates.description
+  // Notify mentions on description change
+  const descriptionChanged =
+    'description' in updates &&
+    updates.description !== task.description &&
+    updates.description
 
   if (descriptionChanged) {
     const { data: author } = await db
@@ -351,6 +437,7 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  // task_assignees rows are deleted automatically via ON DELETE CASCADE
   const { error } = await db.from('tasks').delete().eq('id', taskId)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 

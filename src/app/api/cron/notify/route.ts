@@ -32,7 +32,6 @@ async function sendTgMessage(userId: number, html: string): Promise<boolean> {
   }
 }
 
-/** Проверяет, существует ли уже уведомление данного типа для задачи+пользователя */
 async function alreadyQueued(
   db:     ReturnType<typeof createServiceClient>,
   taskId: string,
@@ -49,9 +48,32 @@ async function alreadyQueued(
   return (data?.length ?? 0) > 0
 }
 
+/**
+ * Fetch all assignee user_ids for a batch of task IDs.
+ * Returns Map<taskId, number[]>
+ */
+async function fetchAssigneesForTasks(
+  db:      ReturnType<typeof createServiceClient>,
+  taskIds: string[]
+): Promise<Map<string, number[]>> {
+  const map = new Map<string, number[]>()
+  if (!taskIds.length) return map
+
+  const { data } = await db
+    .from('task_assignees')
+    .select('task_id, user_id')
+    .in('task_id', taskIds)
+
+  for (const row of data ?? []) {
+    if (!map.has(row.task_id)) map.set(row.task_id, [])
+    map.get(row.task_id)!.push(row.user_id)
+  }
+
+  return map
+}
+
 // ── GET /api/cron/notify ───────────────────────────────────────
-// Вызывается Vercel Cron каждые N минут.
-// Vercel автоматически передаёт Authorization: Bearer <CRON_SECRET>.
+
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET
   if (secret) {
@@ -65,29 +87,29 @@ export async function GET(req: NextRequest) {
   const now   = new Date()
   const in24h = new Date(now.getTime() + 24 * 60 * 60 * 1000)
   const stats = {
-    queued_due:      0,
-    queued_overdue:  0,
-    sent:            0,
-    failed:          0,
+    queued_due:        0,
+    queued_overdue:    0,
+    sent:              0,
+    failed:            0,
     skipped_synthetic: 0,
   }
 
-  // ── 1. Ставим в очередь: задачи с дедлайном в течение 24ч ──
+  // ── 1. Tasks due in next 24 h ──────────────────────────────
   const { data: dueTasks } = await db
     .from('tasks')
-    .select('id, title, due_at, created_by, assigned_to')
+    .select('id, title, due_at, created_by')
     .gte('due_at', now.toISOString())
     .lte('due_at', in24h.toISOString())
     .eq('archived', false)
     .neq('status', 'done')
 
+  const dueTaskIds     = (dueTasks ?? []).map(t => t.id)
+  const dueAssigneesMap = await fetchAssigneesForTasks(db, dueTaskIds)
+
   for (const task of dueTasks ?? []) {
-    const recipients = [
-      ...new Set(
-        [task.created_by, task.assigned_to].filter(Boolean) as number[]
-      ),
-    ]
-    const dueLabel = new Date(task.due_at).toLocaleString('en-US', {
+    const assigneeIds = dueAssigneesMap.get(task.id) ?? []
+    const recipients  = [...new Set([task.created_by, ...assigneeIds].filter(Boolean) as number[])]
+    const dueLabel    = new Date(task.due_at).toLocaleString('en-US', {
       month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
     })
 
@@ -103,21 +125,21 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // ── 2. Ставим в очередь: просроченные задачи ───────────────
+  // ── 2. Overdue tasks ───────────────────────────────────────
   const { data: overdueTasks } = await db
     .from('tasks')
-    .select('id, title, created_by, assigned_to')
+    .select('id, title, created_by')
     .lt('due_at', now.toISOString())
     .not('due_at', 'is', null)
     .eq('archived', false)
     .neq('status', 'done')
 
+  const overdueTaskIds      = (overdueTasks ?? []).map(t => t.id)
+  const overdueAssigneesMap = await fetchAssigneesForTasks(db, overdueTaskIds)
+
   for (const task of overdueTasks ?? []) {
-    const recipients = [
-      ...new Set(
-        [task.created_by, task.assigned_to].filter(Boolean) as number[]
-      ),
-    ]
+    const assigneeIds = overdueAssigneesMap.get(task.id) ?? []
+    const recipients  = [...new Set([task.created_by, ...assigneeIds].filter(Boolean) as number[])]
 
     for (const uid of recipients) {
       if (await alreadyQueued(db, task.id, uid, 'overdue')) continue
@@ -131,16 +153,15 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  // ── 3. Отправляем все неотправленные уведомления ───────────
+  // ── 3. Send pending notifications ─────────────────────────
   const { data: pending } = await db
     .from('notifications')
     .select('*')
     .eq('sent', false)
     .order('created_at', { ascending: true })
-    .limit(50) // не более 50 за один вызов — защита от спама
+    .limit(50)
 
   for (const notif of pending ?? []) {
-    // Синтетические (не-Telegram) пользователи: помечаем отправленным, пропускаем
     if (notif.user_id < 0) {
       await db.from('notifications').update({ sent: true }).eq('id', notif.id)
       stats.skipped_synthetic++
@@ -148,9 +169,6 @@ export async function GET(req: NextRequest) {
     }
 
     const ok = await sendTgMessage(notif.user_id, notif.message)
-    // Помечаем отправленным независимо от результата —
-    // неуспешные отправки логируются в stats.failed,
-    // но не блокируют очередь (избегаем бесконечного retry).
     await db.from('notifications').update({ sent: true }).eq('id', notif.id)
     ok ? stats.sent++ : stats.failed++
   }
