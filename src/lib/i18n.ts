@@ -7,8 +7,8 @@ export const translations = {
     noLists: 'No lists yet', noListsDesc: 'Create your first task list to get started',
     newList: 'New list', createList: 'Create a list',
     // ── Filters ───────────────────────────────────────────────
-    filter_all: 'All', filter_todo: 'To Do', filter_doing: 'Doing',
-    filter_done: 'Done', filter_archive: '📦 Archive',
+    filter_all: 'All ', filter_todo: 'To Do ', filter_doing: 'Doing ',
+    filter_done: 'Done ', filter_archive: '📦 Archive ',
     // ── Sort ──────────────────────────────────────────────────
     sortManual: 'Manual', sortDueDate: 'Due date',
     sortPriority: 'Priority', sortNewest: 'Newest',
@@ -156,8 +156,8 @@ export const translations = {
     noListsDesc: 'Створіть перший список завдань, щоб розпочати',
     newList: 'Новий список', createList: 'Створити список',
     // ── Filters ───────────────────────────────────────────────
-    filter_all: 'Всі', filter_todo: 'Зробити', filter_doing: 'В процесі',
-    filter_done: 'Виконано', filter_archive: '📦 Архів',
+    filter_all: 'Всі ', filter_todo: 'Зробити ', filter_doing: 'В процесі ',
+    filter_done: 'Виконано ', filter_archive: '📦 Архів ',
     // ── Sort ──────────────────────────────────────────────────
     sortManual: 'Вручну', sortDueDate: 'Термін',
     sortPriority: 'Пріоритет', sortNewest: 'Нові',
