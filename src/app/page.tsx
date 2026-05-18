@@ -46,6 +46,22 @@ export default function HomePage() {
     init(resolvedUid)
   }, [isReady, needsIdentify, user?.id])
 
+  useEffect(() => {
+    const startParam = window?.Telegram?.WebApp?.initDataUnsafe?.start_param
+    if (!startParam?.startsWith('task_') || !uid || loading) return
+
+    const taskId = startParam.replace('task_', '')
+
+    fetch(`/api/search?q=${taskId}&userId=${uid}`)
+      .then(r => r.json())
+      .then(data => {
+        const result = data.results?.[0]
+        if (result) {
+          handleSelectTask(result.list.id, result.task.id)
+        }
+      })
+  }, [uid, loading])
+
   async function init(resolvedUid: number) {
     const initData = window?.Telegram?.WebApp?.initData ?? ''
     await fetch('/api/auth', {

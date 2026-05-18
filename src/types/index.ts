@@ -147,6 +147,7 @@ export interface TelegramWebApp {
     user?:      TgUser
     hash:       string
     auth_date:  number
+    start_param?: string
   }
   version:     string
   colorScheme: 'light' | 'dark'

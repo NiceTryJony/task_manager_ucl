@@ -127,7 +127,14 @@ export async function GET(req: NextRequest) {
         user_id: uid,
         task_id: task.id,
         type:    'due_soon',
-        message: `⏰ Task due soon\n<b>${escapeHtml(task.title)}</b>\n📅 ${dueLabel}`,
+        message: [
+          `⏰ <b>Завдання скоро завершується</b>`,
+          ``,
+          `📌 <b>${escapeHtml(task.title)}</b>`,
+          `📅 ${dueLabel}`,
+          ``,
+          `<a href="https://t.me/ucl_maanger_bot/app?startapp=task_${task.id}">Відкрити завдання →</a>`,
+        ].join('\n'),
       })
       stats.queued_due++
     }
@@ -155,7 +162,13 @@ export async function GET(req: NextRequest) {
         user_id: uid,
         task_id: task.id,
         type:    'overdue',
-        message: `🔴 Overdue task\n<b>${escapeHtml(task.title)}</b>`,
+        message: [
+          `🔴 <b>Завдання прострочено</b>`,
+          ``,
+          `📌 <b>${escapeHtml(task.title)}</b>`,
+          ``,
+          `<a href="https://t.me/ucl_maanger_bot/app?startapp=task_${task.id}">Відкрити завдання →</a>`,
+        ].join('\n'),
       })
       stats.queued_overdue++
     }
