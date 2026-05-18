@@ -251,7 +251,14 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
   const { t } = useI18n()
   return (
     <div className="flex flex-col items-center justify-center h-64 text-center px-6">
-      <div className="w-16 h-16 rounded-2xl bg-accent/10 flex items-center justify-center mb-4 animate-float">
+      <div
+          className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 animate-float"
+          style={{
+            background: 'rgba(129,115,245,0.10)',
+            border:     '0.5px solid rgba(129,115,245,0.18)',
+            boxShadow:  'inset 0 1px 0 rgba(255,255,255,0.07)',
+          }}
+        >
         <Sparkles size={28} className="text-accent" />
       </div>
       <h2 className="text-lg font-semibold mb-1">{t('noLists')}</h2>

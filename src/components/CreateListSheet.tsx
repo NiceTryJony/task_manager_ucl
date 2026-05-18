@@ -50,17 +50,33 @@ export function CreateListSheet({ userId, onClose, onCreated }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end">
+      {/* Single backdrop-filter on overlay */}
       <div
         ref={overlayRef}
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="absolute inset-0 sheet-overlay"
         onClick={close}
       />
 
+      {/* Sheet — one backdrop-filter, no blur on children */}
       <div
         ref={sheetRef}
-        className="relative w-full bg-bg-surface rounded-t-3xl border-t border-bg-border px-4 pt-3 pb-8 z-10"
+        className="relative w-full px-4 pt-3 pb-8 z-10"
+        style={{
+          background:          'var(--sheet-bg)',
+          backdropFilter:      'var(--glass-blur)',
+          WebkitBackdropFilter:'var(--glass-blur)',
+          borderRadius:        '24px 24px 0 0',
+          borderTop:           '0.5px solid var(--glass-border-top)',
+          boxShadow:           'var(--glass-shadow)',
+        }}
       >
-        <div className="w-10 h-1 bg-bg-border rounded-full mx-auto mb-5" />
+        {/* Top-edge highlight */}
+        <div
+          className="absolute top-0 left-12 right-12 h-px pointer-events-none"
+          style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.14), transparent)' }}
+        />
+
+        <div className="w-10 h-1 rounded-full mx-auto mb-5" style={{ background: 'rgba(255,255,255,0.12)' }} />
 
         <div className="flex items-center justify-between mb-5">
           <h2 className="text-lg font-bold">{t('newListTitle')}</h2>
@@ -87,12 +103,19 @@ export function CreateListSheet({ userId, onClose, onCreated }: Props) {
             <button
               key={e}
               onClick={() => setEmoji(e)}
-              className={cn(
-                'w-10 h-10 rounded-xl text-xl transition-all',
-                emoji === e
-                  ? 'bg-accent/20 ring-1 ring-accent scale-110'
-                  : 'bg-bg-card hover:bg-bg-hover'
-              )}
+              className="w-10 h-10 rounded-xl text-xl transition-all duration-150"
+              style={emoji === e
+                ? {
+                    background:  'rgba(129,115,245,0.15)',
+                    outline:     '1px solid var(--c-accent)',
+                    transform:   'scale(1.10)',
+                    boxShadow:   'inset 0 1px 0 rgba(255,255,255,0.08)',
+                  }
+                : {
+                    background: 'rgba(255,255,255,0.05)',
+                    border:     '0.5px solid rgba(255,255,255,0.08)',
+                  }
+              }
             >
               {e}
             </button>
@@ -107,12 +130,13 @@ export function CreateListSheet({ userId, onClose, onCreated }: Props) {
             <button
               key={c}
               onClick={() => setColor(c)}
-              className="w-8 h-8 rounded-full transition-all"
+              className="w-8 h-8 rounded-full flex-shrink-0 transition-all duration-150"
               style={{
-                background: c,
-                outline: color === c ? `2px solid ${c}` : 'none',
+                background:    c,
+                outline:       color === c ? `2px solid ${c}` : 'none',
                 outlineOffset: '2px',
-                transform: color === c ? 'scale(1.2)' : 'scale(1)',
+                transform:     color === c ? 'scale(1.2)' : 'scale(1)',
+                boxShadow:     color === c ? `0 0 10px ${c}55` : 'none',
               }}
             />
           ))}

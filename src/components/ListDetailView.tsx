@@ -634,10 +634,10 @@ export function ListDetailView({ onBack }: Props) {
               <button
                 key={s.key}
                 onClick={() => { setSortKey(s.key); haptic.select() }}
-                className={cn(
-                  'px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap',
-                  sortKey === s.key ? 'bg-accent text-white' : 'bg-bg-card text-text-secondary',
-                )}
+                style={sortKey === s.key
+                  ? { background: 'var(--c-accent)', color: '#fff' }
+                  : { background: 'rgba(255,255,255,0.05)', border: '0.5px solid rgba(255,255,255,0.08)', color: 'var(--text-secondary)', borderRadius: 8 }
+                }
               >
                 {s.label}
               </button>
@@ -678,7 +678,10 @@ export function ListDetailView({ onBack }: Props) {
               >
                 {tab.label}
                 {count > 0 && (
-                  <span className={cn('ml-1.5 text-xs', filter === tab.key ? 'opacity-80' : 'opacity-50')}>
+                  <span style={filter === tab.key
+                      ? { background: 'var(--c-accent)', color: '#fff' }
+                      : { color: 'var(--text-secondary)' }
+                    }>
                     {count}
                   </span>
                 )}

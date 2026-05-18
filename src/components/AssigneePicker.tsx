@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react'
 import { UserCheck, X } from 'lucide-react'
-import { cn } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n-context'
 
 interface Member {
@@ -69,10 +68,7 @@ export function AssigneePicker({ listId, userId, assignedTo, onChange }: Props) 
         )}
       </div>
 
-      <div
-        className="flex gap-3 overflow-x-auto pb-1"
-        style={{ scrollbarWidth: 'none' }}
-      >
+      <div className="flex gap-3 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
         {members.map(m => {
           const isSelected = assignedTo === m.user_id
           const initial    = m.users.first_name[0]?.toUpperCase() ?? '?'
@@ -115,6 +111,7 @@ export function AssigneePicker({ listId, userId, assignedTo, onChange }: Props) 
         })}
       </div>
 
+      {/* Assigned badge — glass, no blur (child) */}
       {assignedMember && (
         <div
           className="mt-2.5 flex items-center gap-2 px-3 py-2 rounded-xl"
