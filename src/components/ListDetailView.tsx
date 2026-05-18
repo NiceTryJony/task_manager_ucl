@@ -766,7 +766,7 @@ export function ListDetailView({ onBack }: Props) {
                     >
                       <SortableTaskCard
                         task={task}
-                        userId={userId} 
+                        userId={user?.id ?? 0}
                         isViewer={isViewer}
                         isDragMode={isDragMode}
                         isDragging={draggingId === task.id}
@@ -785,7 +785,7 @@ export function ListDetailView({ onBack }: Props) {
                   <div className="rotate-[0.8deg] scale-[1.03] shadow-2xl opacity-95">
                     <TaskCard
                       task={draggingTask}
-                      userId={userId} 
+                      userId={user?.id ?? 0}
                       isViewer={false}
                       isDragMode={false}
                       isDraggingOverlay
