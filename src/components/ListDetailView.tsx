@@ -42,6 +42,7 @@ import { useTheme }    from '@/lib/theme-context'
 import { useI18n }     from '@/lib/i18n-context'
 import { SaveBanner }  from '@/components/ui/SaveBanner'
 import { SwipeableTaskCard } from '@/components/SwipeableTaskCard'
+import { TaskAssigneesBadge } from '@/components/TaskAssigneesBadge'
 
 // ─────────────────────────────────────────────────────────────
 //  Types
@@ -765,6 +766,7 @@ export function ListDetailView({ onBack }: Props) {
                     >
                       <SortableTaskCard
                         task={task}
+                        userId={userId} 
                         isViewer={isViewer}
                         isDragMode={isDragMode}
                         isDragging={draggingId === task.id}
@@ -783,6 +785,7 @@ export function ListDetailView({ onBack }: Props) {
                   <div className="rotate-[0.8deg] scale-[1.03] shadow-2xl opacity-95">
                     <TaskCard
                       task={draggingTask}
+                      userId={userId} 
                       isViewer={false}
                       isDragMode={false}
                       isDraggingOverlay
@@ -853,6 +856,7 @@ export function ListDetailView({ onBack }: Props) {
 // ─────────────────────────────────────────────────────────────
 interface SortableCardProps {
   task:        Task
+  userId:      number  
   isViewer:    boolean
   isDragMode:  boolean
   isDragging:  boolean
@@ -862,7 +866,7 @@ interface SortableCardProps {
   isSwiping?:  React.MutableRefObject<boolean>
 }
 
-function SortableTaskCard({ task, isViewer, isDragMode, isDragging, onToggle, onOpen, onLongPress, isSwiping }: SortableCardProps) {
+function SortableTaskCard({ task, userId, isViewer, isDragMode, isDragging, onToggle, onOpen, onLongPress, isSwiping }: SortableCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
     id:       task.id,
     disabled: !isDragMode,
@@ -880,6 +884,7 @@ function SortableTaskCard({ task, isViewer, isDragMode, isDragging, onToggle, on
     >
       <TaskCard
         task={task}
+        userId={userId}  
         isViewer={isViewer}
         isDragMode={isDragMode}
         dragListeners={listeners}
@@ -938,6 +943,7 @@ function MoreButton({ onPress }: { onPress: (x: number, y: number) => void }) {
 // ─────────────────────────────────────────────────────────────
 interface CardProps {
   task:               Task
+  userId:             number 
   isViewer:           boolean
   isDragMode:         boolean
   isDraggingOverlay?: boolean
@@ -950,7 +956,7 @@ interface CardProps {
 }
 
 function TaskCard({
-  task, isViewer, isDragMode, isDraggingOverlay,
+  task, userId, isViewer, isDragMode, isDraggingOverlay,
   dragListeners, dragAttributes,
   onToggle, onOpen, onLongPress, isSwiping,
 }: CardProps) {
@@ -1113,14 +1119,6 @@ function TaskCard({
               <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', priority.color, priority.bg)}>
                 {priority.label}
               </span>
-              {task.assigned_user && (
-                <span className="text-xs text-text-secondary flex items-center gap-1">
-                  <div className="w-4 h-4 rounded-full bg-accent/20 text-accent flex items-center justify-center text-[9px] font-bold flex-shrink-0">
-                    {task.assigned_user.first_name[0]?.toUpperCase()}
-                  </div>
-                  {task.assigned_user.first_name.split(' ')[0]}
-                </span>
-              )}
               {dueAt && (
                 <span className={cn(
                   'text-xs flex items-center gap-1',
@@ -1137,7 +1135,22 @@ function TaskCard({
               )}
               {isArchived && <span className="text-xs text-text-dim">📦 {t('archived')}</span>}
             </div>
+ 
+            {/* Виконавці — компактні аватарки, розгортаються по кліку */}
+            {(task.assignees?.length ?? 0) > 0 && (
+              <div
+                className="mt-2 pt-2"
+                style={{ borderTop: '0.5px solid rgba(255,255,255,0.07)' }}
+              >
+                <TaskAssigneesBadge
+                  assignees={task.assignees ?? []}
+                  currentUserId={userId}
+                  maxVisible={3}
+                />
+              </div>
+            )}
           </button>
+
 
           {/* ── ⋮ Three-dots (desktop hover) ────────────────── */}
           {!isDraggingOverlay && (
