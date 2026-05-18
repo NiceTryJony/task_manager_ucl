@@ -60,7 +60,7 @@ function formatInTz(isoStr: string, tz: string) {
   } catch { return isoStr }
 }
 
-// ── Sortable subtask row ───────────────────────────────────────
+// ── Sortable subtask row ──────────────────────────────────────
 
 interface SubtaskRowProps {
   sub:      LocalSubtask
@@ -72,9 +72,7 @@ interface SubtaskRowProps {
   onDelete: () => void
 }
 
-function SortableSubtaskRow({
-  sub, idx, userId, isEdit, onToggle, onRename, onDelete,
-}: SubtaskRowProps) {
+function SortableSubtaskRow({ sub, idx, userId, isEdit, onToggle, onRename, onDelete }: SubtaskRowProps) {
   const nodeId = sub.id ?? `new-${idx}`
 
   const [editing, setEditing] = useState(false)
@@ -120,21 +118,32 @@ function SortableSubtaskRow({
     setDraft(sub.title)
   }
 
+  const rowStyle: React.CSSProperties = isDragging
+    ? {
+        background:  'rgba(129,115,245,0.10)',
+        border:      '0.5px solid rgba(129,115,245,0.30)',
+        boxShadow:   '0 4px 20px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.08)',
+        borderRadius: 14,
+      }
+    : {
+        background:  'rgba(255,255,255,0.04)',
+        border:      '0.5px solid rgba(255,255,255,0.08)',
+        boxShadow:   'inset 0 1px 0 rgba(255,255,255,0.05)',
+        borderRadius: 14,
+      }
+
   return (
     <div ref={setNodeRef} style={style}>
-      <div className={cn(
-        'flex items-center gap-2.5 px-3 py-2.5 rounded-[14px] border transition-all duration-150',
-        isDragging
-          ? 'bg-bg-hover border-accent/30 shadow-[0_4px_16px_rgba(123,110,246,0.2)]'
-          : 'bg-bg-card border-bg-border/60'
-      )}>
+      <div className="flex items-center gap-2.5 px-3 py-2.5 transition-all duration-150" style={rowStyle}>
         <button
           ref={setActivatorNodeRef}
           {...attributes}
           {...listeners}
-          className="text-text-dim flex-shrink-0 cursor-grab active:cursor-grabbing p-1 -ml-1 rounded-lg hover:bg-bg-hover transition-colors touch-none"
-          tabIndex={-1}
+          className="text-text-dim flex-shrink-0 cursor-grab active:cursor-grabbing p-1 -ml-1 rounded-lg transition-colors touch-none"
           style={{ touchAction: 'none' }}
+          tabIndex={-1}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.07)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
         >
           <GripVertical size={15} />
         </button>
@@ -166,12 +175,14 @@ function SortableSubtaskRow({
                   if (e.key === 'Enter')  { e.preventDefault(); commitEdit() }
                   if (e.key === 'Escape') { e.preventDefault(); cancelEdit() }
                 }}
-                className="flex-1 min-w-0 bg-transparent text-sm text-text-primary outline-none border-b border-accent/60 pb-0.5 leading-snug"
+                className="flex-1 min-w-0 bg-transparent text-sm text-text-primary outline-none pb-0.5 leading-snug"
+                style={{ borderBottom: '1px solid rgba(129,115,245,0.50)' }}
                 maxLength={300}
               />
               <button
                 onMouseDown={e => { e.preventDefault(); commitEdit() }}
-                className="w-5 h-5 flex items-center justify-center rounded-md bg-accent/20 text-accent flex-shrink-0"
+                className="w-5 h-5 flex items-center justify-center rounded-md flex-shrink-0"
+                style={{ background: 'rgba(129,115,245,0.18)', color: 'var(--c-accent)' }}
               >
                 <Check size={11} strokeWidth={2.5} />
               </button>
@@ -180,12 +191,8 @@ function SortableSubtaskRow({
             <button
               onClick={startEdit}
               disabled={sub.completed}
-              className={cn(
-                'text-sm text-left w-full leading-snug truncate transition-colors',
-                sub.completed
-                  ? 'line-through text-text-dim cursor-default'
-                  : 'text-text-primary hover:text-accent'
-              )}
+              className="text-sm text-left w-full leading-snug truncate transition-colors"
+              style={{ color: sub.completed ? 'var(--text-dim)' : 'var(--text-primary)', textDecoration: sub.completed ? 'line-through' : 'none' }}
             >
               {sub.title}
             </button>
@@ -202,8 +209,10 @@ function SortableSubtaskRow({
 
         <button
           onClick={onDelete}
-          className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-text-dim hover:text-danger hover:bg-danger/10 active:scale-90 transition-all duration-150"
+          className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-text-dim transition-all duration-150 active:scale-90"
           style={{ touchAction: 'manipulation' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(240,112,112,0.10)'; (e.currentTarget as HTMLElement).style.color = 'var(--c-danger)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--text-dim)' }}
         >
           <X size={14} />
         </button>
@@ -212,7 +221,7 @@ function SortableSubtaskRow({
   )
 }
 
-// ── Main component ─────────────────────────────────────────────
+// ── Main component ────────────────────────────────────────────
 
 export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
   const { t } = useI18n()
@@ -274,8 +283,6 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
     const s = dueTime ? `${dueDate}T${dueTime}:00` : `${dueDate}T00:00:00`
     return new Date(s).toISOString()
   }
-
-  // ── Subtask drag reorder ───────────────────────────────────
 
   async function handleSubtaskDragEnd(event: DragEndEvent) {
     const { active, over } = event
@@ -356,9 +363,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
         const keptIds = new Set(subtasks.filter(s => s.id).map(s => s.id))
         for (const orig of task!.subtasks ?? []) {
           if (!keptIds.has(orig.id)) {
-            await fetch(`/api/tasks/subtasks?subtaskId=${orig.id}&userId=${userId}`, {
-              method: 'DELETE',
-            })
+            await fetch(`/api/tasks/subtasks?subtaskId=${orig.id}&userId=${userId}`, { method: 'DELETE' })
           }
         }
 
@@ -413,35 +418,62 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
   const creatorTz     = task?.creator_tz ?? 'UTC'
   const showDualTime  = isEdit && existingDueAt && creatorTz !== viewerTz
 
+  // Section label style
+  const sectionLabel = "flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-widest"
+
   return (
     <div className="fixed inset-0 z-50 flex items-end">
       <div ref={overlayRef} className="absolute inset-0 sheet-overlay" onClick={close} />
 
       <div
         ref={sheetRef}
-        className="relative w-full h-[92dvh] bg-bg-surface rounded-t-3xl border-t border-bg-border z-10 flex flex-col"
+        className="relative w-full flex flex-col"
+        style={{
+          height:              '92dvh',
+          background:          'var(--sheet-bg)',
+          backdropFilter:      'var(--glass-blur)',
+          WebkitBackdropFilter:'var(--glass-blur)',
+          borderRadius:        '24px 24px 0 0',
+          borderTop:           '0.5px solid var(--glass-border-top)',
+          boxShadow:           'var(--glass-shadow)',
+        }}
       >
+        {/* Top shimmer */}
+        <div
+          className="absolute top-0 left-12 right-12 h-px pointer-events-none"
+          style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.14), transparent)' }}
+        />
+
         {/* Handle */}
         <div className="flex justify-center pt-3 flex-shrink-0">
-          <div className="w-9 h-1 bg-bg-border rounded-full" />
+          <div className="w-9 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }} />
         </div>
 
         {/* Header */}
-        <div className="flex-shrink-0 flex items-center justify-between px-4 pt-3 pb-3 border-b border-bg-border/60">
+        <div
+          className="flex-shrink-0 flex items-center justify-between px-4 pt-3 pb-3"
+          style={{ borderBottom: '0.5px solid rgba(255,255,255,0.07)' }}
+        >
           <div className="flex items-center gap-2.5">
             <h2 className="text-[17px] font-bold text-text-primary">
               {isEdit ? t('editTask') : t('newTask')}
             </h2>
-            <span className={cn(
-              'text-[11px] font-semibold px-2 py-0.5 rounded-lg',
-              isEdit ? 'bg-amber/15 text-amber' : 'bg-accent/20 text-accent'
-            )}>
+            <span
+              className="text-[11px] font-semibold px-2 py-0.5 rounded-lg"
+              style={isEdit
+                ? { background: 'rgba(245,166,35,0.12)', color: 'var(--c-amber)' }
+                : { background: 'rgba(129,115,245,0.15)', color: 'var(--c-accent)' }
+              }
+            >
               {isEdit ? t('edit') : t('creating2')}
             </span>
           </div>
           <button
             onClick={close}
-            className="w-8 h-8 flex items-center justify-center rounded-[10px] bg-bg-hover text-text-secondary"
+            className="w-8 h-8 flex items-center justify-center rounded-[10px] text-text-secondary transition-colors"
+            style={{ background: 'rgba(255,255,255,0.07)' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.11)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.07)' }}
           >
             <X size={16} />
           </button>
@@ -460,9 +492,15 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
         >
           {/* Saving overlay */}
           {saving && (
-            <div className="fixed inset-0 z-[60] bg-bg-surface/70 backdrop-blur-[2px] flex items-center justify-center pointer-events-auto">
+            <div
+              className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-auto"
+              style={{ background: 'rgba(14,16,26,0.65)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
+            >
               <div className="flex flex-col items-center gap-3">
-                <div className="w-8 h-8 border-2 border-accent/30 border-t-accent rounded-full animate-spin" />
+                <div
+                  className="w-8 h-8 rounded-full border-2"
+                  style={{ borderColor: 'rgba(129,115,245,0.25)', borderTopColor: 'var(--c-accent)', animation: 'spin 0.7s linear infinite' }}
+                />
                 <p className="text-sm text-text-secondary font-medium">
                   {isEdit ? t('savingChanges') : t('creatingTaskStr')}
                 </p>
@@ -473,10 +511,13 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
           {/* Title */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-widest">
+              <label className={sectionLabel}>
                 <AlignLeft size={12} /> {t('taskTitle')}
               </label>
-              <span className={cn('text-[11px] tabular-nums', title.length > 180 ? 'text-amber' : 'text-text-dim')}>
+              <span
+                className="text-[11px] tabular-nums"
+                style={{ color: title.length > 180 ? 'var(--c-amber)' : 'var(--text-dim)' }}
+              >
                 {title.length} / 200
               </span>
             </div>
@@ -493,7 +534,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
 
           {/* Notes */}
           <div>
-            <label className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2">
+            <label className={cn(sectionLabel, "mb-2")}>
               <AlignLeft size={12} /> {t('notes')}
               <span className="text-text-dim font-normal normal-case tracking-normal ml-1">{t('notesOptional')}</span>
             </label>
@@ -509,7 +550,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
 
           {/* Priority */}
           <div>
-            <label className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2.5">
+            <label className={cn(sectionLabel, "mb-2.5")}>
               <Flag size={12} /> {t('priority')}
             </label>
             <div className="grid grid-cols-4 gap-2">
@@ -520,13 +561,23 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
                   <button
                     key={p}
                     onClick={() => setPriority(p)}
-                    className={cn(
-                      'flex flex-col items-center gap-1 py-2.5 px-1 rounded-[14px] transition-all duration-150 border text-xs font-semibold',
-                      active
-                        ? `${cfg.color} ${cfg.bg} border-current/30 scale-[1.03]`
-                        : 'text-text-secondary bg-bg-card border-bg-border hover:bg-bg-hover'
-                    )}
-                    style={{ touchAction: 'manipulation' }}
+                    className="flex flex-col items-center gap-1 py-2.5 px-1 rounded-[14px] transition-all duration-150 text-xs font-semibold"
+                    style={active
+                      ? {
+                          color:      cfg.color.replace('text-', ''),
+                          background: 'rgba(129,115,245,0.10)',
+                          border:     '0.5px solid rgba(129,115,245,0.30)',
+                          boxShadow:  'inset 0 1px 0 rgba(255,255,255,0.07)',
+                          transform:  'scale(1.03)',
+                        }
+                      : {
+                          background: 'rgba(255,255,255,0.04)',
+                          border:     '0.5px solid rgba(255,255,255,0.08)',
+                          color:      'var(--text-secondary)',
+                        }
+                    }
+                    onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.07)' }}
+                    onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)' }}
                   >
                     <span className="text-base leading-none">{PRIORITY_ICONS[p]}</span>
                     {cfg.label}
@@ -538,7 +589,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
 
           {/* Due date */}
           <div>
-            <label className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2.5">
+            <label className={cn(sectionLabel, "mb-2.5")}>
               <Calendar size={12} /> {t('dueDateTime')}
             </label>
             <div className="flex gap-2">
@@ -563,9 +614,9 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
                     setDueTime(`${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`)
                     if (!dueDate) setDueDate(now.toISOString().split('T')[0])
                   }}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-accent hover:text-accent-hover transition-colors"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 transition-colors"
+                  style={{ color: 'var(--c-accent)', touchAction: 'manipulation' }}
                   title={t('useCurrentTime')}
-                  style={{ touchAction: 'manipulation' }}
                 >
                   <Clock size={14} />
                 </button>
@@ -583,7 +634,15 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
               🌍 <span className="text-text-secondary">{viewerTz}</span>
             </p>
             {showDualTime && (
-              <div className="mt-2 bg-bg-card rounded-xl p-3 border border-bg-border/60 space-y-2">
+              <div
+                className="mt-2 p-3 space-y-2"
+                style={{
+                  background:   'rgba(255,255,255,0.04)',
+                  border:       '0.5px solid rgba(255,255,255,0.08)',
+                  boxShadow:    'inset 0 1px 0 rgba(255,255,255,0.05)',
+                  borderRadius: 14,
+                }}
+              >
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-text-secondary">
                     🗓 Creator · {creatorTz.split('/').pop()?.replace('_', ' ')}
@@ -592,12 +651,12 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
                     {formatInTz(existingDueAt!, creatorTz)}
                   </span>
                 </div>
-                <div className="h-px bg-bg-border/60" />
+                <div className="h-px" style={{ background: 'rgba(255,255,255,0.07)' }} />
                 <div className="flex justify-between items-center text-xs">
-                  <span className="text-accent">
+                  <span style={{ color: 'var(--c-accent)' }}>
                     📍 {viewerTz.split('/').pop()?.replace('_', ' ')}
                   </span>
-                  <span className="font-medium text-accent">
+                  <span className="font-medium" style={{ color: 'var(--c-accent)' }}>
                     {formatInTz(existingDueAt!, viewerTz)}
                   </span>
                 </div>
@@ -616,7 +675,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
           {/* Subtasks */}
           <div>
             <div className="flex items-center justify-between mb-2.5">
-              <label className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-widest">
+              <label className={sectionLabel}>
                 <CheckSquare size={12} /> {t('subtasks')}
               </label>
               {subTotal > 0 && (
@@ -627,12 +686,20 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
             </div>
 
             {subTotal > 0 && (
-              <div className="h-[2px] bg-bg-hover rounded-full overflow-hidden mb-3">
+              <div
+                className="h-[2px] rounded-full overflow-hidden mb-3"
+                style={{ background: 'rgba(255,255,255,0.07)' }}
+              >
                 <div
                   className="h-full rounded-full transition-all duration-500"
                   style={{
                     width:      `${subPct}%`,
-                    background: subPct === 100 ? '#34D399' : '#7B6EF6',
+                    background: subPct === 100
+                      ? 'linear-gradient(90deg,#3ECF8E,#22B97A)'
+                      : 'var(--c-accent)',
+                    boxShadow:  subPct === 100
+                      ? '0 0 6px rgba(62,207,142,0.40)'
+                      : '0 0 6px rgba(129,115,245,0.35)',
                   }}
                 />
               </div>
@@ -687,8 +754,11 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
               <button
                 onClick={addSubtaskLocal}
                 disabled={!newSubtask.trim()}
-                className="w-10 h-10 flex items-center justify-center rounded-[12px] bg-accent disabled:opacity-35 flex-shrink-0 hover:bg-accent-hover transition-colors active:scale-95"
-                style={{ touchAction: 'manipulation' }}
+                className="w-10 h-10 flex items-center justify-center rounded-[12px] disabled:opacity-35 flex-shrink-0 transition-all active:scale-95"
+                style={{
+                  background:   'var(--c-accent)',
+                  touchAction:  'manipulation',
+                }}
               >
                 <Plus size={18} className="text-white" strokeWidth={2.5} />
               </button>
@@ -702,7 +772,10 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
         </div>
 
         {/* Footer */}
-        <div className="flex-shrink-0 px-4 pt-3 pb-6 border-t border-bg-border/60 bg-bg-surface">
+        <div
+          className="flex-shrink-0 px-4 pt-3 pb-6"
+          style={{ borderTop: '0.5px solid rgba(255,255,255,0.07)' }}
+        >
           {!title.trim() && (
             <p className="text-xs text-text-dim text-center mb-2">{t('addTitle')}</p>
           )}
@@ -714,7 +787,10 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
           >
             {saving ? (
               <span className="flex items-center justify-center gap-2">
-                <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span
+                  className="w-4 h-4 border-2 rounded-full"
+                  style={{ borderColor: 'rgba(255,255,255,0.25)', borderTopColor: '#fff', animation: 'spin 0.7s linear infinite' }}
+                />
                 {isEdit ? t('saving') : t('creating')}
               </span>
             ) : (

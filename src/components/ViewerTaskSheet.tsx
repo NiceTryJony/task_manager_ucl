@@ -79,24 +79,63 @@ export function ViewerTaskSheet({ task, userId, onClose, onSubtaskToggled }: Pro
     return t('done')
   }
 
+  // Reusable glass info block style
+  const infoBlock: React.CSSProperties = {
+    background:   'rgba(255,255,255,0.04)',
+    border:       '0.5px solid rgba(255,255,255,0.08)',
+    boxShadow:    'inset 0 1px 0 rgba(255,255,255,0.05)',
+    borderRadius: 16,
+    padding:      '10px 14px',
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-end">
       <div ref={overlayRef} className="absolute inset-0 sheet-overlay" onClick={close} />
 
-      <div ref={sheetRef} className="relative w-full bg-bg-surface rounded-t-3xl border-t border-bg-border z-10 max-h-[92dvh] flex flex-col">
+      <div
+        ref={sheetRef}
+        className="relative w-full max-h-[92dvh] flex flex-col"
+        style={{
+          background:          'var(--sheet-bg)',
+          backdropFilter:      'var(--glass-blur)',
+          WebkitBackdropFilter:'var(--glass-blur)',
+          borderRadius:        '24px 24px 0 0',
+          borderTop:           '0.5px solid var(--glass-border-top)',
+          boxShadow:           'var(--glass-shadow)',
+        }}
+      >
+        {/* Top shimmer */}
+        <div
+          className="absolute top-0 left-12 right-12 h-px pointer-events-none"
+          style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.14), transparent)' }}
+        />
 
+        {/* Handle */}
         <div className="flex justify-center pt-3 pb-0 flex-shrink-0">
-          <div className="w-9 h-1 bg-bg-border rounded-full" />
+          <div className="w-9 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }} />
         </div>
 
-        <div className="flex-shrink-0 flex items-center justify-between px-4 pt-3 pb-3 border-b border-bg-border/60">
+        {/* Header */}
+        <div
+          className="flex-shrink-0 flex items-center justify-between px-4 pt-3 pb-3"
+          style={{ borderBottom: '0.5px solid rgba(255,255,255,0.07)' }}
+        >
           <div className="flex items-center gap-2.5">
             <h2 className="text-[17px] font-bold text-text-primary">{t('viewTask')}</h2>
-            <span className="text-[11px] font-semibold px-2 py-0.5 rounded-lg bg-text-dim/20 text-text-secondary">
+            <span
+              className="text-[11px] font-semibold px-2 py-0.5 rounded-lg"
+              style={{ background: 'rgba(255,255,255,0.07)', color: 'var(--text-secondary)' }}
+            >
               {t('readOnly')}
             </span>
           </div>
-          <button onClick={close} className="w-8 h-8 flex items-center justify-center rounded-[10px] bg-bg-hover text-text-secondary">
+          <button
+            onClick={close}
+            className="w-8 h-8 flex items-center justify-center rounded-[10px] text-text-secondary transition-colors"
+            style={{ background: 'rgba(255,255,255,0.07)' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.11)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.07)' }}
+          >
             <X size={16} />
           </button>
         </div>
@@ -108,7 +147,10 @@ export function ViewerTaskSheet({ task, userId, onClose, onSubtaskToggled }: Pro
             <label className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2">
               <AlignLeft size={12} /> {t('taskTitle')}
             </label>
-            <p className="text-[15px] font-semibold text-text-primary leading-snug px-4 py-3 bg-bg-card rounded-xl border border-bg-border/60">
+            <p
+              className="text-[15px] font-semibold text-text-primary leading-snug px-4 py-3"
+              style={infoBlock}
+            >
               {task.title}
             </p>
           </div>
@@ -119,7 +161,10 @@ export function ViewerTaskSheet({ task, userId, onClose, onSubtaskToggled }: Pro
               <label className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2">
                 <AlignLeft size={12} /> {t('notes')}
               </label>
-              <p className="text-sm text-text-secondary leading-relaxed px-4 py-3 bg-bg-card rounded-xl border border-bg-border/60 whitespace-pre-wrap">
+              <p
+                className="text-sm text-text-secondary leading-relaxed px-4 py-3 whitespace-pre-wrap"
+                style={infoBlock}
+              >
                 {task.description}
               </p>
             </div>
@@ -127,14 +172,14 @@ export function ViewerTaskSheet({ task, userId, onClose, onSubtaskToggled }: Pro
 
           {/* Priority + Due */}
           <div className="flex gap-2">
-            <div className="flex-1 bg-bg-card rounded-xl border border-bg-border/60 px-3 py-2.5">
+            <div className="flex-1" style={infoBlock}>
               <p className="text-[10px] font-semibold text-text-dim uppercase tracking-widest mb-1 flex items-center gap-1">
                 <Flag size={10} /> {t('priority')}
               </p>
               <span className={cn('text-sm font-semibold', priority.color)}>{priority.label}</span>
             </div>
             {dueAt && (
-              <div className="flex-1 bg-bg-card rounded-xl border border-bg-border/60 px-3 py-2.5">
+              <div className="flex-1" style={infoBlock}>
                 <p className="text-[10px] font-semibold text-text-dim uppercase tracking-widest mb-1 flex items-center gap-1">
                   <Calendar size={10} /> {t('dueLabel')}
                 </p>
@@ -146,15 +191,17 @@ export function ViewerTaskSheet({ task, userId, onClose, onSubtaskToggled }: Pro
           </div>
 
           {/* Status */}
-          <div className="flex items-center gap-2 px-3 py-2.5 bg-bg-card rounded-xl border border-bg-border/60">
+          <div className="flex items-center gap-2 px-3 py-2.5" style={infoBlock}>
             <Clock size={13} className="text-text-dim flex-shrink-0" />
             <span className="text-xs text-text-secondary">{t('statusLabel')}</span>
-            <span className={cn(
-              'ml-auto text-xs font-semibold px-2.5 py-1 rounded-lg',
-              task.status === 'done'        ? 'bg-emerald/15 text-emerald'         :
-              task.status === 'in_progress' ? 'bg-accent/15 text-accent'           :
-                                              'bg-bg-hover text-text-secondary'
-            )}>
+            <span
+              className="ml-auto text-xs font-semibold px-2.5 py-1 rounded-lg"
+              style={
+                task.status === 'done'        ? { background: 'rgba(62,207,142,0.12)',   color: 'var(--c-emerald)' } :
+                task.status === 'in_progress' ? { background: 'rgba(129,115,245,0.12)',  color: 'var(--c-accent)'  } :
+                                                { background: 'rgba(255,255,255,0.07)',  color: 'var(--text-secondary)' }
+              }
+            >
               {statusLabel(task.status)}
             </span>
           </div>
@@ -169,16 +216,37 @@ export function ViewerTaskSheet({ task, userId, onClose, onSubtaskToggled }: Pro
                 <span className="text-[11px] text-text-dim">{subDone}/{subTotal} {t('subtasksDone')}</span>
               </div>
 
-              <div className="h-[2px] bg-bg-hover rounded-full overflow-hidden mb-3">
+              {/* Progress bar */}
+              <div
+                className="h-[2px] rounded-full overflow-hidden mb-3"
+                style={{ background: 'rgba(255,255,255,0.07)' }}
+              >
                 <div
                   className="h-full rounded-full transition-all duration-500"
-                  style={{ width: `${subPct}%`, background: subPct === 100 ? '#34D399' : '#7B6EF6' }}
+                  style={{
+                    width:      `${subPct}%`,
+                    background: subPct === 100
+                      ? 'linear-gradient(90deg,#3ECF8E,#22B97A)'
+                      : 'var(--c-accent)',
+                    boxShadow:  subPct === 100
+                      ? '0 0 6px rgba(62,207,142,0.40)'
+                      : '0 0 6px rgba(129,115,245,0.35)',
+                  }}
                 />
               </div>
 
               <div className="space-y-1.5">
                 {subtasks.map(sub => (
-                  <div key={sub.id} className="flex items-start gap-2.5 px-3 py-2.5 bg-bg-card rounded-[12px] border border-bg-border/60">
+                  <div
+                    key={sub.id}
+                    className="flex items-start gap-2.5 px-3 py-2.5"
+                    style={{
+                      background:   'rgba(255,255,255,0.04)',
+                      border:       '0.5px solid rgba(255,255,255,0.07)',
+                      boxShadow:    'inset 0 1px 0 rgba(255,255,255,0.04)',
+                      borderRadius: 14,
+                    }}
+                  >
                     <button
                       onClick={() => handleToggleSubtask(sub)}
                       disabled={togglingId === sub.id}
@@ -203,7 +271,10 @@ export function ViewerTaskSheet({ task, userId, onClose, onSubtaskToggled }: Pro
                       )}
                     </div>
                     {togglingId === sub.id && (
-                      <div className="w-4 h-4 border-2 border-text-dim border-t-accent rounded-full animate-spin flex-shrink-0 mt-0.5" />
+                      <div
+                        className="w-4 h-4 rounded-full border-2 flex-shrink-0 mt-0.5"
+                        style={{ borderColor: 'rgba(255,255,255,0.15)', borderTopColor: 'var(--c-accent)', animation: 'spin 0.7s linear infinite' }}
+                      />
                     )}
                   </div>
                 ))}
@@ -214,9 +285,19 @@ export function ViewerTaskSheet({ task, userId, onClose, onSubtaskToggled }: Pro
           <TaskHistoryPanel taskId={task.id} userId={userId} />
         </div>
 
-        <div className="flex-shrink-0 px-4 pt-3 pb-6 border-t border-bg-border/60">
+        {/* Footer */}
+        <div
+          className="flex-shrink-0 px-4 pt-3 pb-6"
+          style={{ borderTop: '0.5px solid rgba(255,255,255,0.07)' }}
+        >
           <p className="text-xs text-text-dim text-center mb-3">{t('viewOnlyHint')}</p>
-          <button onClick={close} className="btn-ghost w-full py-3 text-sm">
+          <button
+            onClick={close}
+            className="w-full py-3 text-sm font-medium text-text-secondary rounded-xl transition-colors"
+            style={{ background: 'rgba(255,255,255,0.05)', border: '0.5px solid rgba(255,255,255,0.09)' }}
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.09)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.05)' }}
+          >
             {t('close')}
           </button>
         </div>

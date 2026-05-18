@@ -59,7 +59,7 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted, onShare }
     if (!showMenu || !menuRef.current) return
     gsap.fromTo(menuRef.current,
       { scale: 0.88, opacity: 0, y: -4 },
-      { scale: 1,    opacity: 1, y: 0, duration: 0.2, ease: 'back.out(2)' }
+      { scale: 1, opacity: 1, y: 0, duration: 0.22, ease: 'back.out(2)' }
     )
   }, [showMenu])
 
@@ -100,10 +100,7 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted, onShare }
 
     const confirmed = await new Promise<boolean>(resolve => {
       if (window?.Telegram?.WebApp?.showConfirm) {
-        window.Telegram.WebApp.showConfirm(
-          `${t('delete')} "${list.title}"?`,
-          resolve
-        )
+        window.Telegram.WebApp.showConfirm(`${t('delete')} "${list.title}"?`, resolve)
       } else {
         resolve(window.confirm(`${t('delete')} "${list.title}"?`))
       }
@@ -122,10 +119,19 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted, onShare }
     onDeleted(list.id)
   }
 
-  // ── Edit mode ──────────────────────────────────────────────
+  // ── Edit mode ───────────────────────────────────────────────
   if (showEdit) {
     return (
-      <div ref={cardRef} className="card p-4 space-y-3 border border-accent/25 animate-fade-up">
+      <div
+        ref={cardRef}
+        className="p-4 space-y-3 animate-fade-up"
+        style={{
+          background:   'rgba(129,115,245,0.07)',
+          border:       '0.5px solid rgba(129,115,245,0.22)',
+          boxShadow:    'inset 0 1px 0 rgba(255,255,255,0.06)',
+          borderRadius: 24,
+        }}
+      >
         <div className="flex items-center justify-between">
           <span className="text-xs font-semibold text-text-secondary uppercase tracking-widest">
             {t('editList')}
@@ -160,12 +166,11 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted, onShare }
               <button
                 key={e}
                 onClick={() => setEmoji(e)}
-                className={cn(
-                  'w-9 h-9 rounded-xl text-lg transition-all duration-150',
-                  emoji === e
-                    ? 'bg-accent/20 ring-1 ring-accent scale-110'
-                    : 'bg-bg-hover hover:bg-bg-border'
-                )}
+                className="w-9 h-9 rounded-xl text-lg transition-all duration-150"
+                style={emoji === e
+                  ? { background: 'rgba(129,115,245,0.18)', outline: '1px solid var(--c-accent)', transform: 'scale(1.1)' }
+                  : { background: 'rgba(255,255,255,0.05)', border: '0.5px solid rgba(255,255,255,0.08)' }
+                }
               >
                 {e}
               </button>
@@ -186,13 +191,14 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted, onShare }
                   outline:       color === c ? `2px solid ${c}` : 'none',
                   outlineOffset: '2px',
                   transform:     color === c ? 'scale(1.2)' : 'scale(1)',
+                  boxShadow:     color === c ? `0 0 10px ${c}55` : 'none',
                 }}
               />
             ))}
           </div>
         </div>
 
-        <div className="h-1 rounded-full" style={{ background: color }} />
+        <div className="h-1 rounded-full" style={{ background: color, boxShadow: `0 0 8px ${color}66` }} />
 
         <button
           onClick={handleSaveEdit}
@@ -205,7 +211,7 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted, onShare }
     )
   }
 
-  // ── Normal card ────────────────────────────────────────────
+  // ── Normal card ─────────────────────────────────────────────
   const taskCount = list.task_count ?? 0
   const doneCount = list.done_count ?? 0
 
@@ -214,17 +220,24 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted, onShare }
       <div className="card-shell">
         <div
           onClick={handleCardClick}
-          className="card p-4 cursor-pointer hover:bg-bg-hover active:bg-bg-hover overflow-hidden"
+          className="card p-4 cursor-pointer overflow-hidden"
+          style={{ transition: 'background 150ms ease, transform 150ms ease' }}
+          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.07)' }}
+          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'var(--card-bg)' }}
         >
+          {/* Left color stripe */}
           <div
             className="absolute left-0 top-3 bottom-3 w-[3px] rounded-r-full"
-            style={{ background: list.color }}
+            style={{ background: list.color, boxShadow: `0 0 8px ${list.color}66` }}
           />
 
           <div className="flex items-start gap-3 pl-2">
             <div
               className="w-11 h-11 rounded-[14px] flex items-center justify-center text-xl flex-shrink-0"
-              style={{ background: `${list.color}18` }}
+              style={{
+                background: `${list.color}18`,
+                boxShadow:  `inset 0 1px 0 rgba(255,255,255,0.10)`,
+              }}
             >
               {list.emoji}
             </div>
@@ -240,10 +253,13 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted, onShare }
                   className={cn(
                     'flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-[10px]',
                     'transition-all duration-150 -mr-1',
-                    showMenu
-                      ? 'bg-bg-border text-text-secondary'
-                      : 'text-text-dim hover:bg-bg-hover hover:text-text-secondary'
                   )}
+                  style={showMenu
+                    ? { background: 'rgba(255,255,255,0.10)', color: 'var(--text-secondary)' }
+                    : { color: 'var(--text-dim)' }
+                  }
+                  onMouseEnter={e => { if (!showMenu) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.07)' }}
+                  onMouseLeave={e => { if (!showMenu) (e.currentTarget as HTMLElement).style.background = 'transparent' }}
                 >
                   <MoreVertical size={15} />
                 </button>
@@ -269,14 +285,18 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted, onShare }
               </div>
 
               {taskCount > 0 && (
-                <div className="mt-2.5 h-[3px] bg-bg-hover rounded-full overflow-hidden">
+                <div
+                  className="mt-2.5 h-[3px] rounded-full overflow-hidden"
+                  style={{ background: 'rgba(255,255,255,0.07)' }}
+                >
                   <div
                     className="h-full rounded-full transition-all duration-700"
                     style={{
                       width:      `${progress}%`,
                       background: isAllDone
-                        ? 'linear-gradient(90deg,#34D399,#10B981)'
+                        ? 'linear-gradient(90deg,#3ECF8E,#22B97A)'
                         : list.color,
+                      boxShadow:  isAllDone ? '0 0 6px rgba(62,207,142,0.40)' : `0 0 6px ${list.color}55`,
                     }}
                   />
                 </div>
@@ -286,33 +306,58 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted, onShare }
         </div>
       </div>
 
-      {/* Dropdown menu */}
+      {/* Dropdown menu — glassmorphism */}
       {showMenu && (
         <div
           ref={menuRef}
-          className="absolute right-3 top-14 z-30 bg-bg-surface border border-bg-border rounded-[14px] shadow-[0_8px_24px_rgba(0,0,0,0.5)] overflow-hidden"
-          style={{ minWidth: 152, transformOrigin: 'top right' }}
+          className="absolute right-3 top-14 z-30 overflow-hidden"
+          style={{
+            minWidth:            152,
+            transformOrigin:     'top right',
+            borderRadius:        16,
+            background:          'var(--dropdown-bg)',
+            backdropFilter:      'var(--glass-blur)',
+            WebkitBackdropFilter:'var(--glass-blur)',
+            border:              '0.5px solid var(--dropdown-border)',
+            boxShadow:           'var(--dropdown-shadow)',
+          }}
         >
+          {/* Top-edge highlight */}
+          <div
+            className="absolute top-0 left-0 right-0 h-px"
+            style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent)' }}
+          />
+
           <button
             onClick={e => { e.stopPropagation(); setShowMenu(false); setShowEdit(true) }}
-            className="flex items-center gap-2.5 px-3.5 py-2.5 text-sm font-medium w-full text-left text-text-primary hover:bg-bg-hover transition-colors"
+            className="flex items-center gap-2.5 px-3.5 py-2.5 text-sm font-medium w-full text-left text-text-primary transition-colors"
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.07)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
           >
-            <Pencil size={14} className="text-accent flex-shrink-0" />
+            <Pencil size={14} style={{ color: 'var(--c-accent)', flexShrink: 0 }} />
             {t('edit')}
           </button>
-          <div className="h-px bg-bg-border mx-2.5" />
+
+          <div className="h-px mx-2.5" style={{ background: 'rgba(255,255,255,0.07)' }} />
+
           <button
             onClick={e => { e.stopPropagation(); setShowMenu(false); onShare(list) }}
-            className="flex items-center gap-2.5 px-3.5 py-2.5 text-sm font-medium w-full text-left text-text-primary hover:bg-bg-hover transition-colors"
+            className="flex items-center gap-2.5 px-3.5 py-2.5 text-sm font-medium w-full text-left text-text-primary transition-colors"
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.07)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
           >
             <Share2 size={14} className="text-text-secondary flex-shrink-0" />
             {t('share')}
           </button>
-          <div className="h-px bg-bg-border mx-2.5" />
+
+          <div className="h-px mx-2.5" style={{ background: 'rgba(255,255,255,0.07)' }} />
+
           <button
             onClick={handleDelete}
             disabled={deleting}
-            className="flex items-center gap-2.5 px-3.5 py-2.5 text-sm font-medium w-full text-left text-danger hover:bg-danger/10 transition-colors disabled:opacity-50"
+            className="flex items-center gap-2.5 px-3.5 py-2.5 text-sm font-medium w-full text-left text-danger transition-colors disabled:opacity-50"
+            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(240,112,112,0.10)' }}
+            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
           >
             <Trash2 size={14} className="flex-shrink-0" />
             {deleting ? t('deleting') : t('delete')}
