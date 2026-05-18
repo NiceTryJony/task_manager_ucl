@@ -104,7 +104,7 @@ export function TaskAssigneesBadge({
 
         {/* Toggle chevron */}
         <button
-          onClick={() => setOpen(v => !v)}
+          onClick={e => { e.stopPropagation(); setOpen(v => !v) }}
           aria-label={open ? 'Сховати виконавців' : 'Показати виконавців'}
           className="w-5 h-5 rounded-full flex items-center justify-center transition-all duration-200 active:scale-90 flex-shrink-0"
           style={{
@@ -116,16 +116,7 @@ export function TaskAssigneesBadge({
               : '0.5px solid rgba(255,255,255,0.10)',
             touchAction: 'manipulation',
           }}
-        >
-          <ChevronDown
-            size={12}
-            style={{
-              color:     open ? 'var(--c-accent)' : 'var(--text-dim)',
-              transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
-              transition:'transform 0.22s ease',
-            }}
-          />
-        </button>
+        ></button>
       </div>
 
       {/* ── Expanded list ─────────────────────────────────────── */}
