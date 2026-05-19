@@ -6,6 +6,8 @@ import { getUserId } from '@/lib/auth'
 export async function GET(req: NextRequest) {
   // const userId = new URL(req.url).searchParams.get('userId')
   const userId = getUserId(req)
+  console.log('[lists GET] userId from header:', userId)
+  console.log('[lists GET] all headers:', Object.fromEntries(req.headers))
   if (userId == null) return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
 
   const db = createServiceClient()
