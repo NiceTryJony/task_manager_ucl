@@ -46,21 +46,45 @@ export default function HomePage() {
     init(resolvedUid)
   }, [isReady, needsIdentify, user?.id])
 
+  // useEffect(() => {
+  //   const startParam = window?.Telegram?.WebApp?.initDataUnsafe?.start_param
+  //   if (!startParam?.startsWith('task_') || !uid || loading) return
+
+  //   const taskId = startParam.replace('task_', '')
+
+  //   fetch(`/api/search?q=${taskId}&userId=${uid}`)
+  //     .then(r => r.json())
+  //     .then(data => {
+  //       const result = data.results?.[0]
+  //       if (result) {
+  //         handleSelectTask(result.list.id, result.task.id)
+  //       }
+  //     })
+  // }, [uid, loading])
+
+  
+  // В page.tsx — замени блок с startParam
   useEffect(() => {
     const startParam = window?.Telegram?.WebApp?.initDataUnsafe?.start_param
-    if (!startParam?.startsWith('task_') || !uid || loading) return
+    if (!startParam || !uid || loading) return
 
-    const taskId = startParam.replace('task_', '')
+    if (startParam.startsWith('list_')) {
+      const listId = startParam.replace('list_', '')
+      // Проверяем что у пользователя есть доступ к этому списку
+      const targetList = lists.find(l => l.id === listId)
+      if (targetList) {
+        setActiveList(listId)
+      }
+    }
 
-    fetch(`/api/search?q=${taskId}&userId=${uid}`)
-      .then(r => r.json())
-      .then(data => {
-        const result = data.results?.[0]
-        if (result) {
-          handleSelectTask(result.list.id, result.task.id)
-        }
-      })
-  }, [uid, loading])
+    // Старый формат task_ — оставляем для обратной совместимости
+    if (startParam.startsWith('task_')) {
+      const taskId = startParam.replace('task_', '')
+      setPendingTaskId(taskId)
+      // taskId нужно найти среди загруженных задач, не через search API
+      // Это сработает когда список откроется и задачи загрузятся
+    }
+  }, [uid, loading, lists])
 
   async function init(resolvedUid: number) {
     const initData = window?.Telegram?.WebApp?.initData ?? ''

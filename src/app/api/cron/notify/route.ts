@@ -2,8 +2,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 
-// ── Helpers ────────────────────────────────────────────────────
-
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
@@ -32,6 +30,7 @@ async function sendTgMessage(userId: number, html: string): Promise<boolean> {
   }
 }
 
+// Для due_soon: только unsent (задача может выйти из 24h окна и снова войти)
 async function alreadyQueued(
   db:     ReturnType<typeof createServiceClient>,
   taskId: string,
@@ -49,10 +48,24 @@ async function alreadyQueued(
   return (data?.length ?? 0) > 0
 }
 
-/**
- * Fetch all assignee user_ids for a batch of task IDs.
- * Returns Map<taskId, number[]>
- */
+// Для overdue: проверяем ВСЕ записи (sent + unsent) — задача остаётся
+// просроченной бесконечно, уведомлять нужно только один раз
+async function alreadyNotifiedOverdue(
+  db:     ReturnType<typeof createServiceClient>,
+  taskId: string,
+  userId: number
+): Promise<boolean> {
+  const { data } = await db
+    .from('notifications')
+    .select('id')
+    .eq('task_id', taskId)
+    .eq('user_id', userId)
+    .eq('type', 'overdue')
+    // Намеренно без фильтра по sent
+    .limit(1)
+  return (data?.length ?? 0) > 0
+}
+
 async function fetchAssigneesForTasks(
   db:      ReturnType<typeof createServiceClient>,
   taskIds: string[]
@@ -73,16 +86,31 @@ async function fetchAssigneesForTasks(
   return map
 }
 
-// ── GET /api/cron/notify ───────────────────────────────────────
+// Получаем list_id для задачи — нужен для deep link
+async function getTaskListId(
+  db:     ReturnType<typeof createServiceClient>,
+  taskId: string
+): Promise<string | null> {
+  const { data } = await db
+    .from('tasks')
+    .select('list_id')
+    .eq('id', taskId)
+    .single()
+  return data?.list_id ?? null
+}
+
+function buildMiniAppLink(listId: string): string {
+  // Формат: t.me/{bot_username}/{app_short_name}?startapp={payload}
+  // Замени 'ucl_maanger_bot' и 'app' на реальные значения из BotFather
+  return `https://t.me/ucl_maanger_bot/app?startapp=list_${listId}`
+}
 
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET
   const auth = req.headers.get('authorization')
 
-  if (secret) {
-    if (auth !== `Bearer ${secret}`) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  if (secret && auth !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   }
 
   const db    = createServiceClient()
@@ -96,24 +124,25 @@ export async function GET(req: NextRequest) {
     skipped_synthetic: 0,
   }
 
-  // ── 1. Tasks due in next 24 h ──────────────────────────────
+  // ── 1. Tasks due in next 24h ─────────────────────────────
   const { data: dueTasks } = await db
     .from('tasks')
-    .select('id, title, due_at, created_by')
+    .select('id, title, due_at, created_by, list_id')
     .gte('due_at', now.toISOString())
     .lte('due_at', in24h.toISOString())
     .eq('archived', false)
     .neq('status', 'done')
 
-  const dueTaskIds     = (dueTasks ?? []).map(t => t.id)
+  const dueTaskIds      = (dueTasks ?? []).map(t => t.id)
   const dueAssigneesMap = await fetchAssigneesForTasks(db, dueTaskIds)
 
   for (const task of dueTasks ?? []) {
     const assigneeIds = dueAssigneesMap.get(task.id) ?? []
     const recipients  = [...new Set([task.created_by, ...assigneeIds].filter(Boolean) as number[])]
-    const dueLabel    = new Date(task.due_at).toLocaleString('en-US', {
+    const dueLabel    = new Date(task.due_at).toLocaleString('uk-UA', {
       month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
     })
+    const link = buildMiniAppLink(task.list_id)
 
     for (const uid of recipients) {
       if (await alreadyQueued(db, task.id, uid, 'due_soon')) continue
@@ -127,17 +156,17 @@ export async function GET(req: NextRequest) {
           `📌 <b>${escapeHtml(task.title)}</b>`,
           `📅 ${dueLabel}`,
           ``,
-          `<a href="https://t.me/ucl_maanger_bot/app?startapp=task_${task.id}">Відкрити завдання →</a>`,
+          `<a href="${link}">Відкрити список →</a>`,
         ].join('\n'),
       })
       stats.queued_due++
     }
   }
 
-  // ── 2. Overdue tasks ───────────────────────────────────────
+  // ── 2. Overdue tasks ─────────────────────────────────────
   const { data: overdueTasks } = await db
     .from('tasks')
-    .select('id, title, created_by')
+    .select('id, title, created_by, list_id')
     .lt('due_at', now.toISOString())
     .not('due_at', 'is', null)
     .eq('archived', false)
@@ -149,9 +178,11 @@ export async function GET(req: NextRequest) {
   for (const task of overdueTasks ?? []) {
     const assigneeIds = overdueAssigneesMap.get(task.id) ?? []
     const recipients  = [...new Set([task.created_by, ...assigneeIds].filter(Boolean) as number[])]
+    const link = buildMiniAppLink(task.list_id)
 
     for (const uid of recipients) {
-      if (await alreadyQueued(db, task.id, uid, 'overdue')) continue
+      // Используем alreadyNotifiedOverdue — проверяем ВСЕ записи
+      if (await alreadyNotifiedOverdue(db, task.id, uid)) continue
       await db.from('notifications').insert({
         user_id: uid,
         task_id: task.id,
@@ -161,14 +192,14 @@ export async function GET(req: NextRequest) {
           ``,
           `📌 <b>${escapeHtml(task.title)}</b>`,
           ``,
-          `<a href="https://t.me/ucl_maanger_bot/app?startapp=task_${task.id}">Відкрити завдання →</a>`,
+          `<a href="${link}">Відкрити список →</a>`,
         ].join('\n'),
       })
       stats.queued_overdue++
     }
   }
 
-  // ── 3. Send pending notifications ─────────────────────────
+  // ── 3. Send pending notifications ───────────────────────
   const { data: pending } = await db
     .from('notifications')
     .select('*')
