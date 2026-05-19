@@ -1,6 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 
+// ── Helpers ────────────────────────────────────────────────────
+
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+}
+
+function mentionMsg(authorName: string, taskTitle: string): string {
+  return [
+    `💬 <b>Вас згадали у завданні</b>`,
+    ``,
+    `👤 ${authorName}`,
+    `📌 <b>${escapeHtml(taskTitle)}</b>`,
+  ].join('\n')
+}
+
+function assignedMsg(authorName: string, taskTitle: string): string {
+  return [
+    `📌 <b>Вас призначено виконавцем</b>`,
+    ``,
+    `👤 ${authorName}`,
+    `📋 <b>${escapeHtml(taskTitle)}</b>`,
+  ].join('\n')
+}
+
+function dueSoonMsg(taskTitle: string, dueAt: string): string {
+  const label = new Date(dueAt).toLocaleString('uk-UA', {
+    day:    'numeric',
+    month:  'long',
+    hour:   '2-digit',
+    minute: '2-digit',
+  })
+  return [
+    `⏰ <b>Завдання скоро завершується</b>`,
+    ``,
+    `📋 <b>${escapeHtml(taskTitle)}</b>`,
+    `📅 ${label}`,
+  ].join('\n')
+}
+
 // ── Mention helpers ────────────────────────────────────────────
 
 function extractMentions(text: string): string[] {
@@ -47,7 +86,7 @@ async function notifyMentions(
       user_id: u.id,
       task_id: opts.taskId,
       type:    'mention' as const,
-      message: `💬 ${opts.authorName} mentioned you in "${opts.taskTitle}"`,
+      message: mentionMsg(opts.authorName, opts.taskTitle),
     }))
 
   if (rows.length) await db.from('notifications').insert(rows)
@@ -55,10 +94,6 @@ async function notifyMentions(
 
 // ── Assignee helpers ───────────────────────────────────────────
 
-/**
- * Fetch assignees for an array of task IDs.
- * Returns a Map<taskId, TaskAssignee[]>
- */
 async function fetchAssigneesMap(
   db:      ReturnType<typeof createServiceClient>,
   taskIds: string[]
@@ -95,17 +130,12 @@ async function fetchAssigneesMap(
   return map
 }
 
-/**
- * Replace all assignees for a task.
- * Returns the set of newly-added user IDs (for notifications).
- */
 async function syncAssignees(
   db:          ReturnType<typeof createServiceClient>,
   taskId:      string,
   assigneeIds: number[],
   assignedBy:  number
 ): Promise<number[]> {
-  // Current assignees
   const { data: current } = await db
     .from('task_assignees')
     .select('user_id')
@@ -135,7 +165,7 @@ async function syncAssignees(
     )
   }
 
-  return toAdd // newly added → notify these
+  return toAdd
 }
 
 // ── GET ────────────────────────────────────────────────────────
@@ -170,7 +200,6 @@ export async function GET(req: NextRequest) {
   const taskList = tasks ?? []
   const taskIds  = taskList.map(t => t.id)
 
-  // Enrich subtasks with creator info
   const allSubtasks = taskList.flatMap(t => t.subtasks ?? [])
   const creatorIds  = [...new Set(allSubtasks.map((s: any) => s.created_by).filter(Boolean))]
 
@@ -181,7 +210,6 @@ export async function GET(req: NextRequest) {
     creatorsMap = new Map((creators ?? []).map(u => [u.id, u]))
   }
 
-  // Fetch multi-assignees
   const assigneesMap = await fetchAssigneesMap(db, taskIds)
 
   const enriched = taskList.map(t => ({
@@ -191,7 +219,6 @@ export async function GET(req: NextRequest) {
       creator: s.created_by ? (creatorsMap.get(s.created_by) ?? null) : null,
     })),
     assignees: assigneesMap.get(t.id) ?? [],
-    // Keep legacy field for components not yet migrated
     assigned_user: (() => {
       const list = assigneesMap.get(t.id) ?? []
       return list[0] ?? null
@@ -208,7 +235,7 @@ export async function POST(req: NextRequest) {
   const {
     listId, userId, title, description,
     priority, due_at, creator_tz,
-    assignee_ids,        // number[]
+    assignee_ids,
   } = body
 
   if (!listId || userId == null || !title) {
@@ -240,7 +267,6 @@ export async function POST(req: NextRequest) {
       creator_tz:  creator_tz ?? 'UTC',
       position:    (last?.position ?? -1) + 1,
       created_by:  userId,
-      // Keep legacy column in sync with first assignee for any old queries
       assigned_to: Array.isArray(assignee_ids) && assignee_ids.length > 0
         ? assignee_ids[0]
         : null,
@@ -249,7 +275,6 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Log creation
   try {
     await db.from('task_history').insert({
       task_id:     task.id,
@@ -259,7 +284,6 @@ export async function POST(req: NextRequest) {
     })
   } catch {}
 
-  // Insert assignees
   const ids: number[] = Array.isArray(assignee_ids) ? assignee_ids : []
   if (ids.length) {
     await db.from('task_assignees').insert(
@@ -270,7 +294,6 @@ export async function POST(req: NextRequest) {
       }))
     )
 
-    // Notify each assignee (except self)
     const { data: author } = await db
       .from('users').select('first_name').eq('id', userId).single()
 
@@ -281,25 +304,21 @@ export async function POST(req: NextRequest) {
           user_id: uid,
           task_id: task.id,
           type:    'assigned',
-          message: `📌 <b>${author?.first_name ?? 'Хтось'}</b> призначив вас виконавцем: "<b>${
-            title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-          }</b>"`,
+          message: assignedMsg(author?.first_name ?? 'Хтось', title),
         }))
       )
     }
   }
 
-  // Notify due-soon
   if (due_at) {
     await db.from('notifications').insert({
       user_id: userId,
       task_id: task.id,
       type:    'due_soon',
-      message: `⏰ Нагадування: завдання "<b>${title.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</b>" скоро завершується`,
+      message: dueSoonMsg(title, due_at),
     })
   }
 
-  // Notify mentions in description
   if (description) {
     const { data: author } = await db
       .from('users').select('first_name').eq('id', userId).single()
@@ -308,7 +327,7 @@ export async function POST(req: NextRequest) {
       taskId:     task.id,
       taskTitle:  title,
       authorId:   userId,
-      authorName: author?.first_name ?? 'Someone',
+      authorName: author?.first_name ?? 'Хтось',
     })
   }
 
@@ -340,13 +359,11 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  // Update the main task row (only non-assignee fields)
   const { data: updated, error } = await db
     .from('tasks').update(updates).eq('id', taskId).select().single()
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  // Log history for tracked fields
   const historyEntries = TRACKED_FIELDS
     .filter(f => f in updates && String(updates[f] ?? '') !== String(task[f] ?? ''))
     .map(f => ({
@@ -362,17 +379,14 @@ export async function PATCH(req: NextRequest) {
     try { await db.from('task_history').insert(historyEntries) } catch {}
   }
 
-  // ── Sync assignees ─────────────────────────────────────────
   if (Array.isArray(assignee_ids)) {
     const newlyAdded = await syncAssignees(db, taskId, assignee_ids, userId)
 
-    // Keep legacy column in sync
     await db
       .from('tasks')
       .update({ assigned_to: assignee_ids[0] ?? null })
       .eq('id', taskId)
 
-    // Notify newly added assignees (skip self)
     const toNotify = newlyAdded.filter(uid => uid !== userId)
     if (toNotify.length) {
       const { data: author } = await db
@@ -383,15 +397,12 @@ export async function PATCH(req: NextRequest) {
           user_id: uid,
           task_id: taskId,
           type:    'assigned',
-          message: `📌 <b>${author?.first_name ?? 'Хтось'}</b> призначив вас виконавцем: "<b>${
-            updated.title.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-          }</b>"`,
+          message: assignedMsg(author?.first_name ?? 'Хтось', updated.title),
         }))
       )
     }
   }
 
-  // Notify mentions on description change
   const descriptionChanged =
     'description' in updates &&
     updates.description !== task.description &&
@@ -406,7 +417,7 @@ export async function PATCH(req: NextRequest) {
       taskId:     taskId,
       taskTitle:  updated.title,
       authorId:   userId,
-      authorName: author?.first_name ?? 'Someone',
+      authorName: author?.first_name ?? 'Хтось',
     })
   }
 
@@ -437,7 +448,6 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  // task_assignees rows are deleted automatically via ON DELETE CASCADE
   const { error } = await db.from('tasks').delete().eq('id', taskId)
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
