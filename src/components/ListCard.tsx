@@ -84,7 +84,7 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted, onShare }
   async function handleSaveEdit() {
     if (!title.trim()) return
     setSaving(true)
-    const res  = await fetch('/api/lists', {
+    const res  = await apiFetch('/api/lists', {
       method:  'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ listId: list.id, userId, title: title.trim(), emoji, color }),
