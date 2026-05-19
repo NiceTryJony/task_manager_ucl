@@ -69,20 +69,27 @@ export function middleware(req: NextRequest) {
   // (после внедрения JWT это заменится)
   const { valid, userId } = initData
     ? verifyTelegramInitData(initData)
-    : { valid: false }
+    : { valid: false, userId: undefined }
 
-  if (!valid) {
-    // Временно: не блокируем, только добавляем флаг — мягкое внедрение
-    // После стабилизации заменить на 401
-    const res = NextResponse.next()
-    res.headers.set('x-auth-verified', 'false')
-    return res
-  }
+  // ← ДОБАВЬ: fallback для PIN-юзеров
+  const fallbackUserId = req.headers.get('x-user-id')
 
   const res = NextResponse.next()
-  res.headers.set('x-user-id', String(userId))
-  res.headers.set('x-auth-verified', 'true')
+  if (valid && userId) {
+    res.headers.set('x-user-id', String(userId))
+    res.headers.set('x-auth-verified', 'true')
+  } else if (fallbackUserId) {
+    res.headers.set('x-user-id', fallbackUserId)
+    res.headers.set('x-auth-verified', 'false')
+  } else {
+    res.headers.set('x-auth-verified', 'false')
+  }
   return res
+
+  // const res3 = NextResponse.next()
+  // res3.headers.set('x-user-id', String(userId))
+  // res3.headers.set('x-auth-verified', 'true')
+  // return res3
 }
 
 export const config = {

@@ -35,18 +35,26 @@ function getInitData(): string {
  * Drop-in replacement for fetch() that adds Telegram auth headers.
  */
 export async function apiFetch(
-  input:   RequestInfo | URL,
-  init?:   RequestInit
+  input: RequestInfo | URL,
+  init?: RequestInit
 ): Promise<Response> {
   const initData = getInitData()
-
   const headers = new Headers(init?.headers)
 
   if (initData) {
     headers.set('x-telegram-init-data', initData)
   }
 
-  // Always set Content-Type for JSON bodies if not already set
+  // ← ДОБАВЬ ЭТО: fallback userId из localStorage для PIN-юзеров
+  if (!headers.has('x-user-id')) {
+    const storedId = typeof window !== 'undefined'
+      ? localStorage.getItem('taskflow_user_id')
+      : null
+    if (storedId) {
+      headers.set('x-user-id', storedId)
+    }
+  }
+
   if (init?.body && !headers.has('Content-Type')) {
     headers.set('Content-Type', 'application/json')
   }
