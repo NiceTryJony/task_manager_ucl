@@ -310,14 +310,14 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  if (due_at) {
-    await db.from('notifications').insert({
-      user_id: userId,
-      task_id: task.id,
-      type:    'due_soon',
-      message: dueSoonMsg(title, due_at),
-    })
-  }
+  // if (due_at) {
+  //   await db.from('notifications').insert({
+  //     user_id: userId,
+  //     task_id: task.id,
+  //     type:    'due_soon',
+  //     message: dueSoonMsg(title, due_at),
+  //   })
+  // }
 
   if (description) {
     const { data: author } = await db

@@ -101,7 +101,11 @@ export async function POST(req: NextRequest) {
   await db.from('notifications').insert({
     user_id: invitedUserId,
     type:    'shared',
-    message: `📋 You've been invited to the list "${list?.title ?? 'Untitled'}"!`,
+    message: [
+      `📋 <b>Вас запрошено до списку завдань</b>`,
+      ``,
+      `📂 <b>${(list?.title ?? 'Без назви').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</b>`,
+    ].join('\n'),
   })
 
   return NextResponse.json({ ok: true, user: invitedUser })

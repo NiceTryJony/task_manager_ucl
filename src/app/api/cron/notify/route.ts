@@ -44,6 +44,7 @@ async function alreadyQueued(
     .eq('task_id', taskId)
     .eq('user_id', userId)
     .eq('type', type)
+    .eq('sent', false)
     .limit(1)
   return (data?.length ?? 0) > 0
 }
