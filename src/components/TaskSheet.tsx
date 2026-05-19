@@ -346,28 +346,42 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
 
         })
 
-        for (const s of subtasks) {
-          if (s.id) {
-            await apiFetch('/api/tasks/subtasks', {
-              method:  'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ subtaskId: s.id, userId, completed: s.completed }),
-            })
-          } else {
-            await apiFetch('/api/tasks/subtasks', {
-              method:  'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ taskId: task!.id, userId, title: s.title }),
-            })
-          }
-        }
+        // for (const s of subtasks) {
+        //   if (s.id) {
+        //     await apiFetch('/api/tasks/subtasks', {
+        //       method:  'PATCH',
+        //       headers: { 'Content-Type': 'application/json' },
+        //       body: JSON.stringify({ subtaskId: s.id, userId, completed: s.completed }),
+        //     })
+        //   } else {
+        //     await apiFetch('/api/tasks/subtasks', {
+        //       method:  'POST',
+        //       headers: { 'Content-Type': 'application/json' },
+        //       body: JSON.stringify({ taskId: task!.id, userId, title: s.title }),
+        //     })
+        //   }
+        // }
+
+        await Promise.all(subtasks.map(s => 
+        s.id
+            ? apiFetch('/api/tasks/subtasks', {
+                method: 'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ subtaskId: s.id, userId, completed: s.completed }),
+              })
+            : apiFetch('/api/tasks/subtasks', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ taskId: task!.id, userId, title: s.title }),
+              })
+        ))
 
         const keptIds = new Set(subtasks.filter(s => s.id).map(s => s.id))
-        for (const orig of task!.subtasks ?? []) {
-          if (!keptIds.has(orig.id)) {
-            await apiFetch(`/api/tasks/subtasks?subtaskId=${orig.id}&userId=${userId}`, { method: 'DELETE' })
-          }
-        }
+        await Promise.all(
+          (task!.subtasks ?? [])
+            .filter(orig => !keptIds.has(orig.id))
+            .map(orig => apiFetch(`/api/tasks/subtasks?subtaskId=${orig.id}&userId=${userId}`, { method: 'DELETE' }))
+        )
 
         toast.success(t('taskUpdated'))
 
@@ -389,13 +403,13 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
         const data = await res.json()
 
         if (data.task?.id && subtasks.length > 0) {
-          for (const s of subtasks) {
-            await apiFetch('/api/tasks/subtasks', {
-              method:  'POST',
+          await Promise.all(subtasks.map(s =>
+            apiFetch('/api/tasks/subtasks', {
+              method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ taskId: data.task.id, userId, title: s.title }),
             })
-          }
+          ))
         }
 
         toast.success(t('taskCreated'))

@@ -62,17 +62,69 @@ export default function HomePage() {
     }
   }, [uid, loading, lists]) // lists в зависимостях — без этого не сработает
 
-  async function init(resolvedUid: number) {
-    const initData = window?.Telegram?.WebApp?.initData ?? ''
-    await apiFetch('/api/auth', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ initData }),
-    })
+  // async function init(resolvedUid: number) {
+  //   const cached = localStorage.getItem('taskflow_lists_cache')
+  //   if (cached) {
+  //     try { setLists(JSON.parse(cached)); setLoading(false) } catch {}
+  //   }
 
-    const res  = await apiFetch(`/api/lists?userId=${resolvedUid}`)
-    const data = await res.json()
+
+  //   // const initData = window?.Telegram?.WebApp?.initData ?? ''
+  //   // await apiFetch('/api/auth', {
+  //   //   method:  'POST',
+  //   //   headers: { 'Content-Type': 'application/json' },
+  //   //   body: JSON.stringify({ initData }),
+  //   // })
+
+  //   const [_, listsRes] = await Promise.all([
+  //   apiFetch('/api/auth', {
+  //     method: 'POST',
+  //     headers: { 'Content-Type': 'application/json' },
+  //     body: JSON.stringify({ initData: window?.Telegram?.WebApp?.initData ?? '' }),
+  //   }),
+  //   apiFetch(`/api/lists?userId=${resolvedUid}`)
+  // ])
+
+  //   const res  = await apiFetch(`/api/lists?userId=${resolvedUid}`)
+  //   const data = await res.json()
+  //   setLists(data.lists ?? [])
+  //   setLoading(false)
+
+  //   requestAnimationFrame(() => {
+  //     if (headerRef.current) {
+  //       gsap.fromTo(headerRef.current,
+  //         { y: -20, opacity: 0 },
+  //         { y: 0, opacity: 1, duration: 0.5, ease: 'power3.out' }
+  //       )
+  //     }
+  //     if (listRef.current) {
+  //       const cards = listRef.current.querySelectorAll('.list-card')
+  //       gsap.fromTo(cards,
+  //         { y: 24, opacity: 0 },
+  //         { y: 0, opacity: 1, duration: 0.4, ease: 'power3.out', stagger: 0.07, delay: 0.1 }
+  //       )
+  //     }
+  //   })
+  // }
+
+  async function init(resolvedUid: number) {
+    const cached = localStorage.getItem('taskflow_lists_cache')
+    if (cached) {
+      try { setLists(JSON.parse(cached)); setLoading(false) } catch {}
+    }
+
+    const [_, listsRes] = await Promise.all([
+      apiFetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ initData: window?.Telegram?.WebApp?.initData ?? '' }),
+      }),
+      apiFetch(`/api/lists?userId=${resolvedUid}`)
+    ])
+
+    const data = await listsRes.json()
     setLists(data.lists ?? [])
+    localStorage.setItem('taskflow_lists_cache', JSON.stringify(data.lists ?? []))
     setLoading(false)
 
     requestAnimationFrame(() => {
@@ -92,18 +144,18 @@ export default function HomePage() {
     })
   }
 
-  useEffect(() => {
-    if (!uid) return
-    const channel = supabase
-      .channel('lists-realtime')
-      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'tasks' }, () => {
-        apiFetch(`/api/lists?userId=${uid}`)
-          .then(r => r.json())
-          .then(d => setLists(d.lists ?? []))
-      })
-      .subscribe()
-    return () => { supabase.removeChannel(channel) }
-  }, [uid])
+  // useEffect(() => {
+  //   if (!uid) return
+  //   const channel = supabase
+  //     .channel('lists-realtime')
+  //     .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'tasks' }, () => {
+  //       apiFetch(`/api/lists?userId=${uid}`)
+  //         .then(r => r.json())
+  //         .then(d => setLists(d.lists ?? []))
+  //     })
+  //     .subscribe()
+  //   return () => { supabase.removeChannel(channel) }
+  // }, [uid])
 
   function handleListCreated(list: TaskList) {
     setLists([list, ...lists])
