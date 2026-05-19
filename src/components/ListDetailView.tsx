@@ -324,6 +324,8 @@ export function ListDetailView({ onBack }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeListId, user])
 
+
+  
   // ────────────────────────────────────────────────────────────
   //  fetchTasks
   // ────────────────────────────────────────────────────────────
