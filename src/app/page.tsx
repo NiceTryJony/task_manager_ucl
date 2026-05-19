@@ -18,6 +18,7 @@ import type { TaskList } from '@/types'
 import { Toaster } from 'sonner'
 import { SaveBanner } from '@/components/ui/SaveBanner'
 import { useI18n } from '@/lib/i18n-context'
+import { apiFetch } from '@/lib/api-client'
 
 export default function HomePage() {
   const { user, isReady, haptic, needsIdentify, setIdentity } = useTelegram()
@@ -46,23 +47,6 @@ export default function HomePage() {
     init(resolvedUid)
   }, [isReady, needsIdentify, user?.id])
 
-  // useEffect(() => {
-  //   const startParam = window?.Telegram?.WebApp?.initDataUnsafe?.start_param
-  //   if (!startParam?.startsWith('task_') || !uid || loading) return
-
-  //   const taskId = startParam.replace('task_', '')
-
-  //   fetch(`/api/search?q=${taskId}&userId=${uid}`)
-  //     .then(r => r.json())
-  //     .then(data => {
-  //       const result = data.results?.[0]
-  //       if (result) {
-  //         handleSelectTask(result.list.id, result.task.id)
-  //       }
-  //     })
-  // }, [uid, loading])
-
-
   // В page.tsx — замени блок с startParam
   useEffect(() => {
     const startParam = window?.Telegram?.WebApp?.initDataUnsafe?.start_param
@@ -80,13 +64,13 @@ export default function HomePage() {
 
   async function init(resolvedUid: number) {
     const initData = window?.Telegram?.WebApp?.initData ?? ''
-    await fetch('/api/auth', {
+    await apiFetch('/api/auth', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ initData }),
     })
 
-    const res  = await fetch(`/api/lists?userId=${resolvedUid}`)
+    const res  = await apiFetch(`/api/lists?userId=${resolvedUid}`)
     const data = await res.json()
     setLists(data.lists ?? [])
     setLoading(false)
@@ -113,7 +97,7 @@ export default function HomePage() {
     const channel = supabase
       .channel('lists-realtime')
       .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'tasks' }, () => {
-        fetch(`/api/lists?userId=${uid}`)
+        apiFetch(`/api/lists?userId=${uid}`)
           .then(r => r.json())
           .then(d => setLists(d.lists ?? []))
       })

@@ -6,6 +6,7 @@ import { X } from 'lucide-react'
 import { LIST_COLORS, LIST_EMOJIS, cn } from '@/lib/utils'
 import type { TaskList } from '@/types'
 import { useI18n } from '@/lib/i18n-context'
+import { apiFetch } from '@/lib/api-client'
 
 interface Props {
   userId: number
@@ -38,7 +39,7 @@ export function CreateListSheet({ userId, onClose, onCreated }: Props) {
   async function handleSubmit() {
     if (!title.trim()) return
     setLoading(true)
-    const res = await fetch('/api/lists', {
+    const res = await apiFetch('/api/lists', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, title: title.trim(), emoji, color }),

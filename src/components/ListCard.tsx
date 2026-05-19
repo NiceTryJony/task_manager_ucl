@@ -6,6 +6,7 @@ import { CheckCircle2, MoreVertical, Pencil, Trash2, X, Share2 } from 'lucide-re
 import type { TaskList } from '@/types'
 import { cn, LIST_COLORS, LIST_EMOJIS } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n-context'
+import { apiFetch } from '@/lib/api-client'
 
 interface Props {
   list:      TaskList
@@ -115,7 +116,7 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted, onShare }
         duration: 0.28, ease: 'power2.in',
       })
     }
-    await fetch(`/api/lists?listId=${list.id}&userId=${userId}`, { method: 'DELETE' })
+    await apiFetch(`/api/lists?listId=${list.id}&userId=${userId}`, { method: 'DELETE' })
     onDeleted(list.id)
   }
 

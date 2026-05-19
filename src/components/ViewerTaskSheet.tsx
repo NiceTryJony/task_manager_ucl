@@ -8,6 +8,7 @@ import type { Task, Subtask } from '@/types'
 import { TaskHistoryPanel } from '@/components/TaskHistoryPanel'
 import { useI18n } from '@/lib/i18n-context'
 import { toast } from 'sonner'
+import { apiFetch } from '@/lib/api-client'
 
 interface Props {
   task:              Task
@@ -58,7 +59,7 @@ export function ViewerTaskSheet({ task, userId, onClose, onSubtaskToggled }: Pro
     setTogglingId(sub.id)
     const next = !sub.completed
     setSubtasks(prev => prev.map(s => s.id === sub.id ? { ...s, completed: next } : s))
-    const res  = await fetch('/api/tasks/subtasks', {
+    const res  = await apiFetch('/api/tasks/subtasks', {
       method:  'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ subtaskId: sub.id, userId, completed: next }),

@@ -24,6 +24,7 @@ import {
 } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { supabase } from '@/lib/supabase'
+import { apiFetch } from '@/lib/api-client'
 import { useTaskStore } from '@/lib/store'
 import { useTelegram } from '@/hooks/useTelegram'
 import { PRIORITY_CONFIG, cn } from '@/lib/utils'
@@ -179,14 +180,13 @@ export function ListDetailView({ onBack }: Props) {
   useEffect(() => {
     if (!pendingTaskId || loading) return
     const target = allTasks.find(t => t.id === pendingTaskId)
-    setPendingTaskId(null)         // consume immediately — don't re-trigger
+    setPendingTaskId(null)
     if (!target) return
     if (isViewer) {
       setViewerTask(target)
     } else {
       setActiveTask(target)
     }
-  // Intentionally watching allTasks so we retry once tasks have loaded.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingTaskId, loading, allTasks])
 
@@ -257,7 +257,7 @@ export function ListDetailView({ onBack }: Props) {
   // ────────────────────────────────────────────────────────────
   useEffect(() => {
     if (!activeListId || !user) return
-    fetch(`/api/lists/share?listId=${activeListId}&userId=${user.id}`)
+    apiFetch(`/api/lists/share?listId=${activeListId}&userId=${user.id}`)
       .then(r => r.json())
       .then(d => { if (d.myRole) setMyRole(d.myRole) })
       .catch(() => {})
@@ -340,8 +340,8 @@ export function ListDetailView({ onBack }: Props) {
 
     try {
       const [res, resA] = await Promise.all([
-        fetch(`/api/tasks?listId=${currentListId}&userId=${currentUserId}`,                   { signal: ctrl.signal }),
-        fetch(`/api/tasks?listId=${currentListId}&userId=${currentUserId}&archived=true`,     { signal: ctrl.signal }),
+        apiFetch(`/api/tasks?listId=${currentListId}&userId=${currentUserId}`,               { signal: ctrl.signal }),
+        apiFetch(`/api/tasks?listId=${currentListId}&userId=${currentUserId}&archived=true`, { signal: ctrl.signal }),
       ])
       const [data, dataA] = await Promise.all([res.json(), resA.json()])
 
@@ -411,7 +411,7 @@ export function ListDetailView({ onBack }: Props) {
     try {
       const results = await Promise.all(
         ordered.map((task, i) =>
-          fetch('/api/tasks', {
+          apiFetch('/api/tasks', {
             method:  'PATCH',
             signal,
             headers: { 'Content-Type': 'application/json' },
@@ -451,7 +451,7 @@ export function ListDetailView({ onBack }: Props) {
     updateTask(task.id, { status: next })
     if (next === 'done') haptic.success(); else haptic.medium()
     const ok = await run(() =>
-      fetch('/api/tasks', {
+      apiFetch('/api/tasks', {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ taskId: task.id, userId: user?.id ?? 0, status: next }),
@@ -470,7 +470,7 @@ export function ListDetailView({ onBack }: Props) {
     if (isPending) return
     updateTask(task.id, { archived: true }); haptic.medium()
     const ok = await run(() =>
-      fetch('/api/tasks', {
+      apiFetch('/api/tasks', {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ taskId: task.id, userId: user?.id ?? 0, archived: true }),
@@ -484,7 +484,7 @@ export function ListDetailView({ onBack }: Props) {
     if (isPending) return
     updateTask(task.id, { archived: false }); haptic.medium()
     const ok = await run(() =>
-      fetch('/api/tasks', {
+      apiFetch('/api/tasks', {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ taskId: task.id, userId: user?.id ?? 0, archived: false }),
@@ -498,7 +498,7 @@ export function ListDetailView({ onBack }: Props) {
     if (isPending) return
     removeTask(task.id, task.list_id); haptic.heavy()
     const ok = await run(() =>
-      fetch(`/api/tasks?taskId=${task.id}&userId=${user?.id ?? 0}`, { method: 'DELETE' })
+      apiFetch(`/api/tasks?taskId=${task.id}&userId=${user?.id ?? 0}`, { method: 'DELETE' })
         .then(r => { if (!r.ok) throw new Error(); return r })
     )
     if (!ok) { fetchTasks(false); toast.error(t('failedToDelete')) }
@@ -1138,7 +1138,7 @@ function TaskCard({
               {isArchived && <span className="text-xs text-text-dim">📦 {t('archived')}</span>}
             </div>
  
-            {/* Виконавці — компактні аватарки, розгортаються по кліку */}
+            {/* Assignees */}
             {(task.assignees?.length ?? 0) > 0 && (
               <div
                 className="mt-2 pt-2"
@@ -1152,7 +1152,6 @@ function TaskCard({
               </div>
             )}
           </button>
-
 
           {/* ── ⋮ Three-dots (desktop hover) ────────────────── */}
           {!isDraggingOverlay && (

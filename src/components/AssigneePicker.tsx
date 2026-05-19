@@ -5,6 +5,7 @@ import { UserCheck, X, Search } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n-context'
 import type { TaskAssignee } from '@/types'
+import { apiFetch } from '@/lib/api-client'
 
 interface Member {
   user_id: number
@@ -140,7 +141,7 @@ export function AssigneePicker({ listId, userId, assignedTo, onChange }: Props) 
     setLoading(true)
     setError(false)
 
-    fetch(`/api/lists/share?listId=${listId}&userId=${userId}`, {
+    apiFetch(`/api/lists/share?listId=${listId}&userId=${userId}`, {
       signal: abortRef.current.signal,
     })
       .then(r => r.json())

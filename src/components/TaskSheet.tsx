@@ -22,6 +22,7 @@ import { toast } from 'sonner'
 import { usePending } from '@/hooks/usePending'
 import { AssigneePicker } from '@/components/AssigneePicker'
 import { useI18n } from '@/lib/i18n-context'
+import { apiFetch } from '@/lib/api-client'
 
 interface Props {
   listId:  string
@@ -105,7 +106,7 @@ function SortableSubtaskRow({ sub, idx, userId, isEdit, onToggle, onRename, onDe
     if (!trimmed || trimmed === sub.title) return
     onRename(trimmed)
     if (sub.id && isEdit) {
-      fetch('/api/tasks/subtasks', {
+      apiFetch('/api/tasks/subtasks', {
         method:  'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ subtaskId: sub.id, userId, title: trimmed }),
@@ -298,7 +299,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
         reordered
           .filter(s => s.id)
           .map((s, i) =>
-            fetch('/api/tasks/subtasks', {
+            apiFetch('/api/tasks/subtasks', {
               method:  'PATCH',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ subtaskId: s.id, userId, position: i }),
@@ -329,7 +330,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
     setSaving(true)
     try {
       if (isEdit) {
-        await fetch('/api/tasks', {
+        await apiFetch('/api/tasks', {
           method:  'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -347,13 +348,13 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
 
         for (const s of subtasks) {
           if (s.id) {
-            await fetch('/api/tasks/subtasks', {
+            await apiFetch('/api/tasks/subtasks', {
               method:  'PATCH',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ subtaskId: s.id, userId, completed: s.completed }),
             })
           } else {
-            await fetch('/api/tasks/subtasks', {
+            await apiFetch('/api/tasks/subtasks', {
               method:  'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ taskId: task!.id, userId, title: s.title }),
@@ -364,14 +365,14 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
         const keptIds = new Set(subtasks.filter(s => s.id).map(s => s.id))
         for (const orig of task!.subtasks ?? []) {
           if (!keptIds.has(orig.id)) {
-            await fetch(`/api/tasks/subtasks?subtaskId=${orig.id}&userId=${userId}`, { method: 'DELETE' })
+            await apiFetch(`/api/tasks/subtasks?subtaskId=${orig.id}&userId=${userId}`, { method: 'DELETE' })
           }
         }
 
         toast.success(t('taskUpdated'))
 
       } else {
-        const res  = await fetch('/api/tasks', {
+        const res  = await apiFetch('/api/tasks', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -389,7 +390,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
 
         if (data.task?.id && subtasks.length > 0) {
           for (const s of subtasks) {
-            await fetch('/api/tasks/subtasks', {
+            await apiFetch('/api/tasks/subtasks', {
               method:  'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ taskId: data.task.id, userId, title: s.title }),

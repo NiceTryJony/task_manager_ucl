@@ -11,6 +11,8 @@ import { useI18n } from '@/lib/i18n-context'
 import 'driver.js/dist/driver.css'
 import { driver } from 'driver.js'
 
+import { apiFetch } from '@/lib/api-client'
+
 interface Props {
   onIdentified: (userId: number, username: string, firstName: string) => void
 }
@@ -61,7 +63,7 @@ export function UsernameModal({ onIdentified }: Props) {
     if (validateUsername(clean) !== null) { setMode(null); return }
 
     const timer = setTimeout(async () => {
-      const res  = await fetch(`/api/users/search?q=${encodeURIComponent(clean)}&userId=0`)
+      const res  = await apiFetch(`/api/users/search?q=${encodeURIComponent(clean)}&userId=0`)
       const data = await res.json()
       if (data.user) {
         setMode('existing')
@@ -155,7 +157,7 @@ export function UsernameModal({ onIdentified }: Props) {
 
     let data: any
     try {
-      const res = await fetch('/api/users/identify', {
+      const res = await apiFetch('/api/users/identify', {
         method:  'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

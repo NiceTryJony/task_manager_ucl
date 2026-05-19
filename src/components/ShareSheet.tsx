@@ -9,6 +9,7 @@ import {
 import { ExportPanel } from '@/components/ExportPanel'
 import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
+import { apiFetch } from '@/lib/api-client'
 import { useI18n } from '@/lib/i18n-context'
 
 interface Props {
@@ -106,7 +107,7 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
     setLoadingMembers(true)
     dbg(`fetchMembers → GET /api/lists/share?listId=${listId}&userId=${userId}`)
     try {
-      const res  = await fetch(`/api/lists/share?listId=${listId}&userId=${userId}`)
+      const res  = await apiFetch(`/api/lists/share?listId=${listId}&userId=${userId}`)
       const data = await res.json()
       dbg(`fetchMembers ← status=${res.status} members=${data.members?.length ?? 'null'} myRole=${data.myRole ?? 'null'} err=${data.error ?? 'none'}`)
       if (data.members) {
@@ -135,7 +136,7 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
       setSearching(true)
       dbg(`search → q="${q}"`)
       try {
-        const res  = await fetch(
+        const res  = await apiFetch(
           `/api/users/search?q=${encodeURIComponent(q)}&userId=${userId}&multi=true`
         )
         const data = await res.json()
@@ -174,7 +175,7 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
     if (!selectedUser) return
     setInviting(true); setResult(null)
     dbg(`invite → userId=${selectedUser.id} role=${role}`)
-    const res  = await fetch('/api/lists/share', {
+    const res  = await apiFetch('/api/lists/share', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ listId, ownerId: userId, invitedUserId: selectedUser.id, role }),
@@ -194,7 +195,7 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
 
   async function handleRoleChange(targetUserId: number, newRole: 'editor' | 'viewer') {
     setChangingRole(targetUserId); setOpenRoleMenu(null)
-    await fetch('/api/lists/share', {
+    await apiFetch('/api/lists/share', {
       method:  'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ listId, userId, targetUserId, role: newRole }),
@@ -206,7 +207,7 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
 
   async function handleRemove(targetUserId: number, name: string) {
     setRemovingId(targetUserId)
-    await fetch(
+    await apiFetch(
       `/api/lists/share?listId=${listId}&userId=${targetUserId}&requesterId=${userId}`,
       { method: 'DELETE' }
     )

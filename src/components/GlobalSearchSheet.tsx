@@ -6,6 +6,7 @@ import { Loader2, Search, X } from 'lucide-react'
 import { PRIORITY_CONFIG, STATUS_CONFIG, cn } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n-context'
 import type { Priority, TaskStatus } from '@/types'
+import { apiFetch } from '@/lib/api-client'
 
 interface SearchResult {
   task: {
@@ -160,7 +161,7 @@ export function GlobalSearchSheet({ userId, activeListId, onClose, onSelectTask 
       const listParam = currentTab === 'current' && activeListId
         ? `&listId=${encodeURIComponent(activeListId)}`
         : ''
-      const res  = await fetch(
+      const res  = await apiFetch(
         `/api/search?q=${encodeURIComponent(q)}&userId=${userId}${listParam}`,
         { signal: abortRef.current.signal }
       )

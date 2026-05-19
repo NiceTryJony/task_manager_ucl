@@ -19,6 +19,7 @@ import { History, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react'
 import type { TaskHistory } from '@/types'
 import { useI18n } from '@/lib/i18n-context'
 import type { TranslationKey } from '@/lib/i18n'
+import { apiFetch } from '@/lib/api-client'
 
 // ─────────────────────────────────────────────────────────────
 //  Module-level constants — zero re-creation cost
@@ -458,7 +459,7 @@ export function TaskHistoryPanel({ taskId, userId, initial = [], refetchKey }: P
     if (!silent) setLoading(true)
     else         setRefreshing(true)
     try {
-      const res  = await fetch(`/api/tasks/history?taskId=${taskId}&userId=${userId}`)
+      const res  = await apiFetch(`/api/tasks/history?taskId=${taskId}&userId=${userId}`)
       const data = await res.json()
       setEntries(data.history ?? [])
       setFetched(true)

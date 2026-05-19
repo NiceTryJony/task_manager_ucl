@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { LS_KEY_USER_ID, LS_KEY_USERNAME, LS_KEY_FIRST_NAME } from '@/hooks/useTelegram'
 import { useI18n } from '@/lib/i18n-context'
 import type { Lang } from '@/lib/i18n'
+import { apiFetch } from '@/lib/api-client'
 
 interface Props {
   userId:    number
@@ -79,7 +80,7 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
     if (!newFirstName.trim()) { setError(t('nameEmpty')); return }
 
     setSaving(true); setError(null)
-    const res  = await fetch('/api/users/identify', {
+    const res  = await apiFetch('/api/users/identify', {
       method:  'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, current_pin: currentPin.join(''), first_name: newFirstName.trim() }),
@@ -104,7 +105,7 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
     if (!pinsMatch)                     { setError(t('pinsNoMatch'));           return }
 
     setSaving(true); setError(null)
-    const res  = await fetch('/api/users/identify', {
+    const res  = await apiFetch('/api/users/identify', {
       method:  'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ userId, current_pin: currentPin.join(''), new_pin: newPinFull }),

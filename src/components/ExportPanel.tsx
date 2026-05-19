@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { cn, PRIORITY_CONFIG } from '@/lib/utils'
 import { toast } from 'sonner'
+import { apiFetch } from '@/lib/api-client'
 
 // ── Types ──────────────────────────────────────────────────────
 type ExportFormat = 'text' | 'markdown' | 'cards' | 'csv' | 'json'
@@ -90,7 +91,7 @@ export function ExportPanel({ listId, userId, listTitle }: Props) {
     setJsonData(null)
 
     try {
-      const res = await fetch(
+      const res = await apiFetch(
         `/api/export?listId=${listId}&userId=${userId}&format=${fmtCfg.apiFormat}`
       )
       if (!res.ok) { toast.error('Export failed'); return }
