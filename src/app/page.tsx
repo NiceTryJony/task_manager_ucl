@@ -62,29 +62,21 @@ export default function HomePage() {
   //     })
   // }, [uid, loading])
 
-  
+
   // В page.tsx — замени блок с startParam
   useEffect(() => {
     const startParam = window?.Telegram?.WebApp?.initDataUnsafe?.start_param
-    if (!startParam || !uid || loading) return
+    if (!startParam || !uid || loading || !lists.length) return
 
     if (startParam.startsWith('list_')) {
       const listId = startParam.replace('list_', '')
-      // Проверяем что у пользователя есть доступ к этому списку
-      const targetList = lists.find(l => l.id === listId)
-      if (targetList) {
+      const target = lists.find(l => l.id === listId)
+      if (target) {
         setActiveList(listId)
+        haptic.light()
       }
     }
-
-    // Старый формат task_ — оставляем для обратной совместимости
-    if (startParam.startsWith('task_')) {
-      const taskId = startParam.replace('task_', '')
-      setPendingTaskId(taskId)
-      // taskId нужно найти среди загруженных задач, не через search API
-      // Это сработает когда список откроется и задачи загрузятся
-    }
-  }, [uid, loading, lists])
+  }, [uid, loading, lists]) // lists в зависимостях — без этого не сработает
 
   async function init(resolvedUid: number) {
     const initData = window?.Telegram?.WebApp?.initData ?? ''
