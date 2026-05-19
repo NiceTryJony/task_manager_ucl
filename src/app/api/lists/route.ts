@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { getUserId } from '@/lib/auth'
 
 // GET /api/lists?userId=...
 export async function GET(req: NextRequest) {
-  const userId = new URL(req.url).searchParams.get('userId')
+  // const userId = new URL(req.url).searchParams.get('userId')
+  const userId = getUserId(req)
   if (userId == null) return NextResponse.json({ error: 'Missing userId' }, { status: 400 })
 
   const db = createServiceClient()
@@ -43,8 +45,9 @@ export async function GET(req: NextRequest) {
 
 // POST — create list
 export async function POST(req: NextRequest) {
-  const { userId, title, emoji, color } = await req.json()
-  if (userId == null || userId === '' || !title) return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
+  const userId = getUserId(req)
+  const { title, emoji, color } = await req.json()
+  if (userId == null || !title) return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
 
   const db = createServiceClient()
 
@@ -68,7 +71,8 @@ export async function POST(req: NextRequest) {
 
 // PATCH — update list meta
 export async function PATCH(req: NextRequest) {
-  const { listId, userId, title, emoji, color } = await req.json()
+  const userId = getUserId(req)
+  const { listId, title, emoji, color } = await req.json()
   if (!listId || userId == null) return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
 
   const db = createServiceClient()
@@ -94,7 +98,8 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const listId = searchParams.get('listId')
-  const userId = searchParams.get('userId')
+  // const userId = searchParams.get('userId')
+  const userId = getUserId(req)
   if (!listId || userId == null) return NextResponse.json({ error: 'Missing params' }, { status: 400 })
 
   const db = createServiceClient()

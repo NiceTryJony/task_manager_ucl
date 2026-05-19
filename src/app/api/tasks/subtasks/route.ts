@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { getUserId } from '@/lib/auth'
 
 // ── Helper: log an action to task_history ─────────────────────
 async function logHistory(
@@ -31,7 +32,8 @@ async function logHistory(
 
 // POST — create subtask
 export async function POST(req: NextRequest) {
-  const { taskId, userId, title } = await req.json()
+  const userId   = getUserId(req)
+  const { taskId, title } = await req.json()
   if (!taskId || userId == null || !title) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
   }
@@ -79,7 +81,8 @@ export async function POST(req: NextRequest) {
 
 // PATCH — update subtask (toggle, rename, reorder)
 export async function PATCH(req: NextRequest) {
-  const { subtaskId, userId, ...updates } = await req.json()
+  const userId   = getUserId(req)
+  const { subtaskId, ...updates } = await req.json()
   if (!subtaskId || userId == null) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
   }
@@ -159,7 +162,7 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const subtaskId = searchParams.get('subtaskId')
-  const userId    = searchParams.get('userId')
+  const userId   = getUserId(req)
   if (!subtaskId || userId == null) {
     return NextResponse.json({ error: 'Missing params' }, { status: 400 })
   }

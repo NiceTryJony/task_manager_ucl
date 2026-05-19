@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { exportTasksToText } from '@/lib/utils'
+import { getUserId } from '@/lib/auth'
 
 // ── Markdown ──────────────────────────────────────────────────
 function exportToMarkdown(title: string, tasks: any[]): string {
@@ -67,7 +68,7 @@ function exportToCSV(tasks: any[]): string {
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const listId = searchParams.get('listId')
-  const userId = searchParams.get('userId')
+  const userId   = getUserId(req)
   const format = searchParams.get('format') ?? 'text'
 
   if (!listId || userId == null) {

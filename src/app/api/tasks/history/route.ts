@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { getUserId } from '@/lib/auth'
 
 // GET /api/tasks/history?taskId=...&userId=...
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const taskId = searchParams.get('taskId')
-  const userId = searchParams.get('userId')
+  const userId   = getUserId(req)
 
   if (!taskId || !userId) {
     return NextResponse.json({ error: 'Missing params' }, { status: 400 })

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { getUserId } from '@/lib/auth'
 
 // ── Helpers ────────────────────────────────────────────────────
 
@@ -173,7 +174,8 @@ async function syncAssignees(
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const listId   = searchParams.get('listId')
-  const userId   = searchParams.get('userId')
+  // const userId   = searchParams.get('userId')
+  const userId   = getUserId(req)
   const archived = searchParams.get('archived') === 'true'
 
   if (!listId || userId == null) {
@@ -232,8 +234,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const body = await req.json()
+  const userId   = getUserId(req)
   const {
-    listId, userId, title, description,
+    listId, title, description,
     priority, due_at, creator_tz,
     assignee_ids,
   } = body
@@ -340,7 +343,8 @@ const TRACKED_FIELDS = ['title', 'description', 'priority', 'status', 'due_at', 
 
 export async function PATCH(req: NextRequest) {
   const body = await req.json()
-  const { taskId, userId, assignee_ids, ...updates } = body
+  const userId   = getUserId(req)
+  const { taskId, assignee_ids, ...updates } = body
 
   if (!taskId || userId == null) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
@@ -429,7 +433,8 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const taskId = searchParams.get('taskId')
-  const userId = searchParams.get('userId')
+  // const userId = searchParams.get('userId')
+  const userId   = getUserId(req)
 
   if (!taskId || userId == null) {
     return NextResponse.json({ error: 'Missing params' }, { status: 400 })

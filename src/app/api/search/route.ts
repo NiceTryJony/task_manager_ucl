@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { getUserId } from '@/lib/auth'
 
 // GET /api/search?q=...&userId=...&listId=... (listId optional)
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const q      = searchParams.get('q')?.trim()
-  const userId = searchParams.get('userId')
+  const userId   = getUserId(req)
   const listId = searchParams.get('listId') ?? null // optional filter
 
   if (!q || q.length < 1 || !userId) {

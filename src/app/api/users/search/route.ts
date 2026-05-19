@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { getUserId } from '@/lib/auth'
 
 // GET /api/users/search?q=...&userId=...&multi=true
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const q      = searchParams.get('q')?.trim().replace(/^@/, '')
-  const userId = searchParams.get('userId')
+  const userId   = getUserId(req)
   const multi  = searchParams.get('multi') === 'true'
 
   if (!q || userId == null) {

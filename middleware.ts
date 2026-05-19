@@ -1,6 +1,7 @@
 // middleware.ts (корень проекта)
 import { NextRequest, NextResponse } from 'next/server'
 import { createHmac } from 'crypto'
+import { rateLimit } from '@/lib/rate-limit'
 
 const PUBLIC_ROUTES = ['/api/auth', '/api/cron']
 const DEV_USER_ID  = 1 // мок для разработки
@@ -48,6 +49,11 @@ export function middleware(req: NextRequest) {
   if (PUBLIC_ROUTES.some(r => path.startsWith(r))) {
     return NextResponse.next()
   }
+
+  const ip = req.headers.get('x-forwarded-for') ?? 'unknown'
+  if (!rateLimit(ip, 120, 60_000)) {
+    return new NextResponse('Too Many Requests', { status: 429 })
+    }
 
   // Dev-режим с мок-пользователем
   if (process.env.NODE_ENV === 'development') {

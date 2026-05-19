@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
+import { getUserId } from '@/lib/auth'
 
 // GET /api/lists/share?listId=...&userId=...
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const listId  = searchParams.get('listId')
-  const userId  = searchParams.get('userId')
+  const userId   = getUserId(req)
 
   if (!listId || userId == null) {
     return NextResponse.json({ error: 'Missing params' }, { status: 400 })
@@ -141,7 +142,7 @@ export async function PATCH(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const listId      = searchParams.get('listId')
-  const userId      = searchParams.get('userId')
+  const userId   = getUserId(req)
   const requesterId = searchParams.get('requesterId')
 
   if (!listId || userId == null || !requesterId) {
@@ -154,7 +155,7 @@ export async function DELETE(req: NextRequest) {
     .from('list_members').select('role')
     .eq('list_id', listId).eq('user_id', requesterId).single()
 
-  const isSelf  = userId === requesterId
+  const isSelf = userId === Number(requesterId)
   const isOwner = requester?.role === 'owner'
 
   if (!isSelf && !isOwner) {
