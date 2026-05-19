@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
   const userId   = getUserId(req)
   const multi  = searchParams.get('multi') === 'true'
 
-  if (!q || userId == null) {
+  if (!q) {
     return NextResponse.json({ error: 'Missing params' }, { status: 400 })
   }
 
@@ -28,11 +28,16 @@ export async function GET(req: NextRequest) {
 
   // Multi mode: prefix search — returns up to 8 results
   if (multi) {
-    const { data } = await db
-      .from('users')
-      .select('id, first_name, username')
-      .ilike('username', `${q}%`)
-      .neq('id', Number(userId))
+    // const { data } = await db
+      // .from('users')
+      // .select('id, first_name, username')
+      // .ilike('username', `${q}%`)
+      //.neq('id', Number(userId))
+      let query = db.from('users').select('id, first_name, username').ilike('username', `${q}%`).limit(8)
+      if (userId !== null) {
+        query = query.neq('id', userId)
+      }
+      const { data } = await query
       .limit(8)
 
     return NextResponse.json({ users: data ?? [] })
