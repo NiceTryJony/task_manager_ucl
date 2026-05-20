@@ -9,6 +9,7 @@ import { TaskHistoryPanel } from '@/components/TaskHistoryPanel'
 import { useI18n } from '@/lib/i18n-context'
 import { toast } from 'sonner'
 import { apiFetch } from '@/lib/api-client'
+import { TaskViewers } from '@/components/TaskViewers'
 
 interface Props {
   task:              Task
@@ -282,6 +283,8 @@ export function ViewerTaskSheet({ task, userId, onClose, onSubtaskToggled }: Pro
               </div>
             </div>
           )}
+
+          <TaskViewers taskId={task.id} userId={userId} />
 
           <TaskHistoryPanel taskId={task.id} userId={userId} />
         </div>

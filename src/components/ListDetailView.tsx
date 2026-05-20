@@ -121,6 +121,7 @@ export function ListDetailView({ onBack }: Props) {
   const [contextMenu,  setContextMenu]  = useState<{ task: Task; x: number; y: number } | null>(null)
   const [isPulling,    setIsPulling]    = useState(false)
   const [viewerTask,   setViewerTask]   = useState<Task | null>(null)
+  const [viewedTaskIds, setViewedTaskIds] = useState<Set<string>>(new Set())
 
   // CSS animation flag – set true on initial load, cleared after
   const [tasksAnimClass, setTasksAnimClass] = useState(false)
@@ -418,6 +419,11 @@ export function ListDetailView({ onBack }: Props) {
       const [data, dataA] = await Promise.all([res.json(), resA.json()])
 
       setTasks(currentListId, [...(data.tasks ?? []), ...(dataA.tasks ?? [])])
+      apiFetch(`/api/tasks/views/batch?listId=${currentListId}`)
+        .then(r => r.json())
+        .then(d => setViewedTaskIds(new Set(d.viewedTaskIds ?? [])))
+        .catch(() => {})
+
       setLoading(false)
 
       // CSS animation: toggle class on list container → nth-child stagger via stylesheet
@@ -606,6 +612,8 @@ export function ListDetailView({ onBack }: Props) {
     toast.success(t('refreshed'))
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPulling, haptic, t])
+
+  
 
   // ── Stable swipe callbacks per task ──────────────────────────
   // These are the callbacks passed to SwipeableTaskCard.
@@ -849,14 +857,23 @@ export function ListDetailView({ onBack }: Props) {
                     >
                       <SortableTaskCard
                         task={task}
+                        isUnread={!viewedTaskIds.has(task.id)}
                         userId={user?.id ?? 0}
                         isViewer={isViewer}
                         isDragMode={isDragMode}
                         isDragging={draggingId === task.id}
                         onToggle={handleStatusToggle}
                         onOpen={isViewer
-                          ? () => setViewerTask(task)
-                          : () => setActiveTask(task)
+                          ? () => { setViewerTask(task); setViewedTaskIds(prev => new Set([...prev, task.id])) }
+                          : () => {
+                              setActiveTask(task)
+                              setViewedTaskIds(prev => new Set([...prev, task.id]))
+                              apiFetch('/api/tasks/views', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ taskId: task.id }),
+                              }).catch(() => {})
+                            }
                         }
                         onLongPress={(x, y) => { setContextMenu({ task, x, y }); haptic.medium() }}
                         isSwiping={isSwipingRef}
@@ -953,9 +970,10 @@ interface SortableCardProps {
   onOpen:      (task: Task) => void
   onLongPress: (x: number, y: number) => void
   isSwiping?:  React.MutableRefObject<boolean>
+  isUnread?: boolean
 }
 
-function SortableTaskCard({ task, userId, isViewer, isDragMode, isDragging, onToggle, onOpen, onLongPress, isSwiping }: SortableCardProps) {
+function SortableTaskCard({ task, userId, isViewer, isDragMode, isDragging, onToggle, onOpen, onLongPress, isSwiping, isUnread  }: SortableCardProps) {
   const { attributes, listeners, setNodeRef, transform, transition } = useSortable({
     id:       task.id,
     disabled: !isDragMode,
@@ -982,6 +1000,7 @@ function SortableTaskCard({ task, userId, isViewer, isDragMode, isDragging, onTo
         onOpen={onOpen}
         onLongPress={onLongPress}
         isSwiping={isSwiping}
+        isUnread={isUnread}
       />
     </div>
   )
@@ -1045,12 +1064,13 @@ interface CardProps {
   onOpen:             (task: Task) => void
   onLongPress:        (x: number, y: number) => void
   isSwiping?:         React.MutableRefObject<boolean>
+  isUnread?: boolean
 }
 
 const TaskCard = memo(function TaskCard({
   task, userId, isViewer, isDragMode, isDraggingOverlay,
   dragListeners, dragAttributes,
-  onToggle, onOpen, onLongPress, isSwiping,
+  onToggle, onOpen, onLongPress, isSwiping, isUnread 
 }: CardProps) {
   const { t } = useI18n()
 
@@ -1120,6 +1140,16 @@ const TaskCard = memo(function TaskCard({
 
   return (
     <div className="card-shell group">
+
+      {isUnread && !isDone && !isArchived && (
+        <div
+          className="absolute top-2.5 right-2.5 z-10 w-2 h-2 rounded-full pointer-events-none"
+          style={{
+            background: 'var(--c-accent)',
+            boxShadow:  '0 0 6px rgba(129,115,245,0.8)',
+          }}
+        />
+      )}
       <div className={cn('card flex items-start overflow-hidden', isDone && 'opacity-55', isArchived && 'opacity-40')}>
 
         {/* Priority stripe */}
