@@ -7,11 +7,11 @@ import { cn } from '@/lib/utils'
 import { toast } from 'sonner'
 import { LS_KEY_USER_ID, LS_KEY_USERNAME, LS_KEY_FIRST_NAME } from '@/hooks/useTelegram'
 import { useI18n } from '@/lib/i18n-context'
-
-import 'driver.js/dist/driver.css'
-import { driver } from 'driver.js'
-
 import { apiFetch } from '@/lib/api-client'
+
+// driver.js CSS is NOT imported here anymore — was adding ~12KB to every
+// user's initial paint. We inject it lazily only when the tour fires.
+// import 'driver.js/dist/driver.css'  ← REMOVED
 
 interface Props {
   onIdentified: (userId: number, username: string, firstName: string) => void
@@ -49,6 +49,7 @@ export function UsernameModal({ onIdentified }: Props) {
     return null
   }
 
+  // ── Entrance animation ────────────────────────────────────────
   useEffect(() => {
     gsap.fromTo(overlayRef.current, { opacity: 0 }, { opacity: 1, duration: 0.25 })
     gsap.fromTo(modalRef.current,
@@ -58,6 +59,7 @@ export function UsernameModal({ onIdentified }: Props) {
     setTimeout(() => fnRef.current?.focus(), 350)
   }, [])
 
+  // ── Username lookup ──────────────────────────────────────────
   useEffect(() => {
     const clean = username.trim().replace(/^@/, '').toLowerCase()
     if (validateUsername(clean) !== null) { setMode(null); return }
@@ -76,9 +78,26 @@ export function UsernameModal({ onIdentified }: Props) {
     return () => clearTimeout(timer)
   }, [username])
 
+  // ── Onboarding tour — lazy-loaded ────────────────────────────
+  // driver.js (~55KB gzipped) is dynamically imported only for first-time
+  // users, after a delay, so it never blocks the initial paint.
   useEffect(() => {
     if (localStorage.getItem('taskflow_onboarding_done')) return
-    const timer = setTimeout(() => {
+
+    const timer = setTimeout(async () => {
+      // Inject driver.js CSS lazily — one <link> tag, cached by browser
+      if (!document.getElementById('driver-css')) {
+        const link  = document.createElement('link')
+        link.id     = 'driver-css'
+        link.rel    = 'stylesheet'
+        link.href   = 'https://cdn.jsdelivr.net/npm/driver.js@1/dist/driver.css'
+        document.head.appendChild(link)
+      }
+
+      // Dynamic import — webpack splits this into a separate chunk (~55KB)
+      // loaded only when we actually need it.
+      const { driver } = await import('driver.js')
+
       const driverObj = driver({
         showProgress: false,
         allowClose: true,
@@ -99,7 +118,7 @@ export function UsernameModal({ onIdentified }: Props) {
             element: '[data-onboard="username"]',
             popover: {
               title: '🔖 Нікнейм',
-              description: 'Унікальне ім\'я для входу в акаунт і для того щоб інші могли запросити тебе до свого списку через @нікнейм.',
+              description: "Унікальне ім'я для входу в акаунт і для того щоб інші могли запросити тебе до свого списку через @нікнейм.",
               side: 'bottom',
               align: 'start',
             },
@@ -108,7 +127,7 @@ export function UsernameModal({ onIdentified }: Props) {
             element: '[data-onboard="pin"]',
             popover: {
               title: '🔐 PIN-код',
-              description: 'Захищає твій акаунт на нових пристроях. Запам\'ятай його — без PIN не увійдеш.',
+              description: "Захищає твій акаунт на нових пристроях. Запам'ятай його — без PIN не увійдеш.",
               side: 'top',
               align: 'center',
             },
@@ -124,6 +143,7 @@ export function UsernameModal({ onIdentified }: Props) {
     return () => clearTimeout(timer)
   }, [])
 
+  // ── Derived state ────────────────────────────────────────────
   const cleanUn   = username.trim().replace(/^@/, '')
   const pinFull   = pin.join('')
   const isFnOk    = firstName.trim().length >= 1
@@ -210,7 +230,6 @@ export function UsernameModal({ onIdentified }: Props) {
     mode === 'new'      ? t('choosePinProtect') :
                           t('enterNameUsername')
 
-  // PIN input style
   const pinInputStyle = (digit: string, hasError: boolean): React.CSSProperties => ({
     background:  hasError ? 'rgba(240,112,112,0.08)' : digit ? 'rgba(129,115,245,0.10)' : 'rgba(255,255,255,0.05)',
     border:      `1.5px solid ${hasError ? 'rgba(240,112,112,0.50)' : digit ? 'var(--c-accent)' : 'rgba(255,255,255,0.12)'}`,
@@ -232,7 +251,6 @@ export function UsernameModal({ onIdentified }: Props) {
         ref={modalRef}
         className="relative w-full max-w-sm p-6"
         style={{
-          // ── glassmorphism modal ─────────────────────────
           background:          'var(--sheet-bg)',
           backdropFilter:      'var(--glass-blur)',
           WebkitBackdropFilter:'var(--glass-blur)',
@@ -241,13 +259,13 @@ export function UsernameModal({ onIdentified }: Props) {
           boxShadow:           'inset 0 1px 0 rgba(255,255,255,0.09), 0 32px 80px rgba(0,0,0,0.55)',
         }}
       >
-        {/* Top-edge highlight */}
         <div
           className="absolute top-0 left-8 right-8 h-px"
           style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.14), transparent)' }}
         />
 
-        <div className="w-14 h-14 rounded-2xl flex items-center justify-center mb-5 mx-auto animate-float"
+        <div
+          className="w-14 h-14 rounded-2xl flex items-center justify-center mb-5 mx-auto animate-float"
           style={{ background: 'rgba(129,115,245,0.12)', border: '0.5px solid rgba(129,115,245,0.22)' }}
         >
           <User size={26} className="text-accent" />

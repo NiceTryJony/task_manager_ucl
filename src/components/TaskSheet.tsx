@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { gsap } from 'gsap'
 import {
   X, Plus, Clock, Calendar, AlignLeft, Flag,
@@ -114,24 +114,11 @@ function SortableSubtaskRow({ sub, idx, userId, isEdit, onToggle, onRename, onDe
     }
   }
 
-  function cancelEdit() {
-    setEditing(false)
-    setDraft(sub.title)
-  }
+  function cancelEdit() { setEditing(false); setDraft(sub.title) }
 
   const rowStyle: React.CSSProperties = isDragging
-    ? {
-        background:  'rgba(129,115,245,0.10)',
-        border:      '0.5px solid rgba(129,115,245,0.30)',
-        boxShadow:   '0 4px 20px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.08)',
-        borderRadius: 14,
-      }
-    : {
-        background:  'rgba(255,255,255,0.04)',
-        border:      '0.5px solid rgba(255,255,255,0.08)',
-        boxShadow:   'inset 0 1px 0 rgba(255,255,255,0.05)',
-        borderRadius: 14,
-      }
+    ? { background: 'rgba(129,115,245,0.10)', border: '0.5px solid rgba(129,115,245,0.30)', boxShadow: '0 4px 20px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.08)', borderRadius: 14 }
+    : { background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.08)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)', borderRadius: 14 }
 
   return (
     <div ref={setNodeRef} style={style}>
@@ -151,10 +138,7 @@ function SortableSubtaskRow({ sub, idx, userId, isEdit, onToggle, onRename, onDe
 
         <button
           onClick={onToggle}
-          className={cn(
-            'custom-checkbox flex-shrink-0 transition-all duration-200',
-            sub.completed ? 'checked' : 'unchecked'
-          )}
+          className={cn('custom-checkbox flex-shrink-0 transition-all duration-200', sub.completed ? 'checked' : 'unchecked')}
           style={{ touchAction: 'manipulation' }}
         >
           {sub.completed && (
@@ -228,19 +212,16 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
   const { t } = useI18n()
   const isEdit = !!task
 
-  const [title,       setTitle]       = useState(task?.title ?? '')
-  const [description, setDescription] = useState(task?.description ?? '')
-  const [priority,    setPriority]    = useState<Priority>(task?.priority ?? 'medium')
-  const [dueDate,     setDueDate]     = useState('')
-  const [dueTime,     setDueTime]     = useState('')
-  const [assignedTo, setAssignedTo] = useState<number[]>(task?.assignees?.map(a => a.id) ?? (task?.assigned_to ? [task.assigned_to] : []))
-  const [subtasks,    setSubtasks]    = useState<LocalSubtask[]>(
-    task?.subtasks?.map(s => ({
-      id:        s.id,
-      title:     s.title,
-      completed: s.completed,
-      creator:   s.creator ?? null,
-    })) ?? []
+  const [title,      setTitle]      = useState(task?.title ?? '')
+  const [description,setDescription]= useState(task?.description ?? '')
+  const [priority,   setPriority]   = useState<Priority>(task?.priority ?? 'medium')
+  const [dueDate,    setDueDate]     = useState('')
+  const [dueTime,    setDueTime]     = useState('')
+  const [assignedTo, setAssignedTo] = useState<number[]>(
+    task?.assignees?.map(a => a.id) ?? (task?.assigned_to ? [task.assigned_to] : [])
+  )
+  const [subtasks, setSubtasks] = useState<LocalSubtask[]>(
+    task?.subtasks?.map(s => ({ id: s.id, title: s.title, completed: s.completed, creator: s.creator ?? null })) ?? []
   )
   const [newSubtask, setNewSubtask] = useState('')
   const [saving,     setSaving]     = useState(false)
@@ -252,10 +233,12 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
   const titleRef   = useRef<HTMLInputElement>(null)
   const subtaskRef = useRef<HTMLInputElement>(null)
 
+  // Stable ref for userId — avoids stale closures in callbacks
+  const userIdRef = useRef(userId)
+  useEffect(() => { userIdRef.current = userId }, [userId])
+
   const sensors = useSensors(
-    useSensor(TouchSensor, {
-      activationConstraint: { delay: 250, tolerance: 8 },
-    })
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } })
   )
 
   useEffect(() => {
@@ -274,10 +257,11 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
     if (!isEdit) setTimeout(() => titleRef.current?.focus(), 350)
   }, [])
 
-  function close() {
+  // close is stable — used by overlay onClick
+  const close = useCallback(() => {
     gsap.to(sheetRef.current,   { y: '100%', duration: 0.24, ease: 'power3.in' })
     gsap.to(overlayRef.current, { opacity: 0, duration: 0.2, onComplete: onClose })
-  }
+  }, [onClose])
 
   function buildDueAt(): string | null {
     if (!dueDate) return null
@@ -285,57 +269,62 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
     return new Date(s).toISOString()
   }
 
-  async function handleSubtaskDragEnd(event: DragEndEvent) {
+  // Subtask drag — useCallback so DndContext doesn't recreate on each render
+  const handleSubtaskDragEnd = useCallback(async (event: DragEndEvent) => {
     const { active, over } = event
     if (!over || active.id === over.id) return
 
-    const oldIdx    = subtasks.findIndex((s, i) => (s.id ?? `new-${i}`) === active.id)
-    const newIdx    = subtasks.findIndex((s, i) => (s.id ?? `new-${i}`) === over.id)
-    const reordered = arrayMove(subtasks, oldIdx, newIdx)
-    setSubtasks(reordered)
+    setSubtasks(prev => {
+      const oldIdx    = prev.findIndex((s, i) => (s.id ?? `new-${i}`) === active.id)
+      const newIdx    = prev.findIndex((s, i) => (s.id ?? `new-${i}`) === over.id)
+      const reordered = arrayMove(prev, oldIdx, newIdx)
 
-    if (isEdit) {
-      await Promise.all(
-        reordered
-          .filter(s => s.id)
-          .map((s, i) =>
-            apiFetch('/api/tasks/subtasks', {
-              method:  'PATCH',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ subtaskId: s.id, userId, position: i }),
-            })
-          )
-      ).catch(() => {})
-    }
-  }
+      // Fire-and-forget reorder — all in parallel
+      if (isEdit) {
+        Promise.all(
+          reordered
+            .filter(s => s.id)
+            .map((s, i) =>
+              apiFetch('/api/tasks/subtasks', {
+                method:  'PATCH',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ subtaskId: s.id, userId: userIdRef.current, position: i }),
+              })
+            )
+        ).catch(() => {})
+      }
 
-  function addSubtaskLocal() {
+      return reordered
+    })
+  }, [isEdit])
+
+  const addSubtaskLocal = useCallback(() => {
     const trimmed = newSubtask.trim()
     if (!trimmed) return
     setSubtasks(prev => [...prev, { title: trimmed, completed: false }])
     setNewSubtask('')
     subtaskRef.current?.focus()
-  }
+  }, [newSubtask])
 
-  async function handleSave() {
+  // ── handleSave ────────────────────────────────────────────────
+  // All subtask API calls are batched with Promise.all — no sequential awaits.
+  const handleSave = useCallback(async () => {
     if (!title.trim()) {
       titleRef.current?.focus()
-      gsap.fromTo(titleRef.current,
-        { x: -6 },
-        { x: 0, duration: 0.3, ease: 'elastic.out(1,0.3)' }
-      )
+      gsap.fromTo(titleRef.current, { x: -6 }, { x: 0, duration: 0.3, ease: 'elastic.out(1,0.3)' })
       return
     }
 
     setSaving(true)
     try {
       if (isEdit) {
+        // 1. Update main task fields
         await apiFetch('/api/tasks', {
           method:  'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             taskId:       task!.id,
-            userId,
+            userId:       userIdRef.current,
             title:        title.trim(),
             description,
             priority,
@@ -343,55 +332,44 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
             creator_tz:   getUserTimezone(),
             assignee_ids: assignedTo,
           }),
-
         })
 
-        // for (const s of subtasks) {
-        //   if (s.id) {
-        //     await apiFetch('/api/tasks/subtasks', {
-        //       method:  'PATCH',
-        //       headers: { 'Content-Type': 'application/json' },
-        //       body: JSON.stringify({ subtaskId: s.id, userId, completed: s.completed }),
-        //     })
-        //   } else {
-        //     await apiFetch('/api/tasks/subtasks', {
-        //       method:  'POST',
-        //       headers: { 'Content-Type': 'application/json' },
-        //       body: JSON.stringify({ taskId: task!.id, userId, title: s.title }),
-        //     })
-        //   }
-        // }
-
-        await Promise.all(subtasks.map(s => 
-        s.id
+        // 2. Upsert all subtasks in parallel — no sequential awaits
+        await Promise.all(subtasks.map(s =>
+          s.id
             ? apiFetch('/api/tasks/subtasks', {
-                method: 'PATCH',
+                method:  'PATCH',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ subtaskId: s.id, userId, completed: s.completed }),
+                body: JSON.stringify({ subtaskId: s.id, userId: userIdRef.current, completed: s.completed }),
               })
             : apiFetch('/api/tasks/subtasks', {
-                method: 'POST',
+                method:  'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ taskId: task!.id, userId, title: s.title }),
+                body: JSON.stringify({ taskId: task!.id, userId: userIdRef.current, title: s.title }),
               })
         ))
 
+        // 3. Delete removed subtasks in parallel
         const keptIds = new Set(subtasks.filter(s => s.id).map(s => s.id))
-        await Promise.all(
-          (task!.subtasks ?? [])
-            .filter(orig => !keptIds.has(orig.id))
-            .map(orig => apiFetch(`/api/tasks/subtasks?subtaskId=${orig.id}&userId=${userId}`, { method: 'DELETE' }))
-        )
+        const toDelete = (task!.subtasks ?? []).filter(orig => !keptIds.has(orig.id))
+        if (toDelete.length) {
+          await Promise.all(
+            toDelete.map(orig =>
+              apiFetch(`/api/tasks/subtasks?subtaskId=${orig.id}&userId=${userIdRef.current}`, { method: 'DELETE' })
+            )
+          )
+        }
 
         toast.success(t('taskUpdated'))
 
       } else {
+        // Create task
         const res  = await apiFetch('/api/tasks', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             listId,
-            userId,
+            userId:       userIdRef.current,
             title:        title.trim(),
             description,
             priority,
@@ -402,12 +380,13 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
         })
         const data = await res.json()
 
+        // Create all subtasks in parallel
         if (data.task?.id && subtasks.length > 0) {
           await Promise.all(subtasks.map(s =>
             apiFetch('/api/tasks/subtasks', {
-              method: 'POST',
+              method:  'POST',
               headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ taskId: data.task.id, userId, title: s.title }),
+              body: JSON.stringify({ taskId: data.task.id, userId: userIdRef.current, title: s.title }),
             })
           ))
         }
@@ -418,12 +397,11 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
       toast.error(t('failedToSave'))
       setSaving(false)
       return
-    } finally {
-      setSaving(false)
     }
 
+    setSaving(false)
     onSaved()
-  }
+  }, [title, description, priority, assignedTo, subtasks, isEdit, task, listId, buildDueAt, t, onSaved])
 
   const subDone    = subtasks.filter(s => s.completed).length
   const subTotal   = subtasks.length
@@ -434,8 +412,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
   const creatorTz     = task?.creator_tz ?? 'UTC'
   const showDualTime  = isEdit && existingDueAt && creatorTz !== viewerTz
 
-  // Section label style
-  const sectionLabel = "flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-widest"
+  const sectionLabel = 'flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-widest'
 
   return (
     <div className="fixed inset-0 z-50 flex items-end">
@@ -454,7 +431,6 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
           boxShadow:           'var(--glass-shadow)',
         }}
       >
-        {/* Top shimmer */}
         <div
           className="absolute top-0 left-12 right-12 h-px pointer-events-none"
           style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.14), transparent)' }}
@@ -506,21 +482,22 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
             touchAction:             'pan-y',
           }}
         >
-          {/* Saving overlay */}
+          {/*
+            Saving indicator — inline pill instead of fixed overlay.
+            The old approach used position:fixed + backdropFilter which created
+            a new compositing layer and triggered layout recalculation for every
+            keystroke while saving was true.
+            This pill sits in normal document flow — zero compositor cost.
+          */}
           {saving && (
-            <div
-              className="fixed inset-0 z-[60] flex items-center justify-center pointer-events-auto"
-              style={{ background: 'rgba(14,16,26,0.65)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}
-            >
-              <div className="flex flex-col items-center gap-3">
-                <div
-                  className="w-8 h-8 rounded-full border-2"
-                  style={{ borderColor: 'rgba(129,115,245,0.25)', borderTopColor: 'var(--c-accent)', animation: 'spin 0.7s linear infinite' }}
-                />
-                <p className="text-sm text-text-secondary font-medium">
-                  {isEdit ? t('savingChanges') : t('creatingTaskStr')}
-                </p>
-              </div>
+            <div className="flex items-center justify-center gap-2 py-2 animate-fade-up">
+              <div
+                className="w-4 h-4 rounded-full border-2 flex-shrink-0"
+                style={{ borderColor: 'rgba(129,115,245,0.25)', borderTopColor: 'var(--c-accent)', animation: 'spin 0.7s linear infinite' }}
+              />
+              <span className="text-sm text-text-secondary">
+                {isEdit ? t('savingChanges') : t('creatingTaskStr')}
+              </span>
             </div>
           )}
 
@@ -550,7 +527,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
 
           {/* Notes */}
           <div>
-            <label className={cn(sectionLabel, "mb-2")}>
+            <label className={cn(sectionLabel, 'mb-2')}>
               <AlignLeft size={12} /> {t('notes')}
               <span className="text-text-dim font-normal normal-case tracking-normal ml-1">{t('notesOptional')}</span>
             </label>
@@ -566,7 +543,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
 
           {/* Priority */}
           <div>
-            <label className={cn(sectionLabel, "mb-2.5")}>
+            <label className={cn(sectionLabel, 'mb-2.5')}>
               <Flag size={12} /> {t('priority')}
             </label>
             <div className="grid grid-cols-4 gap-2">
@@ -579,18 +556,8 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
                     onClick={() => setPriority(p)}
                     className="flex flex-col items-center gap-1 py-2.5 px-1 rounded-[14px] transition-all duration-150 text-xs font-semibold"
                     style={active
-                      ? {
-                          color:      cfg.color.replace('text-', ''),
-                          background: 'rgba(129,115,245,0.10)',
-                          border:     '0.5px solid rgba(129,115,245,0.30)',
-                          boxShadow:  'inset 0 1px 0 rgba(255,255,255,0.07)',
-                          transform:  'scale(1.03)',
-                        }
-                      : {
-                          background: 'rgba(255,255,255,0.04)',
-                          border:     '0.5px solid rgba(255,255,255,0.08)',
-                          color:      'var(--text-secondary)',
-                        }
+                      ? { background: 'rgba(129,115,245,0.10)', border: '0.5px solid rgba(129,115,245,0.30)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07)', transform: 'scale(1.03)' }
+                      : { background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }
                     }
                     onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.07)' }}
                     onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)' }}
@@ -605,7 +572,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
 
           {/* Due date */}
           <div>
-            <label className={cn(sectionLabel, "mb-2.5")}>
+            <label className={cn(sectionLabel, 'mb-2.5')}>
               <Calendar size={12} /> {t('dueDateTime')}
             </label>
             <div className="flex gap-2">
@@ -652,29 +619,16 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
             {showDualTime && (
               <div
                 className="mt-2 p-3 space-y-2"
-                style={{
-                  background:   'rgba(255,255,255,0.04)',
-                  border:       '0.5px solid rgba(255,255,255,0.08)',
-                  boxShadow:    'inset 0 1px 0 rgba(255,255,255,0.05)',
-                  borderRadius: 14,
-                }}
+                style={{ background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.08)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)', borderRadius: 14 }}
               >
                 <div className="flex justify-between items-center text-xs">
-                  <span className="text-text-secondary">
-                    🗓 Creator · {creatorTz.split('/').pop()?.replace('_', ' ')}
-                  </span>
-                  <span className="font-medium text-text-primary">
-                    {formatInTz(existingDueAt!, creatorTz)}
-                  </span>
+                  <span className="text-text-secondary">🗓 Creator · {creatorTz.split('/').pop()?.replace('_', ' ')}</span>
+                  <span className="font-medium text-text-primary">{formatInTz(existingDueAt!, creatorTz)}</span>
                 </div>
                 <div className="h-px" style={{ background: 'rgba(255,255,255,0.07)' }} />
                 <div className="flex justify-between items-center text-xs">
-                  <span style={{ color: 'var(--c-accent)' }}>
-                    📍 {viewerTz.split('/').pop()?.replace('_', ' ')}
-                  </span>
-                  <span className="font-medium" style={{ color: 'var(--c-accent)' }}>
-                    {formatInTz(existingDueAt!, viewerTz)}
-                  </span>
+                  <span style={{ color: 'var(--c-accent)' }}>📍 {viewerTz.split('/').pop()?.replace('_', ' ')}</span>
+                  <span className="font-medium" style={{ color: 'var(--c-accent)' }}>{formatInTz(existingDueAt!, viewerTz)}</span>
                 </div>
               </div>
             )}
@@ -709,13 +663,9 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
                 <div
                   className="h-full rounded-full transition-all duration-500"
                   style={{
-                    width:      `${subPct}%`,
-                    background: subPct === 100
-                      ? 'linear-gradient(90deg,#3ECF8E,#22B97A)'
-                      : 'var(--c-accent)',
-                    boxShadow:  subPct === 100
-                      ? '0 0 6px rgba(62,207,142,0.40)'
-                      : '0 0 6px rgba(129,115,245,0.35)',
+                    width:     `${subPct}%`,
+                    background: subPct === 100 ? 'linear-gradient(90deg,#3ECF8E,#22B97A)' : 'var(--c-accent)',
+                    boxShadow:  subPct === 100 ? '0 0 6px rgba(62,207,142,0.40)' : '0 0 6px rgba(129,115,245,0.35)',
                   }}
                 />
               </div>
@@ -736,19 +686,9 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
                         idx={idx}
                         userId={userId}
                         isEdit={isEdit}
-                        onToggle={() =>
-                          setSubtasks(prev =>
-                            prev.map((s, i) => i === idx ? { ...s, completed: !s.completed } : s)
-                          )
-                        }
-                        onRename={newTitle =>
-                          setSubtasks(prev =>
-                            prev.map((s, i) => i === idx ? { ...s, title: newTitle } : s)
-                          )
-                        }
-                        onDelete={() =>
-                          setSubtasks(prev => prev.filter((_, i) => i !== idx))
-                        }
+                        onToggle={() => setSubtasks(prev => prev.map((s, i) => i === idx ? { ...s, completed: !s.completed } : s))}
+                        onRename={newTitle => setSubtasks(prev => prev.map((s, i) => i === idx ? { ...s, title: newTitle } : s))}
+                        onDelete={() => setSubtasks(prev => prev.filter((_, i) => i !== idx))}
                       />
                     ))}
                   </div>
@@ -761,9 +701,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
                 ref={subtaskRef}
                 value={newSubtask}
                 onChange={e => setNewSubtask(e.target.value)}
-                onKeyDown={e => {
-                  if (e.key === 'Enter') { e.preventDefault(); addSubtaskLocal() }
-                }}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSubtaskLocal() } }}
                 placeholder={t('addSubtask')}
                 className="input-field text-sm py-2 flex-1"
               />
@@ -771,20 +709,14 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
                 onClick={addSubtaskLocal}
                 disabled={!newSubtask.trim()}
                 className="w-10 h-10 flex items-center justify-center rounded-[12px] disabled:opacity-35 flex-shrink-0 transition-all active:scale-95"
-                style={{
-                  background:   'var(--c-accent)',
-                  touchAction:  'manipulation',
-                }}
+                style={{ background: 'var(--c-accent)', touchAction: 'manipulation' }}
               >
                 <Plus size={18} className="text-white" strokeWidth={2.5} />
               </button>
             </div>
           </div>
 
-          {/* Edit History */}
-          {isEdit && (
-            <TaskHistoryPanel taskId={task!.id} userId={userId} />
-          )}
+          {isEdit && <TaskHistoryPanel taskId={task!.id} userId={userId} />}
         </div>
 
         {/* Footer */}

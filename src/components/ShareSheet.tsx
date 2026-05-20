@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useReducer, useCallback } from 'react'
 import { gsap } from 'gsap'
 import {
   X, UserPlus, Check, AlertCircle, Search, Loader2,
@@ -36,6 +36,60 @@ interface FoundUser {
   username?:  string
 }
 
+// ── useReducer replaces 12 useState declarations ─────────────
+// Grouping related state prevents partial-update bugs and reduces
+// the number of re-renders when multiple fields change together.
+
+interface InviteState {
+  query:        string
+  suggestions:  FoundUser[]
+  selectedUser: FoundUser | null
+  role:         'editor' | 'viewer'
+  searching:    boolean
+  inviting:     boolean
+  showSuggest:  boolean
+  result:       { ok: boolean; message: string } | null
+}
+
+type InviteAction =
+  | { type: 'SET_QUERY'; query: string }
+  | { type: 'SET_SUGGESTIONS'; suggestions: FoundUser[]; show: boolean }
+  | { type: 'SET_SEARCHING'; value: boolean }
+  | { type: 'SELECT_USER'; user: FoundUser }
+  | { type: 'CLEAR_SELECTION' }
+  | { type: 'SET_ROLE'; role: 'editor' | 'viewer' }
+  | { type: 'SET_INVITING'; value: boolean }
+  | { type: 'SET_RESULT'; result: { ok: boolean; message: string } | null }
+
+const inviteInitial: InviteState = {
+  query: '', suggestions: [], selectedUser: null,
+  role: 'editor', searching: false, inviting: false,
+  showSuggest: false, result: null,
+}
+
+function inviteReducer(state: InviteState, action: InviteAction): InviteState {
+  switch (action.type) {
+    case 'SET_QUERY':
+      return { ...state, query: action.query, selectedUser: null, result: null }
+    case 'SET_SUGGESTIONS':
+      return { ...state, suggestions: action.suggestions, showSuggest: action.show, searching: false }
+    case 'SET_SEARCHING':
+      return { ...state, searching: action.value }
+    case 'SELECT_USER':
+      return { ...state, selectedUser: action.user, query: `@${action.user.username ?? action.user.id}`, showSuggest: false, suggestions: [] }
+    case 'CLEAR_SELECTION':
+      return { ...state, selectedUser: null, query: '', suggestions: [], result: null, showSuggest: false }
+    case 'SET_ROLE':
+      return { ...state, role: action.role }
+    case 'SET_INVITING':
+      return { ...state, inviting: action.value }
+    case 'SET_RESULT':
+      return { ...state, result: action.result }
+    default:
+      return state
+  }
+}
+
 function useRoleConfig() {
   const { t } = useI18n()
   return {
@@ -45,7 +99,6 @@ function useRoleConfig() {
   }
 }
 
-// ── Reusable glass section divider ──────────────────────────
 function SectionDivider({ label }: { label: string }) {
   return (
     <div className="flex items-center gap-3">
@@ -63,22 +116,24 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
   const [members,        setMembers]        = useState<Member[]>([])
   const [myRole,         setMyRole]         = useState<'owner' | 'editor' | 'viewer'>('viewer')
   const [loadingMembers, setLoadingMembers] = useState(true)
+  const [changingRole,   setChangingRole]   = useState<number | null>(null)
+  const [removingId,     setRemovingId]     = useState<number | null>(null)
+  const [openRoleMenu,   setOpenRoleMenu]   = useState<number | null>(null)
+  const [showDebug,      setShowDebug]      = useState(false)
+  const [debugLines,     setDebugLines]     = useState<string[]>([])
 
-  const [query,        setQuery]        = useState('')
-  const [suggestions,  setSuggestions]  = useState<FoundUser[]>([])
-  const [selectedUser, setSelectedUser] = useState<FoundUser | null>(null)
-  const [role,         setRole]         = useState<'editor' | 'viewer'>('editor')
-  const [searching,    setSearching]    = useState(false)
-  const [inviting,     setInviting]     = useState(false)
-  const [showSuggest,  setShowSuggest]  = useState(false)
-  const [result,       setResult]       = useState<{ ok: boolean; message: string } | null>(null)
+  // All invite-related state in one reducer
+  const [invite, dispatch] = useReducer(inviteReducer, inviteInitial)
 
-  const [changingRole, setChangingRole] = useState<number | null>(null)
-  const [removingId,   setRemovingId]   = useState<number | null>(null)
-  const [openRoleMenu, setOpenRoleMenu] = useState<number | null>(null)
+  const sheetRef      = useRef<HTMLDivElement>(null)
+  const overlayRef    = useRef<HTMLDivElement>(null)
+  const searchRef     = useRef<HTMLInputElement>(null)
 
-  const [showDebug,  setShowDebug]  = useState(false)
-  const [debugLines, setDebugLines] = useState<string[]>([])
+  // AbortController for the member fetch
+  const memberAbortRef  = useRef<AbortController>()
+  // AbortController for search — prevents race conditions
+  const searchAbortRef  = useRef<AbortController>()
+  const searchDebounce  = useRef<ReturnType<typeof setTimeout>>()
 
   function dbg(msg: string) {
     const line = `[${new Date().toLocaleTimeString()}] ${msg}`
@@ -86,16 +141,20 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
     setDebugLines(prev => [...prev.slice(-19), line])
   }
 
-  const sheetRef      = useRef<HTMLDivElement>(null)
-  const overlayRef    = useRef<HTMLDivElement>(null)
-  const searchRef     = useRef<HTMLInputElement>(null)
-  const searchTimeout = useRef<ReturnType<typeof setTimeout>>()
-
+  // ── Animations ───────────────────────────────────────────────
   useEffect(() => {
     gsap.fromTo(overlayRef.current, { opacity: 0 }, { opacity: 1, duration: 0.2 })
-    gsap.fromTo(sheetRef.current, { y: '100%' }, { y: 0, duration: 0.35, ease: 'power3.out' })
+    gsap.fromTo(sheetRef.current,   { y: '100%' }, { y: 0, duration: 0.35, ease: 'power3.out' })
     dbg(`Init: listId=${listId} userId=${userId}`)
     fetchMembers()
+
+    return () => {
+      // Cancel any in-flight requests on unmount
+      memberAbortRef.current?.abort()
+      searchAbortRef.current?.abort()
+      clearTimeout(searchDebounce.current)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   function close() {
@@ -103,11 +162,17 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
     gsap.to(overlayRef.current, { opacity: 0, duration: 0.2, onComplete: onClose })
   }
 
-  async function fetchMembers() {
+  // ── fetchMembers with AbortController ────────────────────────
+  const fetchMembers = useCallback(async () => {
+    memberAbortRef.current?.abort()
+    memberAbortRef.current = new AbortController()
     setLoadingMembers(true)
     dbg(`fetchMembers → GET /api/lists/share?listId=${listId}&userId=${userId}`)
     try {
-      const res  = await apiFetch(`/api/lists/share?listId=${listId}&userId=${userId}`)
+      const res  = await apiFetch(
+        `/api/lists/share?listId=${listId}&userId=${userId}`,
+        { signal: memberAbortRef.current.signal }
+      )
       const data = await res.json()
       dbg(`fetchMembers ← status=${res.status} members=${data.members?.length ?? 'null'} myRole=${data.myRole ?? 'null'} err=${data.error ?? 'none'}`)
       if (data.members) {
@@ -115,81 +180,100 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
         setMyRole(data.myRole)
       }
     } catch (e: any) {
-      dbg(`fetchMembers ERROR: ${e?.message}`)
+      if (e.name !== 'AbortError') dbg(`fetchMembers ERROR: ${e?.message}`)
     }
     setLoadingMembers(false)
-  }
+  }, [listId, userId])
 
+  // ── Debounced search with AbortController ─────────────────────
+  // AbortController cancels stale in-flight requests → no race conditions.
   useEffect(() => {
-    clearTimeout(searchTimeout.current)
-    if (selectedUser) return
-    setResult(null)
+    if (invite.selectedUser) return
 
-    const q = query.trim().replace(/^@/, '')
+    clearTimeout(searchDebounce.current)
+    dispatch({ type: 'SET_RESULT', result: null })
+
+    const q = invite.query.trim().replace(/^@/, '')
     if (!q || q.length < 1) {
-      setSuggestions([])
-      setShowSuggest(false)
+      dispatch({ type: 'SET_SUGGESTIONS', suggestions: [], show: false })
       return
     }
 
-    searchTimeout.current = setTimeout(async () => {
-      setSearching(true)
+    searchDebounce.current = setTimeout(async () => {
+      // Cancel previous in-flight search
+      searchAbortRef.current?.abort()
+      searchAbortRef.current = new AbortController()
+
+      dispatch({ type: 'SET_SEARCHING', value: true })
       dbg(`search → q="${q}"`)
+
       try {
         const res  = await apiFetch(
-          `/api/users/search?q=${encodeURIComponent(q)}&userId=${userId}&multi=true`
+          `/api/users/search?q=${encodeURIComponent(q)}&userId=${userId}&multi=true`,
+          { signal: searchAbortRef.current.signal }
         )
         const data = await res.json()
         dbg(`search ← status=${res.status} users=${data.users?.length ?? 0}`)
+
         const memberIds = new Set(members.map(m => m.user_id))
         const filtered  = (data.users ?? []).filter((u: FoundUser) => !memberIds.has(u.id))
-        setSuggestions(filtered)
-        setShowSuggest(filtered.length > 0)
-        if (filtered.length === 0) dbg(`search: no results for "${q}"`)
+
+        dispatch({ type: 'SET_SUGGESTIONS', suggestions: filtered, show: filtered.length > 0 })
+        if (!filtered.length) dbg(`search: no results for "${q}"`)
       } catch (e: any) {
-        dbg(`search ERROR: ${e?.message}`)
+        if (e.name !== 'AbortError') {
+          dbg(`search ERROR: ${e?.message}`)
+          dispatch({ type: 'SET_SUGGESTIONS', suggestions: [], show: false })
+        }
       }
-      setSearching(false)
     }, 400)
 
-    return () => clearTimeout(searchTimeout.current)
-  }, [query, members, selectedUser])
+    return () => clearTimeout(searchDebounce.current)
+  }, [invite.query, invite.selectedUser, members, userId])
 
   function selectUser(u: FoundUser) {
     dbg(`selectUser: ${u.first_name} (@${u.username}) id=${u.id}`)
-    setSelectedUser(u)
-    setQuery(`@${u.username ?? u.id}`)
-    setShowSuggest(false)
-    setSuggestions([])
+    dispatch({ type: 'SELECT_USER', user: u })
   }
 
   function clearSelection() {
-    setSelectedUser(null)
-    setQuery('')
-    setSuggestions([])
-    setResult(null)
+    dispatch({ type: 'CLEAR_SELECTION' })
     setTimeout(() => searchRef.current?.focus(), 50)
   }
 
   async function handleInvite() {
-    if (!selectedUser) return
-    setInviting(true); setResult(null)
-    dbg(`invite → userId=${selectedUser.id} role=${role}`)
+    if (!invite.selectedUser) return
+    dispatch({ type: 'SET_INVITING', value: true })
+    dispatch({ type: 'SET_RESULT', result: null })
+    dbg(`invite → userId=${invite.selectedUser.id} role=${invite.role}`)
+
     const res  = await apiFetch('/api/lists/share', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ listId, ownerId: userId, invitedUserId: selectedUser.id, role }),
+      body: JSON.stringify({
+        listId,
+        ownerId:       userId,
+        invitedUserId: invite.selectedUser.id,
+        role:          invite.role,
+      }),
     })
     const data = await res.json()
     dbg(`invite ← status=${res.status} ok=${data.ok} err=${data.error ?? 'none'}`)
-    setInviting(false)
+    dispatch({ type: 'SET_INVITING', value: false })
+
     if (data.ok) {
-      toast.success(`${selectedUser.first_name} ${t('invited')}!`)
-      setResult({ ok: true, message: `${selectedUser.first_name} — ${role === 'editor' ? t('roleEditor') : t('roleViewer')}` })
+      toast.success(`${invite.selectedUser.first_name} ${t('invited')}!`)
+      dispatch({
+        type: 'SET_RESULT',
+        result: {
+          ok:      true,
+          message: `${invite.selectedUser.first_name} — ${invite.role === 'editor' ? t('roleEditor') : t('roleViewer')}`,
+        },
+      })
       clearSelection()
       fetchMembers()
     } else {
-      setResult({ ok: false, message: data.error ?? t('failedToSave') })
+      dispatch({ type: 'SET_RESULT', result: { ok: false, message: data.error ?? t('failedToSave') } })
     }
   }
 
@@ -216,24 +300,16 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
     toast.success(`${name} ${t('removed')}`)
   }
 
-  const canManage  = myRole === 'owner' || myRole === 'editor'
+  const canManage   = myRole === 'owner' || myRole === 'editor'
   const memberCount = members.length
 
-  // Reusable inline styles
   const glassRow: React.CSSProperties = {
-    background:   'rgba(255,255,255,0.04)',
-    border:       '0.5px solid rgba(255,255,255,0.08)',
-    boxShadow:    'inset 0 1px 0 rgba(255,255,255,0.05)',
-    borderRadius: 18,
-    padding:      '12px 14px',
+    background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.08)',
+    boxShadow:  'inset 0 1px 0 rgba(255,255,255,0.05)', borderRadius: 18, padding: '12px 14px',
   }
-
   const glassRowMe: React.CSSProperties = {
-    background:   'rgba(129,115,245,0.07)',
-    border:       '0.5px solid rgba(129,115,245,0.20)',
-    boxShadow:    'inset 0 1px 0 rgba(255,255,255,0.06)',
-    borderRadius: 18,
-    padding:      '12px 14px',
+    background: 'rgba(129,115,245,0.07)', border: '0.5px solid rgba(129,115,245,0.20)',
+    boxShadow:  'inset 0 1px 0 rgba(255,255,255,0.06)', borderRadius: 18, padding: '12px 14px',
   }
 
   return (
@@ -252,7 +328,6 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
           boxShadow:           'var(--glass-shadow)',
         }}
       >
-        {/* Top shimmer */}
         <div
           className="absolute top-0 left-12 right-12 h-px pointer-events-none"
           style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.14), transparent)' }}
@@ -289,10 +364,7 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
           {showDebug && (
             <div
               className="rounded-2xl p-3 space-y-1"
-              style={{
-                background: 'rgba(10,10,20,0.85)',
-                border:     '0.5px solid rgba(245,166,35,0.20)',
-              }}
+              style={{ background: 'rgba(10,10,20,0.85)', border: '0.5px solid rgba(245,166,35,0.20)' }}
             >
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-semibold text-amber uppercase tracking-widest">Debug Log</p>
@@ -308,8 +380,8 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
                 <p className="text-[10px] font-mono text-text-dim">listId: {listId}</p>
                 <p className="text-[10px] font-mono text-text-dim">userId: {userId}</p>
                 <p className="text-[10px] font-mono text-text-dim">myRole: {myRole}</p>
-                <p className="text-[10px] font-mono text-text-dim">suggestions: {suggestions.length}</p>
-                <p className="text-[10px] font-mono text-text-dim">selected: {selectedUser ? `${selectedUser.first_name} (${selectedUser.id})` : 'none'}</p>
+                <p className="text-[10px] font-mono text-text-dim">suggestions: {invite.suggestions.length}</p>
+                <p className="text-[10px] font-mono text-text-dim">selected: {invite.selectedUser ? `${invite.selectedUser.first_name} (${invite.selectedUser.id})` : 'none'}</p>
               </div>
             </div>
           )}
@@ -338,12 +410,11 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
             ) : (
               <div className="space-y-2">
                 {members.map(m => {
-                  const cfg  = ROLE_CONFIG[m.role]
-                  const isMe = m.user_id === userId
-                  const isOwn= m.role === 'owner'
+                  const cfg   = ROLE_CONFIG[m.role]
+                  const isMe  = m.user_id === userId
+                  const isOwn = m.role === 'owner'
                   return (
                     <div key={m.user_id} className="flex items-center gap-3" style={isMe ? glassRowMe : glassRow}>
-                      {/* Avatar */}
                       <div
                         className="w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold flex-shrink-0"
                         style={isMe
@@ -371,7 +442,6 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
                         )}
                       </div>
 
-                      {/* Role badge / dropdown */}
                       <div className="relative flex-shrink-0">
                         {!isOwn && myRole === 'owner' ? (
                           <button
@@ -393,13 +463,11 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
                           </span>
                         )}
 
-                        {/* Role dropdown */}
                         {openRoleMenu === m.user_id && (
                           <div
                             className="absolute right-0 top-full mt-1 z-20 overflow-hidden"
                             style={{
-                              minWidth:            130,
-                              borderRadius:        14,
+                              minWidth: 130, borderRadius: 14,
                               background:          'var(--dropdown-bg)',
                               backdropFilter:      'var(--glass-blur)',
                               WebkitBackdropFilter:'var(--glass-blur)',
@@ -435,7 +503,6 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
                           onClick={() => handleRemove(m.user_id, m.users.first_name)}
                           disabled={removingId === m.user_id}
                           className="w-7 h-7 flex items-center justify-center rounded-lg text-text-dim hover:text-danger transition-all flex-shrink-0"
-                          style={{ background: 'transparent' }}
                           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(240,112,112,0.10)' }}
                           onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
                         >
@@ -457,28 +524,24 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
               <div className="space-y-3">
                 <div className="relative">
                   <div className="absolute left-3.5 top-1/2 -translate-y-1/2 z-10 pointer-events-none">
-                    {searching
+                    {invite.searching
                       ? <Loader2 size={15} className="animate-spin" style={{ color: 'var(--c-accent)' }} />
                       : <Search size={15} style={{ color: 'var(--text-dim)' }} />}
                   </div>
                   <input
                     ref={searchRef}
-                    value={query}
-                    onChange={e => { setQuery(e.target.value); setSelectedUser(null) }}
+                    value={invite.query}
+                    onChange={e => dispatch({ type: 'SET_QUERY', query: e.target.value })}
                     placeholder={t('typeUsername')}
                     className="input-field pl-10 pr-9 text-sm"
-                    style={selectedUser
+                    style={invite.selectedUser
                       ? { borderColor: 'rgba(129,115,245,0.40)', background: 'rgba(129,115,245,0.06)' }
                       : {}
                     }
-                    autoComplete="off"
-                    autoCorrect="off"
-                    autoCapitalize="none"
-                    spellCheck={false}
-                    data-form-type="other"
-                    type="search"
+                    autoComplete="off" autoCorrect="off" autoCapitalize="none"
+                    spellCheck={false} data-form-type="other" type="search"
                   />
-                  {query && (
+                  {invite.query && (
                     <button onClick={clearSelection} className="absolute right-3 top-1/2 -translate-y-1/2 z-10 text-text-dim hover:text-text-secondary">
                       <X size={14} />
                     </button>
@@ -486,11 +549,11 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
                 </div>
 
                 {/* Suggestions dropdown */}
-                {showSuggest && suggestions.length > 0 && (
+                {invite.showSuggest && invite.suggestions.length > 0 && (
                   <div
                     className="overflow-hidden"
                     style={{
-                      borderRadius:        16,
+                      borderRadius: 16,
                       background:          'var(--dropdown-bg)',
                       backdropFilter:      'var(--glass-blur)',
                       WebkitBackdropFilter:'var(--glass-blur)',
@@ -498,13 +561,10 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
                       boxShadow:           'var(--dropdown-shadow)',
                     }}
                   >
-                    <p
-                      className="text-[10px] px-3 pt-2 pb-1 uppercase tracking-widest font-semibold"
-                      style={{ color: 'var(--text-dim)' }}
-                    >
+                    <p className="text-[10px] px-3 pt-2 pb-1 uppercase tracking-widest font-semibold" style={{ color: 'var(--text-dim)' }}>
                       {t('foundInDatabase')}
                     </p>
-                    {suggestions.map((u, i) => (
+                    {invite.suggestions.map((u, i) => (
                       <button
                         key={u.id}
                         onPointerDown={e => { e.preventDefault(); selectUser(u) }}
@@ -529,7 +589,7 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
                 )}
 
                 {/* Not found */}
-                {!searching && query.trim().replace(/^@/, '').length >= 2 && suggestions.length === 0 && !selectedUser && (
+                {!invite.searching && invite.query.trim().replace(/^@/, '').length >= 2 && invite.suggestions.length === 0 && !invite.selectedUser && (
                   <div
                     className="flex items-center gap-2 p-3 rounded-xl"
                     style={{ background: 'rgba(245,166,35,0.07)', border: '0.5px solid rgba(245,166,35,0.18)' }}
@@ -540,24 +600,20 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
                 )}
 
                 {/* Selected user */}
-                {selectedUser && (
+                {invite.selectedUser && (
                   <div
                     className="flex items-center gap-3 px-3.5 py-3 rounded-2xl"
-                    style={{
-                      background: 'rgba(129,115,245,0.08)',
-                      border:     '0.5px solid rgba(129,115,245,0.22)',
-                      boxShadow:  'inset 0 1px 0 rgba(255,255,255,0.06)',
-                    }}
+                    style={{ background: 'rgba(129,115,245,0.08)', border: '0.5px solid rgba(129,115,245,0.22)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)' }}
                   >
                     <div
                       className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-sm flex-shrink-0"
                       style={{ background: 'rgba(129,115,245,0.18)', color: 'var(--c-accent)' }}
                     >
-                      {selectedUser.first_name[0]?.toUpperCase()}
+                      {invite.selectedUser.first_name[0]?.toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium">{selectedUser.first_name}</p>
-                      {selectedUser.username && <p className="text-xs text-text-dim font-mono">@{selectedUser.username}</p>}
+                      <p className="text-sm font-medium">{invite.selectedUser.first_name}</p>
+                      {invite.selectedUser.username && <p className="text-xs text-text-dim font-mono">@{invite.selectedUser.username}</p>}
                     </div>
                     <Check size={15} className="text-emerald flex-shrink-0" />
                   </div>
@@ -566,12 +622,12 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
                 {/* Role selector */}
                 <div className="flex gap-2">
                   {(['editor', 'viewer'] as const).map(r => {
-                    const rc = ROLE_CONFIG[r]
-                    const active = role === r
+                    const rc     = ROLE_CONFIG[r]
+                    const active = invite.role === r
                     return (
                       <button
                         key={r}
-                        onClick={() => setRole(r)}
+                        onClick={() => dispatch({ type: 'SET_ROLE', role: r })}
                         className="flex-1 py-2.5 rounded-xl text-sm font-medium transition-all flex items-center justify-center gap-1.5"
                         style={active
                           ? { background: rc.bg, color: rc.accent, border: `0.5px solid ${rc.accent}44`, boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.06)' }
@@ -586,36 +642,37 @@ export function ShareSheet({ listId, listTitle, userId, onClose }: Props) {
                 </div>
 
                 {/* Result feedback */}
-                {result && (
+                {invite.result && (
                   <div
                     className="flex items-center gap-2 p-3 rounded-xl text-sm"
-                    style={result.ok
-                      ? { background: 'rgba(62,207,142,0.08)', border: '0.5px solid rgba(62,207,142,0.22)', color: 'var(--c-emerald)' }
-                      : { background: 'rgba(240,112,112,0.08)', border: '0.5px solid rgba(240,112,112,0.22)', color: 'var(--c-danger)'  }
+                    style={invite.result.ok
+                      ? { background: 'rgba(62,207,142,0.08)',   border: '0.5px solid rgba(62,207,142,0.22)',  color: 'var(--c-emerald)' }
+                      : { background: 'rgba(240,112,112,0.08)',  border: '0.5px solid rgba(240,112,112,0.22)', color: 'var(--c-danger)'  }
                     }
                   >
-                    {result.ok ? <Check size={15} /> : <AlertCircle size={15} />}
-                    {result.message}
+                    {invite.result.ok ? <Check size={15} /> : <AlertCircle size={15} />}
+                    {invite.result.message}
                   </div>
                 )}
 
                 <button
                   onClick={handleInvite}
-                  disabled={!selectedUser || inviting}
+                  disabled={!invite.selectedUser || invite.inviting}
                   className="btn-primary w-full py-3.5 flex items-center justify-center gap-2 disabled:opacity-35"
                 >
-                  {inviting ? <Loader2 size={17} className="animate-spin" /> : <UserPlus size={17} />}
-                  {inviting ? t('inviting') : selectedUser ? `${t('inviteBtn')} ${selectedUser.first_name}` : t('selectUserFirst')}
+                  {invite.inviting ? <Loader2 size={17} className="animate-spin" /> : <UserPlus size={17} />}
+                  {invite.inviting
+                    ? t('inviting')
+                    : invite.selectedUser
+                      ? `${t('inviteBtn')} ${invite.selectedUser.first_name}`
+                      : t('selectUserFirst')
+                  }
                 </button>
               </div>
             </>
           )}
 
-          <ExportPanel
-            listId={listId}
-            userId={userId}
-            listTitle={listTitle}
-          />
+          <ExportPanel listId={listId} userId={userId} listTitle={listTitle} />
         </div>
       </div>
     </div>
