@@ -6,12 +6,12 @@ import { cn } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n-context'
 
 interface Props {
-  children:        React.ReactNode
-  onSwipeRight:    () => void
-  onSwipeLeft:     () => void
-  onSwipeStart?:   () => void
-  onSwipeEnd?:     () => void
-  disabled?:       boolean
+  children:          React.ReactNode
+  onSwipeRight:      () => void
+  onSwipeLeft:       () => void
+  onSwipeStart?:     () => void
+  onSwipeEnd?:       () => void
+  disabled?:         boolean
   isDraggingGlobal?: boolean
 }
 
@@ -21,14 +21,6 @@ const MAX_OFFSET       = 120
 const RETURN_DURATION  = '0.35s'
 const FLY_DURATION     = '0.28s'
 
-// React.memo — prevents re-render when parent ListDetailView state changes
-// (isPulling, showSearch, contextMenu, etc.) as long as the task itself
-// and the swipe callbacks haven't changed.
-//
-// The parent already wraps onSwipeRight/onSwipeLeft in stable closures
-// (they close over `task` which is a stable list item reference from the store).
-// onSwipeStart / onSwipeEnd come from isSwipingRef mutations — those are
-// already stable arrow functions defined inline in ListDetailView.
 export const SwipeableTaskCard = memo(function SwipeableTaskCard({
   children,
   onSwipeRight,
@@ -40,12 +32,12 @@ export const SwipeableTaskCard = memo(function SwipeableTaskCard({
 }: Props) {
   const { t } = useI18n()
 
-  const containerRef  = useRef<HTMLDivElement>(null)
-  const cardRef       = useRef<HTMLDivElement>(null)
-  const startXRef     = useRef(0)
-  const startTimeRef  = useRef(0)
-  const currentXRef   = useRef(0)
-  const trackingRef   = useRef(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const cardRef      = useRef<HTMLDivElement>(null)
+  const startXRef    = useRef(0)
+  const startTimeRef = useRef(0)
+  const currentXRef  = useRef(0)
+  const trackingRef  = useRef(false)
 
   const [offset,    setOffset]    = useState(0)
   const [triggered, setTriggered] = useState(false)
@@ -63,10 +55,6 @@ export const SwipeableTaskCard = memo(function SwipeableTaskCard({
   const bgColor   = isRight
     ? `rgba(62, 207, 142, ${bgOpacity})`
     : `rgba(245, 166, 35, ${bgOpacity})`
-
-  // All touch handlers wrapped in useCallback so the functions are stable
-  // across parent re-renders (memo comparison would fail otherwise since
-  // every render would create new inline arrow functions).
 
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     if (disabled) return
@@ -147,7 +135,6 @@ export const SwipeableTaskCard = memo(function SwipeableTaskCard({
       )}
       style={{ touchAction: 'pan-y' }}
     >
-      {/* Background hint */}
       {showHint && !flying && !isDraggingGlobal && (
         <div
           className="absolute inset-0 rounded-[23.25px] flex items-center transition-all duration-75"
@@ -185,7 +172,6 @@ export const SwipeableTaskCard = memo(function SwipeableTaskCard({
         </div>
       )}
 
-      {/* Card */}
       <div
         ref={cardRef}
         onTouchStart={onTouchStart}

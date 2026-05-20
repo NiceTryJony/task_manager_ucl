@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback, memo, lazy, Suspense } from 'react'
 import { gsap } from 'gsap'
 import {
   X, Plus, Clock, Calendar, AlignLeft, Flag,
@@ -17,12 +17,16 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { PRIORITY_CONFIG, cn } from '@/lib/utils'
 import type { Priority, Task } from '@/types'
-import { TaskHistoryPanel } from '@/components/TaskHistoryPanel'
 import { toast } from 'sonner'
 import { usePending } from '@/hooks/usePending'
 import { AssigneePicker } from '@/components/AssigneePicker'
 import { useI18n } from '@/lib/i18n-context'
 import { apiFetch } from '@/lib/api-client'
+
+// ── Lazy-load TaskHistoryPanel — не нужен при открытии ────────
+const TaskHistoryPanel = lazy(() =>
+  import('@/components/TaskHistoryPanel').then(m => ({ default: m.TaskHistoryPanel }))
+)
 
 interface Props {
   listId:  string
@@ -61,19 +65,23 @@ function formatInTz(isoStr: string, tz: string) {
   } catch { return isoStr }
 }
 
-// ── Sortable subtask row ──────────────────────────────────────
+// ── SortableSubtaskRow — вынесен и memo-изирован ──────────────
+// Принимает только примитивы и стабильные коллбэки →
+// не ре-рендерится при изменении title/description в родителе
 
 interface SubtaskRowProps {
   sub:      LocalSubtask
   idx:      number
   userId:   number
   isEdit:   boolean
-  onToggle: () => void
-  onRename: (newTitle: string) => void
-  onDelete: () => void
+  onToggle: (idx: number) => void
+  onRename: (idx: number, newTitle: string) => void
+  onDelete: (idx: number) => void
 }
 
-function SortableSubtaskRow({ sub, idx, userId, isEdit, onToggle, onRename, onDelete }: SubtaskRowProps) {
+const SortableSubtaskRow = memo(function SortableSubtaskRow({
+  sub, idx, userId, isEdit, onToggle, onRename, onDelete,
+}: SubtaskRowProps) {
   const nodeId = sub.id ?? `new-${idx}`
 
   const [editing, setEditing] = useState(false)
@@ -104,7 +112,7 @@ function SortableSubtaskRow({ sub, idx, userId, isEdit, onToggle, onRename, onDe
     const trimmed = draft.trim()
     setEditing(false)
     if (!trimmed || trimmed === sub.title) return
-    onRename(trimmed)
+    onRename(idx, trimmed)
     if (sub.id && isEdit) {
       apiFetch('/api/tasks/subtasks', {
         method:  'PATCH',
@@ -137,7 +145,7 @@ function SortableSubtaskRow({ sub, idx, userId, isEdit, onToggle, onRename, onDe
         </button>
 
         <button
-          onClick={onToggle}
+          onClick={() => onToggle(idx)}
           className={cn('custom-checkbox flex-shrink-0 transition-all duration-200', sub.completed ? 'checked' : 'unchecked')}
           style={{ touchAction: 'manipulation' }}
         >
@@ -193,7 +201,7 @@ function SortableSubtaskRow({ sub, idx, userId, isEdit, onToggle, onRename, onDe
         </div>
 
         <button
-          onClick={onDelete}
+          onClick={() => onDelete(idx)}
           className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-text-dim transition-all duration-150 active:scale-90"
           style={{ touchAction: 'manipulation' }}
           onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(240,112,112,0.10)'; (e.currentTarget as HTMLElement).style.color = 'var(--c-danger)' }}
@@ -204,7 +212,116 @@ function SortableSubtaskRow({ sub, idx, userId, isEdit, onToggle, onRename, onDe
       </div>
     </div>
   )
+})
+
+// ── SubtasksList — изолированный компонент для DnD ────────────
+// Вынесен из TaskSheet чтобы DndContext не пересоздавался
+// при изменении title/description/newSubtask в родителе
+
+interface SubtasksListProps {
+  subtasks: LocalSubtask[]
+  userId:   number
+  isEdit:   boolean
+  onToggle: (idx: number) => void
+  onRename: (idx: number, title: string) => void
+  onDelete: (idx: number) => void
+  onReorder:(subtasks: LocalSubtask[]) => void
 }
+
+const SubtasksList = memo(function SubtasksList({
+  subtasks, userId, isEdit, onToggle, onRename, onDelete, onReorder,
+}: SubtasksListProps) {
+  const sensors = useSensors(
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } })
+  )
+
+  const subtaskIds = subtasks.map((s, i) => s.id ?? `new-${i}`)
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const oldIdx = subtasks.findIndex((s, i) => (s.id ?? `new-${i}`) === active.id)
+    const newIdx = subtasks.findIndex((s, i) => (s.id ?? `new-${i}`) === over.id)
+    const reordered = arrayMove(subtasks, oldIdx, newIdx)
+
+    onReorder(reordered)
+
+    if (isEdit) {
+      Promise.all(
+        reordered
+          .filter(s => s.id)
+          .map((s, i) =>
+            apiFetch('/api/tasks/subtasks', {
+              method:  'PATCH',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ subtaskId: s.id, userId, position: i }),
+            })
+          )
+      ).catch(() => {})
+    }
+  }
+
+  return (
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragEnd={handleDragEnd}
+    >
+      <SortableContext items={subtaskIds} strategy={verticalListSortingStrategy}>
+        <div className="space-y-1.5">
+          {subtasks.map((sub, idx) => (
+            <SortableSubtaskRow
+              key={sub.id ?? `new-${idx}`}
+              sub={sub}
+              idx={idx}
+              userId={userId}
+              isEdit={isEdit}
+              onToggle={onToggle}
+              onRename={onRename}
+              onDelete={onDelete}
+            />
+          ))}
+        </div>
+      </SortableContext>
+    </DndContext>
+  )
+})
+
+// ── PriorityPicker — изолирован чтобы не ре-рендерить при тайпинге
+const PriorityPicker = memo(function PriorityPicker({
+  value, onChange, label,
+}: { value: Priority; onChange: (p: Priority) => void; label: string }) {
+  return (
+    <div>
+      <label className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2.5">
+        <Flag size={12} /> {label}
+      </label>
+      <div className="grid grid-cols-4 gap-2">
+        {PRIORITIES.map(p => {
+          const cfg    = PRIORITY_CONFIG[p]
+          const active = value === p
+          return (
+            <button
+              key={p}
+              onClick={() => onChange(p)}
+              className="flex flex-col items-center gap-1 py-2.5 px-1 rounded-[14px] transition-all duration-150 text-xs font-semibold"
+              style={active
+                ? { background: 'rgba(129,115,245,0.10)', border: '0.5px solid rgba(129,115,245,0.30)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07)', transform: 'scale(1.03)' }
+                : { background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }
+              }
+              onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.07)' }}
+              onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)' }}
+            >
+              <span className="text-base leading-none">{PRIORITY_ICONS[p]}</span>
+              {cfg.label}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+})
 
 // ── Main component ────────────────────────────────────────────
 
@@ -212,8 +329,14 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
   const { t } = useI18n()
   const isEdit = !!task
 
-  const [title,      setTitle]      = useState(task?.title ?? '')
-  const [description,setDescription]= useState(task?.description ?? '')
+  // ── UNCONTROLLED refs для полей которые не влияют на UI ──────
+  // Ключевая оптимизация: title/description/newSubtask не вызывают ре-рендер
+  const titleRef_      = useRef<HTMLInputElement>(null)
+  const descriptionRef = useRef<HTMLTextAreaElement>(null)
+  const newSubtaskRef_ = useRef<HTMLInputElement>(null)
+  const subtaskInputRef = useRef<HTMLInputElement>(null)
+
+  // ── CONTROLLED state — только то что реально влияет на UI ───
   const [priority,   setPriority]   = useState<Priority>(task?.priority ?? 'medium')
   const [dueDate,    setDueDate]     = useState('')
   const [dueTime,    setDueTime]     = useState('')
@@ -223,24 +346,25 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
   const [subtasks, setSubtasks] = useState<LocalSubtask[]>(
     task?.subtasks?.map(s => ({ id: s.id, title: s.title, completed: s.completed, creator: s.creator ?? null })) ?? []
   )
-  const [newSubtask, setNewSubtask] = useState('')
-  const [saving,     setSaving]     = useState(false)
-  const { run }                     = usePending()
-  const [viewerTz]                  = useState(getUserTimezone)
+  const [saving, setSaving] = useState(false)
+  // Defer AssigneePicker монтирование до завершения анимации открытия
+  const [showAssignee, setShowAssignee] = useState(false)
+  // Lazy history: монтируем только после первого показа
+  const [historyMounted, setHistoryMounted] = useState(false)
+
+  const { run } = usePending()
+  const [viewerTz] = useState(getUserTimezone)
 
   const sheetRef   = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
-  const titleRef   = useRef<HTMLInputElement>(null)
-  const subtaskRef = useRef<HTMLInputElement>(null)
+  // Char counter для title — отдельный ref чтобы не делать setState
+  const charCountRef = useRef<HTMLSpanElement>(null)
 
-  // Stable ref for userId — avoids stale closures in callbacks
+  // Stable userId ref
   const userIdRef = useRef(userId)
   useEffect(() => { userIdRef.current = userId }, [userId])
 
-  const sensors = useSensors(
-    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } })
-  )
-
+  // ── Init due date ────────────────────────────────────────────
   useEffect(() => {
     const raw = task?.due_at ?? task?.due_date
     if (!raw) return
@@ -251,82 +375,82 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
     } catch {}
   }, [])
 
+  // ── Entrance animation + deferred AssigneePicker ─────────────
   useEffect(() => {
     gsap.fromTo(overlayRef.current, { opacity: 0 }, { opacity: 1, duration: 0.2 })
     gsap.fromTo(sheetRef.current,   { y: '100%' },  { y: 0, duration: 0.32, ease: 'power3.out' })
-    if (!isEdit) setTimeout(() => titleRef.current?.focus(), 350)
-  }, [])
 
-  // close is stable — used by overlay onClick
+    if (!isEdit) {
+      setTimeout(() => titleRef_.current?.focus(), 350)
+    }
+
+    // Монтируем AssigneePicker только после завершения анимации
+    // чтобы его fetch не конкурировал с GSAP
+    const t = setTimeout(() => setShowAssignee(true), 420)
+    return () => clearTimeout(t)
+  }, [isEdit])
+
   const close = useCallback(() => {
     gsap.to(sheetRef.current,   { y: '100%', duration: 0.24, ease: 'power3.in' })
     gsap.to(overlayRef.current, { opacity: 0, duration: 0.2, onComplete: onClose })
   }, [onClose])
 
-  function buildDueAt(): string | null {
+  const buildDueAt = useCallback((): string | null => {
     if (!dueDate) return null
     const s = dueTime ? `${dueDate}T${dueTime}:00` : `${dueDate}T00:00:00`
     return new Date(s).toISOString()
-  }
+  }, [dueDate, dueTime])
 
-  // Subtask drag — useCallback so DndContext doesn't recreate on each render
-  const handleSubtaskDragEnd = useCallback(async (event: DragEndEvent) => {
-    const { active, over } = event
-    if (!over || active.id === over.id) return
+  // ── Стабильные коллбэки для SubtasksList ────────────────────
+  const handleSubtaskToggle = useCallback((idx: number) => {
+    setSubtasks(prev => prev.map((s, i) => i === idx ? { ...s, completed: !s.completed } : s))
+  }, [])
 
-    setSubtasks(prev => {
-      const oldIdx    = prev.findIndex((s, i) => (s.id ?? `new-${i}`) === active.id)
-      const newIdx    = prev.findIndex((s, i) => (s.id ?? `new-${i}`) === over.id)
-      const reordered = arrayMove(prev, oldIdx, newIdx)
+  const handleSubtaskRename = useCallback((idx: number, newTitle: string) => {
+    setSubtasks(prev => prev.map((s, i) => i === idx ? { ...s, title: newTitle } : s))
+  }, [])
 
-      // Fire-and-forget reorder — all in parallel
-      if (isEdit) {
-        Promise.all(
-          reordered
-            .filter(s => s.id)
-            .map((s, i) =>
-              apiFetch('/api/tasks/subtasks', {
-                method:  'PATCH',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ subtaskId: s.id, userId: userIdRef.current, position: i }),
-              })
-            )
-        ).catch(() => {})
-      }
+  const handleSubtaskDelete = useCallback((idx: number) => {
+    setSubtasks(prev => prev.filter((_, i) => i !== idx))
+  }, [])
 
-      return reordered
-    })
-  }, [isEdit])
+  const handleSubtaskReorder = useCallback((reordered: LocalSubtask[]) => {
+    setSubtasks(reordered)
+  }, [])
 
+  // ── addSubtaskLocal — читает из uncontrolled ref ─────────────
   const addSubtaskLocal = useCallback(() => {
-    const trimmed = newSubtask.trim()
+    const trimmed = subtaskInputRef.current?.value.trim()
     if (!trimmed) return
     setSubtasks(prev => [...prev, { title: trimmed, completed: false }])
-    setNewSubtask('')
-    subtaskRef.current?.focus()
-  }, [newSubtask])
+    if (subtaskInputRef.current) subtaskInputRef.current.value = ''
+    subtaskInputRef.current?.focus()
+  }, [])
 
-  // ── handleSave ────────────────────────────────────────────────
-  // All subtask API calls are batched with Promise.all — no sequential awaits.
+  // ── handleSave — читает uncontrolled refs напрямую ───────────
   const handleSave = useCallback(async () => {
-    if (!title.trim()) {
-      titleRef.current?.focus()
-      gsap.fromTo(titleRef.current, { x: -6 }, { x: 0, duration: 0.3, ease: 'elastic.out(1,0.3)' })
+    const titleVal = titleRef_.current?.value?.trim() ?? ''
+    const descVal  = descriptionRef.current?.value ?? ''
+
+    if (!titleVal) {
+      titleRef_.current?.focus()
+      if (titleRef_.current) {
+        gsap.fromTo(titleRef_.current, { x: -6 }, { x: 0, duration: 0.3, ease: 'elastic.out(1,0.3)' })
+      }
       return
     }
 
     setSaving(true)
     try {
       if (isEdit) {
-        // 1. Update main task fields
         await apiFetch('/api/tasks', {
           method:  'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             taskId:       task!.id,
             userId:       userIdRef.current,
-            title:        title.trim(),
-            description,
+            title:        titleVal,
+            description:  descVal,
             priority,
             due_at:       buildDueAt(),
             creator_tz:   getUserTimezone(),
@@ -334,7 +458,6 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
           }),
         })
 
-        // 2. Upsert all subtasks in parallel — no sequential awaits
         await Promise.all(subtasks.map(s =>
           s.id
             ? apiFetch('/api/tasks/subtasks', {
@@ -349,7 +472,6 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
               })
         ))
 
-        // 3. Delete removed subtasks in parallel
         const keptIds = new Set(subtasks.filter(s => s.id).map(s => s.id))
         const toDelete = (task!.subtasks ?? []).filter(orig => !keptIds.has(orig.id))
         if (toDelete.length) {
@@ -361,17 +483,15 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
         }
 
         toast.success(t('taskUpdated'))
-
       } else {
-        // Create task
         const res  = await apiFetch('/api/tasks', {
           method:  'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             listId,
             userId:       userIdRef.current,
-            title:        title.trim(),
-            description,
+            title:        titleVal,
+            description:  descVal,
             priority,
             due_at:       buildDueAt(),
             creator_tz:   getUserTimezone(),
@@ -380,7 +500,6 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
         })
         const data = await res.json()
 
-        // Create all subtasks in parallel
         if (data.task?.id && subtasks.length > 0) {
           await Promise.all(subtasks.map(s =>
             apiFetch('/api/tasks/subtasks', {
@@ -401,12 +520,11 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
 
     setSaving(false)
     onSaved()
-  }, [title, description, priority, assignedTo, subtasks, isEdit, task, listId, buildDueAt, t, onSaved])
+  }, [priority, assignedTo, subtasks, isEdit, task, listId, buildDueAt, t, onSaved])
 
-  const subDone    = subtasks.filter(s => s.completed).length
-  const subTotal   = subtasks.length
-  const subPct     = subTotal > 0 ? Math.round((subDone / subTotal) * 100) : 0
-  const subtaskIds = subtasks.map((s, i) => s.id ?? `new-${i}`)
+  const subDone  = subtasks.filter(s => s.completed).length
+  const subTotal = subtasks.length
+  const subPct   = subTotal > 0 ? Math.round((subDone / subTotal) * 100) : 0
 
   const existingDueAt = task?.due_at
   const creatorTz     = task?.creator_tz ?? 'UTC'
@@ -482,42 +600,31 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
             touchAction:             'pan-y',
           }}
         >
-          {/*
-            Saving indicator — inline pill instead of fixed overlay.
-            The old approach used position:fixed + backdropFilter which created
-            a new compositing layer and triggered layout recalculation for every
-            keystroke while saving was true.
-            This pill sits in normal document flow — zero compositor cost.
-          */}
-          {saving && (
-            <div className="flex items-center justify-center gap-2 py-2 animate-fade-up">
-              <div
-                className="w-4 h-4 rounded-full border-2 flex-shrink-0"
-                style={{ borderColor: 'rgba(129,115,245,0.25)', borderTopColor: 'var(--c-accent)', animation: 'spin 0.7s linear infinite' }}
-              />
-              <span className="text-sm text-text-secondary">
-                {isEdit ? t('savingChanges') : t('creatingTaskStr')}
-              </span>
-            </div>
-          )}
-
-          {/* Title */}
+          {/* Title — UNCONTROLLED, char counter через DOM ref */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className={sectionLabel}>
                 <AlignLeft size={12} /> {t('taskTitle')}
               </label>
               <span
+                ref={charCountRef}
                 className="text-[11px] tabular-nums"
-                style={{ color: title.length > 180 ? 'var(--c-amber)' : 'var(--text-dim)' }}
+                style={{ color: 'var(--text-dim)' }}
               >
-                {title.length} / 200
+                {(task?.title?.length ?? 0)} / 200
               </span>
             </div>
             <input
-              ref={titleRef}
-              value={title}
-              onChange={e => setTitle(e.target.value)}
+              ref={titleRef_}
+              defaultValue={task?.title ?? ''}
+              onChange={e => {
+                // Обновляем счётчик напрямую через DOM — без setState
+                if (charCountRef.current) {
+                  const len = e.target.value.length
+                  charCountRef.current.textContent = `${len} / 200`
+                  charCountRef.current.style.color = len > 180 ? 'var(--c-amber)' : 'var(--text-dim)'
+                }
+              }}
               onKeyDown={e => e.key === 'Enter' && handleSave()}
               placeholder={t('whatToBeDone')}
               className="input-field text-[15px] font-semibold"
@@ -525,15 +632,15 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
             />
           </div>
 
-          {/* Notes */}
+          {/* Notes — UNCONTROLLED */}
           <div>
             <label className={cn(sectionLabel, 'mb-2')}>
               <AlignLeft size={12} /> {t('notes')}
               <span className="text-text-dim font-normal normal-case tracking-normal ml-1">{t('notesOptional')}</span>
             </label>
             <textarea
-              value={description}
-              onChange={e => setDescription(e.target.value)}
+              ref={descriptionRef}
+              defaultValue={task?.description ?? ''}
               placeholder={t('addDescription')}
               rows={2}
               className="input-field text-sm resize-none leading-relaxed"
@@ -541,34 +648,8 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
             />
           </div>
 
-          {/* Priority */}
-          <div>
-            <label className={cn(sectionLabel, 'mb-2.5')}>
-              <Flag size={12} /> {t('priority')}
-            </label>
-            <div className="grid grid-cols-4 gap-2">
-              {PRIORITIES.map(p => {
-                const cfg    = PRIORITY_CONFIG[p]
-                const active = priority === p
-                return (
-                  <button
-                    key={p}
-                    onClick={() => setPriority(p)}
-                    className="flex flex-col items-center gap-1 py-2.5 px-1 rounded-[14px] transition-all duration-150 text-xs font-semibold"
-                    style={active
-                      ? { background: 'rgba(129,115,245,0.10)', border: '0.5px solid rgba(129,115,245,0.30)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07)', transform: 'scale(1.03)' }
-                      : { background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }
-                    }
-                    onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.07)' }}
-                    onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)' }}
-                  >
-                    <span className="text-base leading-none">{PRIORITY_ICONS[p]}</span>
-                    {cfg.label}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
+          {/* Priority — controlled, изолирован в memo */}
+          <PriorityPicker value={priority} onChange={setPriority} label={t('priority')} />
 
           {/* Due date */}
           <div>
@@ -634,13 +715,27 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
             )}
           </div>
 
-          {/* Assignee */}
-          <AssigneePicker
-            listId={listId}
-            userId={userId}
-            assignedTo={assignedTo}
-            onChange={setAssignedTo}
-          />
+          {/* AssigneePicker — defer mount до конца анимации */}
+          {showAssignee ? (
+            <AssigneePicker
+              listId={listId}
+              userId={userId}
+              assignedTo={assignedTo}
+              onChange={setAssignedTo}
+            />
+          ) : (
+            // Placeholder пока AssigneePicker не смонтирован
+            <div>
+              <div className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2.5">
+                <span style={{ width: 12, height: 12, display: 'inline-block' }} /> {t('assignee')}
+              </div>
+              <div className="flex gap-2.5">
+                {[...Array(4)].map((_, i) => (
+                  <div key={i} className="w-10 h-10 rounded-full skeleton flex-shrink-0" />
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Subtasks */}
           <div>
@@ -671,44 +766,32 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
               </div>
             )}
 
+            {/* SubtasksList — изолированный компонент, не ре-рендерится при тайпинге */}
             {subTotal > 0 && (
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleSubtaskDragEnd}
-              >
-                <SortableContext items={subtaskIds} strategy={verticalListSortingStrategy}>
-                  <div className="space-y-1.5 mb-3">
-                    {subtasks.map((sub, idx) => (
-                      <SortableSubtaskRow
-                        key={sub.id ?? `new-${idx}`}
-                        sub={sub}
-                        idx={idx}
-                        userId={userId}
-                        isEdit={isEdit}
-                        onToggle={() => setSubtasks(prev => prev.map((s, i) => i === idx ? { ...s, completed: !s.completed } : s))}
-                        onRename={newTitle => setSubtasks(prev => prev.map((s, i) => i === idx ? { ...s, title: newTitle } : s))}
-                        onDelete={() => setSubtasks(prev => prev.filter((_, i) => i !== idx))}
-                      />
-                    ))}
-                  </div>
-                </SortableContext>
-              </DndContext>
+              <div className="mb-3">
+                <SubtasksList
+                  subtasks={subtasks}
+                  userId={userId}
+                  isEdit={isEdit}
+                  onToggle={handleSubtaskToggle}
+                  onRename={handleSubtaskRename}
+                  onDelete={handleSubtaskDelete}
+                  onReorder={handleSubtaskReorder}
+                />
+              </div>
             )}
 
+            {/* New subtask — UNCONTROLLED input */}
             <div className="flex gap-2">
               <input
-                ref={subtaskRef}
-                value={newSubtask}
-                onChange={e => setNewSubtask(e.target.value)}
+                ref={subtaskInputRef}
                 onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); addSubtaskLocal() } }}
                 placeholder={t('addSubtask')}
                 className="input-field text-sm py-2 flex-1"
               />
               <button
                 onClick={addSubtaskLocal}
-                disabled={!newSubtask.trim()}
-                className="w-10 h-10 flex items-center justify-center rounded-[12px] disabled:opacity-35 flex-shrink-0 transition-all active:scale-95"
+                className="w-10 h-10 flex items-center justify-center rounded-[12px] opacity-70 hover:opacity-100 flex-shrink-0 transition-all active:scale-95"
                 style={{ background: 'var(--c-accent)', touchAction: 'manipulation' }}
               >
                 <Plus size={18} className="text-white" strokeWidth={2.5} />
@@ -716,7 +799,35 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
             </div>
           </div>
 
-          {isEdit && <TaskHistoryPanel taskId={task!.id} userId={userId} />}
+          {/* TaskHistoryPanel — lazy mount */}
+          {isEdit && (
+            <div>
+              {!historyMounted ? (
+                <button
+                  onClick={() => setHistoryMounted(true)}
+                  className="w-full flex items-center justify-between px-3 py-2.5 text-sm transition-all duration-200 active:scale-[0.98]"
+                  style={{
+                    borderRadius: 16,
+                    background:   'rgba(255,255,255,0.04)',
+                    border:       '1px solid rgba(255,255,255,0.08)',
+                    color:        'var(--text-secondary)',
+                  }}
+                >
+                  <span className="flex items-center gap-2">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg>
+                    {t('editHistory')}
+                  </span>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--text-dim)' }}><path d="m6 9 6 6 6-6"/></svg>
+                </button>
+              ) : (
+                <Suspense fallback={
+                  <div className="h-12 skeleton rounded-2xl" />
+                }>
+                  <TaskHistoryPanel taskId={task!.id} userId={userId} />
+                </Suspense>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -724,12 +835,9 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
           className="flex-shrink-0 px-4 pt-3 pb-6"
           style={{ borderTop: '0.5px solid rgba(255,255,255,0.07)' }}
         >
-          {!title.trim() && (
-            <p className="text-xs text-text-dim text-center mb-2">{t('addTitle')}</p>
-          )}
           <button
             onClick={handleSave}
-            disabled={!title.trim() || saving}
+            disabled={saving}
             className="btn-primary w-full py-3.5 text-[15px] disabled:opacity-40"
             style={{ touchAction: 'manipulation' }}
           >
