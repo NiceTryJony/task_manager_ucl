@@ -1987,16 +1987,22 @@ export function ListDetailView({ onBack }: Props) {
     }
   }, [fetchTasks])
 
+
+
+  const fetchTasksRef = useRef(fetchTasks)
+  useEffect(() => { fetchTasksRef.current = fetchTasks }, [fetchTasks])
+
   // Realtime subscription + начальная загрузка
   useEffect(() => {
     if (!activeListId || !user) return
     listIdRef.current = activeListId
     userIdRef.current = user.id
-    fetchTasks()
+    //fetchTasks()
+    fetchTasksRef.current()
 
     const debFetch = () => {
       clearTimeout(fetchDebounceRef.current)
-      fetchDebounceRef.current = setTimeout(() => fetchTasks(false), 300)
+      fetchDebounceRef.current = setTimeout(() => fetchTasksRef.current(false), 300)
     }
 
     const channel = supabase
@@ -2017,36 +2023,27 @@ export function ListDetailView({ onBack }: Props) {
       clearTimeout(fetchDebounceRef.current)
       abortRef.current?.abort()
     }
-  }, [activeListId, user, fetchTasks])
+  }, [activeListId, user])
 
 
   useEffect(() => {
-    const goOnline  = () => {
-      clearTimeout(onlineDebounceRef.current)
-      setIsOnline(true)
-      fetchTasks(false)
-    }
-    const goOffline = () => {
-      // Debounce 3s — кратковременные потери сети не показывают баннер
-      clearTimeout(onlineDebounceRef.current)
-      onlineDebounceRef.current = setTimeout(() => setIsOnline(false), 3000)
-    }
+    const goOnline  = () => { clearTimeout(onlineDebounceRef.current); setIsOnline(true); fetchTasksRef.current(false) }
+    const goOffline = () => { clearTimeout(onlineDebounceRef.current); onlineDebounceRef.current = setTimeout(() => setIsOnline(false), 3000) }
     window.addEventListener('online',  goOnline)
     window.addEventListener('offline', goOffline)
-    return () => {
-      window.removeEventListener('online',  goOnline)
-      window.removeEventListener('offline', goOffline)
-      clearTimeout(onlineDebounceRef.current)
-    }
-  }, [fetchTasks])
+    return () => { window.removeEventListener('online', goOnline); window.removeEventListener('offline', goOffline) }
+  }, [])
 
 
+  const handleBackRef = useRef(handleBack)
+  useEffect(() => { handleBackRef.current = handleBack }, [handleBack])
   // Telegram Back / Main buttons
   useEffect(() => {
     const tg = window?.Telegram?.WebApp
     if (!tg) return
 
     const onMain = () => { setShowCreate(true); haptic.light() }
+    const onBack  = () => handleBackRef.current()
 
     if (!isViewer) {
       tg.MainButton.setText(t('newTaskBtn'))
@@ -2065,7 +2062,7 @@ export function ListDetailView({ onBack }: Props) {
       tg.BackButton.hide()
       tg.BackButton.offClick(handleBack)
     }
-  }, [isViewer, handleBack, haptic, t])
+  }, [isViewer, haptic, t])
 
   // ── Guard ─────────────────────────────────────────────────────────────────
   if (!list) return null
