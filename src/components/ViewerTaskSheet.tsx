@@ -113,13 +113,13 @@ export function ViewerTaskSheet({ task, userId, onClose, onSubtaskToggled }: Pro
         />
 
         {/* Handle */}
-        <div className="flex justify-center pt-3 pb-0 flex-shrink-0">
+        {/* <div className="flex justify-center pt-3 pb-0 flex-shrink-0">
           <div className="w-9 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }} />
-        </div>
+        </div> */}
 
         {/* Header */}
         <div
-          className="flex-shrink-0 flex items-center justify-between px-4 pt-3 pb-3"
+          className="flex-shrink-0 flex items-center justify-between px-4 pt-4 pb-3"
           style={{ borderBottom: '0.5px solid rgba(255,255,255,0.07)' }}
         >
           <div className="flex items-center gap-2.5">
