@@ -6,17 +6,16 @@ import { cn } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n-context'
 import type { TaskAssignee } from '@/types'
 import { apiFetch } from '@/lib/api-client'
+import { useTaskStore, type ListMember } from '@/lib/store'
 
-interface Member {
-  user_id: number
-  users: TaskAssignee
-}
+
 
 interface Props {
   listId:      string
   userId:      number            // current user — shown first
   assignedTo:  number[]          // selected IDs
   onChange:    (ids: number[]) => void
+  delayFetch?: number  // ← новый проп
 }
 
 // ── Avatar chip (selected badge row) ─────────────────────────
@@ -66,7 +65,7 @@ function MemberAvatar({
   isSelf,
   onClick,
 }: {
-  member:     Member
+  member:     ListMember
   isSelected: boolean
   isSelf:     boolean
   onClick:    () => void
@@ -122,11 +121,13 @@ function MemberAvatar({
 
 // ── Main component ────────────────────────────────────────────
 
-export function AssigneePicker({ listId, userId, assignedTo, onChange }: Props) {
+export function AssigneePicker({ listId, userId, assignedTo, onChange, delayFetch = 0 }: Props) {
   const { t } = useI18n()
 
-  const [members,  setMembers]  = useState<Member[]>([])
-  const [loading,  setLoading]  = useState(true)
+  const cached          = useTaskStore(s => s.membersCache[listId])
+  const setMembersCache = useTaskStore(s => s.setMembersCache)
+  const [members, setMembers] = useState<ListMember[]>(cached ?? [])
+  const [loading, setLoading] = useState(!cached)
   const [error,    setError]    = useState(false)
   const [query,    setQuery]    = useState('')
   const [canFade,  setCanFade]  = useState(false)   // show right-side fade gradient
@@ -146,13 +147,14 @@ export function AssigneePicker({ listId, userId, assignedTo, onChange }: Props) 
     })
       .then(r => r.json())
       .then(d => {
-        const raw: Member[] = d.members ?? []
+        const raw: ListMember[] = d.members ?? []
         // Put current user first
         const sorted = [
           ...raw.filter(m => m.user_id === userId),
           ...raw.filter(m => m.user_id !== userId),
         ]
         setMembers(sorted)
+        setMembersCache(listId, sorted)
         setLoading(false)
       })
       .catch(err => {
@@ -160,12 +162,23 @@ export function AssigneePicker({ listId, userId, assignedTo, onChange }: Props) 
         setError(true)
         setLoading(false)
       })
-  }, [listId, userId])
+  }, [listId, userId, setMembersCache])
+
+  // useEffect(() => {
+  //   loadMembers()
+  //   return () => abortRef.current?.abort()
+    
+  // }, [loadMembers])
 
   useEffect(() => {
-    loadMembers()
-    return () => abortRef.current?.abort()
-  }, [loadMembers])
+    if (cached) return  // ← кеш есть — не фетчим вообще
+
+    const t = setTimeout(loadMembers, delayFetch)
+    return () => {
+      clearTimeout(t)
+      abortRef.current?.abort()
+    }
+  }, [loadMembers, cached, delayFetch])
 
   // ── Detect if scroll container overflows (to show fade) ──────
   useEffect(() => {

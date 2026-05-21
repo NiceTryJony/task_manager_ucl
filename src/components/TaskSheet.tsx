@@ -723,6 +723,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
               userId={userId}
               assignedTo={assignedTo}
               onChange={setAssignedTo}
+              delayFetch={300}
             />
           ) : (
             // Placeholder пока AssigneePicker не смонтирован

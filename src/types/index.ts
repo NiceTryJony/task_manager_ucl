@@ -62,6 +62,12 @@ export interface Subtask {
   } | null
 }
 
+// types.ts — добавить:
+export interface ListMember {
+  user_id: number
+  users: TaskAssignee
+}
+
 /** A resolved assignee user (from task_assignees join) */
 export interface TaskAssignee {
   id:         number
