@@ -234,9 +234,15 @@ export const TaskCard = memo(function TaskCard({
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="card-shell group">
+    <div
+      className="card-shell group"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onClick={isDraggingOverlay ? undefined : handleClick}
+      style={{ cursor: isDraggingOverlay ? 'grabbing' : 'pointer' }}
+    >
 
-      {/* Unread dot — показываем только для невыполненных, неархивированных */}
+      {/* Unread dot */}
       {isUnread && !isDone && !isArchived && (
         <div
           className="absolute top-2.5 right-2.5 z-10 w-2 h-2 rounded-full pointer-events-none"
@@ -253,7 +259,7 @@ export const TaskCard = memo(function TaskCard({
         isArchived && 'opacity-40',
       )}>
 
-        {/* Priority stripe слева */}
+        {/* Priority stripe */}
         <div
           className="w-1 self-stretch flex-shrink-0 rounded-l-2xl"
           style={{ background: priority.dot, opacity: isDone ? 0.4 : 1 }}
@@ -261,27 +267,16 @@ export const TaskCard = memo(function TaskCard({
 
         <div className="flex items-start gap-2.5 p-3.5 flex-1 min-w-0">
 
-          {/* ── Drag handle или viewer-индикатор ──────────────────────────── */}
+          {/* Drag handle или Eye */}
           {isDragMode || isDraggingOverlay ? (
             <div
-              /**
-               * ref на activator-ноде: dnd-kit использует его для
-               * расчёта scroll-offsets при TouchSensor.
-               * Без него тач-драг работает, но менее точен.
-               */
               ref={dragActivatorRef}
-              /**
-               * Сначала spread attributes (aria-*) и listeners (события dnd).
-               * Затем наш onPointerDown перекрывает spread-версию, но
-               * внутри handleGripPointerDown мы вызываем оригинал вручную.
-               * onPointerUp / onPointerLeave — только для hold-индикатора,
-               * dnd-kit завершает drag через глобальные window-listeners.
-               */
               {...(dragAttributes ?? {})}
               {...(dragListeners  ?? {})}
               onPointerDown={handleGripPointerDown}
               onPointerUp={handleGripPointerUp}
               onPointerLeave={handleGripPointerUp}
+              onClick={e => e.stopPropagation()}
               className={cn(
                 'mt-0.5 flex-shrink-0 touch-none select-none relative transition-colors duration-150',
                 isDraggingOverlay ? 'cursor-grabbing' : 'cursor-grab active:cursor-grabbing',
@@ -289,7 +284,6 @@ export const TaskCard = memo(function TaskCard({
               )}
             >
               <GripVertical size={15} />
-              {/* Hold-индикатор: появляется после 50мс удержания */}
               {isHolding && (
                 <span
                   className="absolute inset-[-5px] rounded-full border border-accent/50 animate-ping pointer-events-none"
@@ -298,14 +292,13 @@ export const TaskCard = memo(function TaskCard({
               )}
             </div>
           ) : (
-            /* Viewer видит иконку Eye вместо ручки */
             <Eye size={13} className="text-text-dim mt-1 flex-shrink-0 opacity-40" />
           )}
 
-          {/* ── Чекбокс с burst-анимацией ─────────────────────────────────── */}
+          {/* Чекбокс */}
           <div className="relative flex-shrink-0 mt-0.5">
             <button
-              onClick={handleToggle}
+              onClick={e => { e.stopPropagation(); handleToggle() }}
               className={cn(
                 'custom-checkbox',
                 isDone ? 'checked' : 'unchecked',
@@ -340,13 +333,8 @@ export const TaskCard = memo(function TaskCard({
             )}
           </div>
 
-          {/* ── Основное тело задачи ──────────────────────────────────────── */}
-          <button
-            onTouchStart={handleTouchStart}
-            onTouchEnd={handleTouchEnd}
-            onClick={isDraggingOverlay ? undefined : handleClick}
-            className="flex-1 min-w-0 text-left"
-          >
+          {/* Тело задачи — div вместо button */}
+          <div className="flex-1 min-w-0 text-left">
             <p className={cn(
               'text-sm font-medium leading-snug',
               isDone && 'line-through text-text-secondary',
@@ -361,7 +349,6 @@ export const TaskCard = memo(function TaskCard({
             )}
 
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5">
-              {/* Priority badge */}
               <span className={cn(
                 'text-xs px-2 py-0.5 rounded-full font-medium',
                 priority.color,
@@ -370,7 +357,6 @@ export const TaskCard = memo(function TaskCard({
                 {priority.label}
               </span>
 
-              {/* Due date */}
               {dueAt && (
                 <span className={cn(
                   'text-xs flex items-center gap-1',
@@ -386,7 +372,6 @@ export const TaskCard = memo(function TaskCard({
                 </span>
               )}
 
-              {/* Subtasks progress */}
               {subTotal > 0 && (
                 <span className="text-xs text-text-secondary flex items-center gap-1">
                   <CheckCircle2 size={11} />
@@ -394,13 +379,11 @@ export const TaskCard = memo(function TaskCard({
                 </span>
               )}
 
-              {/* Archive badge */}
               {isArchived && (
                 <span className="text-xs text-text-dim">📦 {t('archived')}</span>
               )}
             </div>
 
-            {/* Assignees */}
             {(task.assignees?.length ?? 0) > 0 && (
               <div
                 className="mt-2 pt-2"
@@ -413,9 +396,9 @@ export const TaskCard = memo(function TaskCard({
                 />
               </div>
             )}
-          </button>
+          </div>
 
-          {/* ⋮ Three-dots (desktop hover only) */}
+          {/* MoreButton */}
           {!isDraggingOverlay && (
             <MoreButton onPress={onLongPress} />
           )}
