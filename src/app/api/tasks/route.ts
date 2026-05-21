@@ -1,3 +1,4 @@
+ //    /api/tasks
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 import { getUserId } from '@/lib/auth'
@@ -344,7 +345,7 @@ const TRACKED_FIELDS = ['title', 'description', 'priority', 'status', 'due_at', 
 export async function PATCH(req: NextRequest) {
   const body = await req.json()
   const userId   = getUserId(req)
-  const { taskId, assignee_ids, ...updates } = body
+  const { taskId, assignee_ids, userId: _userId, ...updates } = body
 
   if (!taskId || userId == null) {
     return NextResponse.json({ error: 'Missing fields' }, { status: 400 })
