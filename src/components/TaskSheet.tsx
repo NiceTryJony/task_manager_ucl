@@ -435,7 +435,8 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
     if (!titleVal) {
       titleRef_.current?.focus()
       if (titleRef_.current) {
-        gsap.fromTo(titleRef_.current, { x: -6 }, { x: 0, duration: 0.3, ease: 'elastic.out(1,0.3)' })
+        titleRef_.current?.classList.add('shake')
+        setTimeout(() => titleRef_.current?.classList.remove('shake'), 400)
       }
       return
     }

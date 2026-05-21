@@ -34,8 +34,8 @@ export default function HomePage() {
   const [displayName,  setDisplayName]  = useState('')
   const [currentUn,    setCurrentUn]    = useState('')
 
-  const headerRef = useRef<HTMLDivElement>(null)
-  const listRef   = useRef<HTMLDivElement>(null)
+  // const headerRef = useRef<HTMLDivElement>(null)
+  // const listRef   = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!isReady || needsIdentify) return
@@ -127,21 +127,21 @@ export default function HomePage() {
     localStorage.setItem('taskflow_lists_cache', JSON.stringify(data.lists ?? []))
     setLoading(false)
 
-    requestAnimationFrame(() => {
-      if (headerRef.current) {
-        gsap.fromTo(headerRef.current,
-          { y: -20, opacity: 0 },
-          { y: 0, opacity: 1, duration: 0.5, ease: 'power3.out' }
-        )
-      }
-      if (listRef.current) {
-        const cards = listRef.current.querySelectorAll('.list-card')
-        gsap.fromTo(cards,
-          { y: 24, opacity: 0 },
-          { y: 0, opacity: 1, duration: 0.4, ease: 'power3.out', stagger: 0.07, delay: 0.1 }
-        )
-      }
-    })
+    // requestAnimationFrame(() => {
+    //   if (headerRef.current) {
+    //     gsap.fromTo(headerRef.current,
+    //       { y: -20, opacity: 0 },
+    //       { y: 0, opacity: 1, duration: 0.5, ease: 'power3.out' }
+    //     )
+    //   }
+    //   if (listRef.current) {
+    //     const cards = listRef.current.querySelectorAll('.list-card')
+    //     gsap.fromTo(cards,
+    //       { y: 24, opacity: 0 },
+    //       { y: 0, opacity: 1, duration: 0.4, ease: 'power3.out', stagger: 0.07, delay: 0.1 }
+    //     )
+    //   }
+    // })
   }
 
   // useEffect(() => {
@@ -224,7 +224,7 @@ export default function HomePage() {
         />
       )}
 
-      <div ref={headerRef} className="px-4 pt-4 pb-3 flex-shrink-0">
+      <div className="px-4 pt-4 pb-3 flex-shrink-0 animate-fade-up">
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-2xl font-bold tracking-tight">
@@ -278,7 +278,7 @@ export default function HomePage() {
         ) : lists.length === 0 ? (
           <EmptyState onCreate={() => setShowCreate(true)} />
         ) : (
-          <div ref={listRef} className="space-y-3">
+          <div className="space-y-3 stagger">
             {lists.map(list => (
               <div key={list.id} className="list-card">
                 <ListCard

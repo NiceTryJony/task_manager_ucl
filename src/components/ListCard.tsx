@@ -56,24 +56,19 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted, onShare }
     }
   }, [showMenu])
 
-  useEffect(() => {
-    if (!showMenu || !menuRef.current) return
-    gsap.fromTo(menuRef.current,
-      { scale: 0.88, opacity: 0, y: -4 },
-      { scale: 1, opacity: 1, y: 0, duration: 0.22, ease: 'back.out(2)' }
-    )
-  }, [showMenu])
+  // useEffect(() => {
+  //   if (!showMenu || !menuRef.current) return
+  //   gsap.fromTo(menuRef.current,
+  //     { scale: 0.88, opacity: 0, y: -4 },
+  //     { scale: 1, opacity: 1, y: 0, duration: 0.22, ease: 'back.out(2)' }
+  //   )
+  // }, [showMenu])
+
+
 
   function handleCardClick() {
     if (showMenu || showEdit) return
-    if (!cardRef.current) { onClick(); return }
-    gsap.to(cardRef.current, {
-      scale: 0.975, duration: 0.1, ease: 'power2.out',
-      onComplete: () => {
-        gsap.to(cardRef.current, { scale: 1, duration: 0.18, ease: 'back.out(2)' })
-        onClick()
-      },
-    })
+    onClick()
   }
 
   function toggleMenu(e: React.MouseEvent) {
@@ -311,7 +306,7 @@ export function ListCard({ list, userId, onClick, onEdited, onDeleted, onShare }
       {showMenu && (
         <div
           ref={menuRef}
-          className="absolute right-3 top-14 z-30 overflow-hidden"
+          className="absolute right-3 top-14 z-30 overflow-hidden dropdown-menu"
           style={{
             minWidth:            152,
             transformOrigin:     'top right',

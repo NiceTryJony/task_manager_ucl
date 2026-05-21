@@ -685,3 +685,24 @@
 [data-perf="low"] .custom-checkbox {
   transition: none !important;
 }
+
+.dropdown-menu {
+  transform-origin: top right;
+  animation: dropdown-in 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+}
+
+@keyframes dropdown-in {
+  from { transform: scale(0.88); opacity: 0; translate: 0 -4px; }
+  to   { transform: scale(1);    opacity: 1; translate: 0 0; }
+}
+
+
+
+@keyframes shake {
+  0%,100% { transform: translateX(0); }
+  20%     { transform: translateX(-6px); }
+  40%     { transform: translateX(5px); }
+  60%     { transform: translateX(-4px); }
+  80%     { transform: translateX(3px); }
+}
+.shake { animation: shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97); }
