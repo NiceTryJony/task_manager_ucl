@@ -1,19 +1,48 @@
 'use client'
 
+/**
+ * TaskCard, MoreButton, MentionText
+ *
+ * Исправлено:
+ * - dragAttributes: Record<string, unknown> → ReturnType<typeof useSortable>['attributes']
+ *   (DraggableAttributes не имеет index-сигнатуры — отсюда и была TS-ошибка)
+ * - dragListeners: аналогично, точный тип из ReturnType<typeof useSortable>
+ * - dragActivatorRef: добавлен для корректной работы TouchSensor с drag-handle
+ * - onPointerDown на ручке: spread listeners + override с вызовом оригинала (без `as any`)
+ * - VIEWER_TZ: module-level константа, не пересчитывается на каждый рендер
+ */
+
 import { useState, useRef, memo } from 'react'
 import { GripVertical, Eye, Calendar, CheckCircle2 } from 'lucide-react'
 import { PRIORITY_CONFIG, cn } from '@/lib/utils'
-import type { Task } from '@/types'
 import { TaskAssigneesBadge } from '@/components/TaskAssigneesBadge'
 import { useI18n } from '@/lib/i18n-context'
+import type { Task } from '@/types'
+import type { useSortable } from '@dnd-kit/sortable'
 
-// Вычисляется один раз при загрузке модуля — не на каждый рендер карточки.
-// Это исправляет замечание из code review: Intl.DateTimeFormat() в каждом TaskCard.
+// ── Module-level constant — вычисляется один раз при загрузке бандла ──────────
+// Ранее вызывался Intl.DateTimeFormat().resolvedOptions() внутри кждого рендера
+// каждой карточки — фиксируем здесь.
 const VIEWER_TZ = (() => {
-  try { return Intl.DateTimeFormat().resolvedOptions().timeZone } catch { return 'UTC' }
+  try {
+    return Intl.DateTimeFormat().resolvedOptions().timeZone
+  } catch {
+    return 'UTC'
+  }
 })()
 
-// ── MentionText ───────────────────────────────────────────────
+// ── Типы из useSortable — единственный источник правды ────────────────────────
+// Используем ReturnType вместо ручного импорта DraggableAttributes /
+// SyntheticListenerMap, потому что:
+//   1. Всегда синхронизировано с версией @dnd-kit/sortable
+//   2. DraggableAttributes не имеет index-сигнатуры → несовместим с Record<string, unknown>
+//   3. SyntheticListenerMap = Record<string, Function> — вызов без каста невозможен
+type SortableInstance   = ReturnType<typeof useSortable>
+type DragListeners      = SortableInstance['listeners']        // SyntheticListenerMap | undefined
+type DragAttributes     = SortableInstance['attributes']       // DraggableAttributes
+type DragActivatorRef   = SortableInstance['setActivatorNodeRef'] // (el: HTMLElement|null)=>void
+
+// ── MentionText ───────────────────────────────────────────────────────────────
 
 export const MentionText = memo(function MentionText({ text }: { text: string }) {
   return (
@@ -27,13 +56,13 @@ export const MentionText = memo(function MentionText({ text }: { text: string })
   )
 })
 
-// ── MoreButton ────────────────────────────────────────────────
+// ── MoreButton ────────────────────────────────────────────────────────────────
 
-export const MoreButton = memo(function MoreButton({
-  onPress,
-}: {
+interface MoreButtonProps {
   onPress: (x: number, y: number) => void
-}) {
+}
+
+export const MoreButton = memo(function MoreButton({ onPress }: MoreButtonProps) {
   const btnRef = useRef<HTMLButtonElement>(null)
 
   function handleClick(e: React.MouseEvent) {
@@ -41,6 +70,7 @@ export const MoreButton = memo(function MoreButton({
     e.preventDefault()
     const rect = btnRef.current?.getBoundingClientRect()
     if (!rect) return
+    // Прижимаем меню к правому краю, чтобы не уходило за экран
     const x = Math.max(8, rect.right - 200)
     const y = rect.bottom + 6
     onPress(x, y)
@@ -50,12 +80,14 @@ export const MoreButton = memo(function MoreButton({
     <button
       ref={btnRef}
       onClick={handleClick}
+      // Блокируем всплытие pointer/touch, чтобы не конкурировать с drag и long-press
       onPointerDownCapture={e => e.stopPropagation()}
       onTouchStartCapture={e => e.stopPropagation()}
       className={cn(
         'flex-shrink-0 self-center w-7 h-7 flex items-center justify-center rounded-lg',
         'text-text-dim hover:text-text-secondary hover:bg-bg-hover',
         'active:scale-90 transition-all duration-150',
+        // Показываем только при hover/focus (desktop) — на мобильном long-press
         'opacity-0 group-hover:opacity-100 focus-visible:opacity-100',
       )}
       aria-label="Task options"
@@ -69,16 +101,25 @@ export const MoreButton = memo(function MoreButton({
   )
 })
 
-// ── CardProps ─────────────────────────────────────────────────
+// ── CardProps ─────────────────────────────────────────────────────────────────
 
 export interface CardProps {
   task:               Task
   userId:             number
   isViewer:           boolean
   isDragMode:         boolean
+  /** Карточка рендерится внутри DragOverlay — cursor grabbing, без handlers */
   isDraggingOverlay?: boolean
-  dragListeners?:     Record<string, Function>
-  dragAttributes?:    Record<string, unknown>
+  /** Listeners из useSortable — кладём на drag-handle */
+  dragListeners?:     DragListeners
+  /** Attributes (aria-*) из useSortable — кладём на drag-handle */
+  dragAttributes?:    DragAttributes
+  /**
+   * setActivatorNodeRef из useSortable.
+   * Нужен чтобы TouchSensor знал точный DOM-узел активатора.
+   * Без него тач-драг работает, но может быть менее точным.
+   */
+  dragActivatorRef?:  DragActivatorRef
   onToggle:           (task: Task) => void
   onOpen:             (task: Task) => void
   onLongPress:        (x: number, y: number) => void
@@ -86,11 +127,11 @@ export interface CardProps {
   isUnread?:          boolean
 }
 
-// ── TaskCard ──────────────────────────────────────────────────
+// ── TaskCard ──────────────────────────────────────────────────────────────────
 
 export const TaskCard = memo(function TaskCard({
   task, userId, isViewer, isDragMode, isDraggingOverlay,
-  dragListeners, dragAttributes,
+  dragListeners, dragAttributes, dragActivatorRef,
   onToggle, onOpen, onLongPress, isSwiping, isUnread,
 }: CardProps) {
   const { t } = useI18n()
@@ -98,9 +139,9 @@ export const TaskCard = memo(function TaskCard({
   const [isHolding, setIsHolding] = useState(false)
   const [burst,     setBurst]     = useState(false)
 
-  const holdTimer      = useRef<ReturnType<typeof setTimeout>>()
-  const longPressTimer = useRef<ReturnType<typeof setTimeout>>()
-  const didLongPress   = useRef(false)
+  const holdTimerRef    = useRef<ReturnType<typeof setTimeout>>()
+  const longPressTimer  = useRef<ReturnType<typeof setTimeout>>()
+  const didLongPress    = useRef(false)
 
   const priority   = PRIORITY_CONFIG[task.priority]
   const isDone     = task.status === 'done'
@@ -110,7 +151,7 @@ export const TaskCard = memo(function TaskCard({
   const dueAt      = task.due_at ?? task.due_date
   const creatorTz  = task.creator_tz ?? 'UTC'
 
-  // ── Due date labels ──────────────────────────────────────────
+  // ── Due date labels ──────────────────────────────────────────────────────────
   let dueLabel = '', dueUrgent = false, dueOverdue = false, dueLocalLabel = ''
   if (dueAt) {
     const d    = new Date(dueAt)
@@ -130,8 +171,7 @@ export const TaskCard = memo(function TaskCard({
     }
   }
 
-  // ── Handlers ─────────────────────────────────────────────────
-
+  // ── Long-press ───────────────────────────────────────────────────────────────
   function handleTouchStart(e: React.TouchEvent) {
     if (isDraggingOverlay) return
     didLongPress.current = false
@@ -145,6 +185,7 @@ export const TaskCard = memo(function TaskCard({
 
   function handleTouchEnd() {
     clearTimeout(longPressTimer.current)
+    // Если свайп активен в момент touchend — сбрасываем флаг
     if (isSwiping?.current) didLongPress.current = false
   }
 
@@ -152,38 +193,67 @@ export const TaskCard = memo(function TaskCard({
     if (!didLongPress.current) onOpen(task)
   }
 
-  function handleGripPointerDown(e: React.PointerEvent) {
-    holdTimer.current = setTimeout(() => setIsHolding(true), 50)
-    dragListeners?.onPointerDown?.(e)
+  // ── Grip handle hold-indicator ───────────────────────────────────────────────
+
+  /**
+   * onPointerDown на drag-handle:
+   * 1. Запускаем таймер для hold-индикатора (пульсирующий ring вокруг ручки)
+   * 2. Вызываем оригинальный handler dnd-kit — иначе drag не стартует
+   *
+   * Мы НЕ можем просто spread listeners и ставить наш onPointerDown,
+   * потому что JSX-пропсы применяются в порядке объявления и последний
+   * побеждает — spread listeners был бы перезаписан. Поэтому вызываем
+   * оригинал вручную.
+   *
+   * SyntheticListenerMap = Record<string, Function>, поэтому нужен каст
+   * до конкретного типа чтобы вызвать без TS-ошибки.
+   */
+  function handleGripPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    holdTimerRef.current = setTimeout(() => setIsHolding(true), 50)
+    // Вызываем dnd-kit handler, если есть
+    if (dragListeners?.onPointerDown) {
+      ;(dragListeners.onPointerDown as React.PointerEventHandler<HTMLDivElement>)(e)
+    }
   }
 
   function handleGripPointerUp() {
-    clearTimeout(holdTimer.current)
+    clearTimeout(holdTimerRef.current)
     setIsHolding(false)
   }
 
+  // ── Checkbox burst animation ─────────────────────────────────────────────────
   function handleToggle() {
     if (isViewer || isDraggingOverlay) return
-    if (!isDone) { setBurst(true); setTimeout(() => setBurst(false), 600) }
+    if (!isDone) {
+      setBurst(true)
+      setTimeout(() => setBurst(false), 600)
+    }
     onToggle(task)
   }
 
-  // ── Render ────────────────────────────────────────────────────
+  // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
     <div className="card-shell group">
 
-      {/* Unread dot */}
+      {/* Unread dot — показываем только для невыполненных, неархивированных */}
       {isUnread && !isDone && !isArchived && (
         <div
           className="absolute top-2.5 right-2.5 z-10 w-2 h-2 rounded-full pointer-events-none"
-          style={{ background: 'var(--c-accent)', boxShadow: '0 0 6px rgba(129,115,245,0.8)' }}
+          style={{
+            background: 'var(--c-accent)',
+            boxShadow:  '0 0 6px rgba(129,115,245,0.8)',
+          }}
         />
       )}
 
-      <div className={cn('card flex items-start overflow-hidden', isDone && 'opacity-55', isArchived && 'opacity-40')}>
+      <div className={cn(
+        'card flex items-start overflow-hidden',
+        isDone     && 'opacity-55',
+        isArchived && 'opacity-40',
+      )}>
 
-        {/* Priority stripe */}
+        {/* Priority stripe слева */}
         <div
           className="w-1 self-stretch flex-shrink-0 rounded-l-2xl"
           style={{ background: priority.dot, opacity: isDone ? 0.4 : 1 }}
@@ -191,16 +261,27 @@ export const TaskCard = memo(function TaskCard({
 
         <div className="flex items-start gap-2.5 p-3.5 flex-1 min-w-0">
 
-          {/* Drag handle or viewer indicator */}
+          {/* ── Drag handle или viewer-индикатор ──────────────────────────── */}
           {isDragMode || isDraggingOverlay ? (
             <div
-              {...dragAttributes}
+              /**
+               * ref на activator-ноде: dnd-kit использует его для
+               * расчёта scroll-offsets при TouchSensor.
+               * Без него тач-драг работает, но менее точен.
+               */
+              ref={dragActivatorRef}
+              /**
+               * Сначала spread attributes (aria-*) и listeners (события dnd).
+               * Затем наш onPointerDown перекрывает spread-версию, но
+               * внутри handleGripPointerDown мы вызываем оригинал вручную.
+               * onPointerUp / onPointerLeave — только для hold-индикатора,
+               * dnd-kit завершает drag через глобальные window-listeners.
+               */
+              {...(dragAttributes ?? {})}
+              {...(dragListeners  ?? {})}
               onPointerDown={handleGripPointerDown}
               onPointerUp={handleGripPointerUp}
               onPointerLeave={handleGripPointerUp}
-              onTouchStart={dragListeners?.onTouchStart as React.TouchEventHandler}
-              onTouchMove={dragListeners?.onTouchMove as React.TouchEventHandler}
-              onTouchEnd={dragListeners?.onTouchEnd as React.TouchEventHandler}
               className={cn(
                 'mt-0.5 flex-shrink-0 touch-none select-none relative transition-colors duration-150',
                 isDraggingOverlay ? 'cursor-grabbing' : 'cursor-grab active:cursor-grabbing',
@@ -208,15 +289,20 @@ export const TaskCard = memo(function TaskCard({
               )}
             >
               <GripVertical size={15} />
+              {/* Hold-индикатор: появляется после 50мс удержания */}
               {isHolding && (
-                <span className="absolute inset-[-5px] rounded-full border border-accent/50 animate-ping pointer-events-none" />
+                <span
+                  className="absolute inset-[-5px] rounded-full border border-accent/50 animate-ping pointer-events-none"
+                  aria-hidden
+                />
               )}
             </div>
           ) : (
+            /* Viewer видит иконку Eye вместо ручки */
             <Eye size={13} className="text-text-dim mt-1 flex-shrink-0 opacity-40" />
           )}
 
-          {/* Checkbox */}
+          {/* ── Чекбокс с burst-анимацией ─────────────────────────────────── */}
           <div className="relative flex-shrink-0 mt-0.5">
             <button
               onClick={handleToggle}
@@ -224,8 +310,9 @@ export const TaskCard = memo(function TaskCard({
                 'custom-checkbox',
                 isDone ? 'checked' : 'unchecked',
                 isViewer && 'opacity-60 cursor-default',
-                burst && 'animate-checkbox-burst',
+                burst    && 'animate-checkbox-burst',
               )}
+              aria-label={isDone ? 'Mark incomplete' : 'Mark complete'}
             >
               {isDone && (
                 <svg width="11" height="9" viewBox="0 0 11 9" fill="none">
@@ -241,7 +328,8 @@ export const TaskCard = memo(function TaskCard({
                     key={i}
                     className="absolute w-1 h-1 rounded-full bg-emerald"
                     style={{
-                      top: '50%', left: '50%',
+                      top:  '50%',
+                      left: '50%',
                       animation:      'burst-particle 0.5s ease-out forwards',
                       animationDelay: `${i * 18}ms`,
                       '--angle':      `${i * 60}deg`,
@@ -252,14 +340,17 @@ export const TaskCard = memo(function TaskCard({
             )}
           </div>
 
-          {/* Task body */}
+          {/* ── Основное тело задачи ──────────────────────────────────────── */}
           <button
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
             onClick={isDraggingOverlay ? undefined : handleClick}
             className="flex-1 min-w-0 text-left"
           >
-            <p className={cn('text-sm font-medium leading-snug', isDone && 'line-through text-text-secondary')}>
+            <p className={cn(
+              'text-sm font-medium leading-snug',
+              isDone && 'line-through text-text-secondary',
+            )}>
               {task.title}
             </p>
 
@@ -270,34 +361,51 @@ export const TaskCard = memo(function TaskCard({
             )}
 
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-1.5">
-              <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', priority.color, priority.bg)}>
+              {/* Priority badge */}
+              <span className={cn(
+                'text-xs px-2 py-0.5 rounded-full font-medium',
+                priority.color,
+                priority.bg,
+              )}>
                 {priority.label}
               </span>
 
+              {/* Due date */}
               {dueAt && (
                 <span className={cn(
                   'text-xs flex items-center gap-1',
-                  dueOverdue ? 'text-danger' : dueUrgent ? 'text-amber' : 'text-text-secondary',
+                  dueOverdue ? 'text-danger'
+                    : dueUrgent ? 'text-amber'
+                    : 'text-text-secondary',
                 )}>
                   <Calendar size={11} />
                   {dueLabel}
-                  {dueLocalLabel && <span className="text-accent ml-0.5">· {dueLocalLabel}</span>}
+                  {dueLocalLabel && (
+                    <span className="text-accent ml-0.5">· {dueLocalLabel}</span>
+                  )}
                 </span>
               )}
 
+              {/* Subtasks progress */}
               {subTotal > 0 && (
                 <span className="text-xs text-text-secondary flex items-center gap-1">
-                  <CheckCircle2 size={11} />{subDone}/{subTotal}
+                  <CheckCircle2 size={11} />
+                  {subDone}/{subTotal}
                 </span>
               )}
 
+              {/* Archive badge */}
               {isArchived && (
                 <span className="text-xs text-text-dim">📦 {t('archived')}</span>
               )}
             </div>
 
+            {/* Assignees */}
             {(task.assignees?.length ?? 0) > 0 && (
-              <div className="mt-2 pt-2" style={{ borderTop: '0.5px solid rgba(255,255,255,0.07)' }}>
+              <div
+                className="mt-2 pt-2"
+                style={{ borderTop: '0.5px solid rgba(255,255,255,0.07)' }}
+              >
                 <TaskAssigneesBadge
                   assignees={task.assignees ?? []}
                   currentUserId={userId}
@@ -307,6 +415,7 @@ export const TaskCard = memo(function TaskCard({
             )}
           </button>
 
+          {/* ⋮ Three-dots (desktop hover only) */}
           {!isDraggingOverlay && (
             <MoreButton onPress={onLongPress} />
           )}
