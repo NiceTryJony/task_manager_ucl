@@ -1388,6 +1388,7 @@ import { usePending }     from '@/hooks/usePending'
 import { useTheme }       from '@/lib/theme-context'
 import { useI18n }        from '@/lib/i18n-context'
 import { SaveBanner }     from '@/components/ui/SaveBanner'
+import { VirtualList } from '@/components/VirtualItem'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -2319,11 +2320,17 @@ export function ListDetailView({ onBack }: Props) {
               onDragEnd={handleDragEnd}
               onDragCancel={handleDragCancel}
             >
-              <SortableContext items={sortedIds} strategy={verticalListSortingStrategy}>
-                <div className={cn('space-y-2 mt-2', tasksAnimClass && 'tasks-animate')}>
-                  {displayList.map(task => (
+            <SortableContext items={sortedIds} strategy={verticalListSortingStrategy}>
+              <div className={cn('mt-2', tasksAnimClass && 'tasks-animate')}>
+                <VirtualList
+                  items={displayList}
+                  getKey={task => task.id}
+                  eager={6}
+                  minHeight={72}
+                  gap="space-y-2"
+                >
+                  {(task) => (
                     <SwipeableTaskCard
-                      key={task.id}
                       onSwipeRight={() => {
                         if (task.status !== 'done') handleStatusToggle(task)
                       }}
@@ -2350,9 +2357,10 @@ export function ListDetailView({ onBack }: Props) {
                         isSwiping={isSwipingRef}
                       />
                     </SwipeableTaskCard>
-                  ))}
-                </div>
-              </SortableContext>
+                  )}
+                </VirtualList>
+              </div>
+            </SortableContext>
 
               {/* DragOverlay — рендерится поверх всего во время drag */}
               <DragOverlay

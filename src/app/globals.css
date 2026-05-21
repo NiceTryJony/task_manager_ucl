@@ -270,8 +270,9 @@
     background:          var(--card-bg);
     box-shadow:          var(--card-shadow);
     /* Один backdrop-filter на карточку */
-    backdrop-filter:     blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    /* backdrop-filter:     blur(12px); */
+    /*-webkit-backdrop-filter: blur(12px); */
+    background: rgba(22, 26, 40, 0.95);
     border-radius: 23.25px;
     border: none;
     padding: 17.5px;
