@@ -1486,6 +1486,7 @@ export function ListDetailView({ onBack }: Props) {
   const originalOrderRef    = useRef<Task[] | null>(null)
   const wantsToGoBackRef    = useRef(false)
   const reorderDebounceRef  = useRef<ReturnType<typeof setTimeout>>()
+  const onlineDebounceRef = useRef<ReturnType<typeof setTimeout>>()
 
   // Stable userId / listId refs — предотвращают stale-closures в async handlers
   const userIdRef = useRef(user?.id ?? 0)
@@ -2007,7 +2008,9 @@ export function ListDetailView({ onBack }: Props) {
       .on('postgres_changes' as any, {
         event: '*', schema: 'public', table: 'subtasks',
       }, debFetch)
-      .subscribe((status: string) => setIsOnline(status === 'SUBSCRIBED'))
+      .subscribe((status: string) => {
+        if (status === 'SUBSCRIBED') setIsOnline(true)
+      })
 
     return () => {
       supabase.removeChannel(channel)
@@ -2015,6 +2018,28 @@ export function ListDetailView({ onBack }: Props) {
       abortRef.current?.abort()
     }
   }, [activeListId, user, fetchTasks])
+
+
+  useEffect(() => {
+    const goOnline  = () => {
+      clearTimeout(onlineDebounceRef.current)
+      setIsOnline(true)
+      fetchTasks(false)
+    }
+    const goOffline = () => {
+      // Debounce 3s — кратковременные потери сети не показывают баннер
+      clearTimeout(onlineDebounceRef.current)
+      onlineDebounceRef.current = setTimeout(() => setIsOnline(false), 3000)
+    }
+    window.addEventListener('online',  goOnline)
+    window.addEventListener('offline', goOffline)
+    return () => {
+      window.removeEventListener('online',  goOnline)
+      window.removeEventListener('offline', goOffline)
+      clearTimeout(onlineDebounceRef.current)
+    }
+  }, [fetchTasks])
+
 
   // Telegram Back / Main buttons
   useEffect(() => {
