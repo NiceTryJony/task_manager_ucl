@@ -320,7 +320,7 @@ function EmptyState({ onCreate }: { onCreate: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center h-64 text-center px-6">
       <div
-          className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4 animate-float"
+          className="w-16 h-16 rounded-2xl flex items-center justify-center mb-4"
           style={{
             background: 'rgba(129,115,245,0.10)',
             border:     '0.5px solid rgba(129,115,245,0.18)',

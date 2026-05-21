@@ -1352,7 +1352,7 @@
 
 import {
   useEffect, useRef, useState, useMemo,
-  useCallback,
+  useCallback, memo
 } from 'react'
 import { gsap } from 'gsap'
 import {
@@ -1424,6 +1424,59 @@ const TASK_ANIM_STYLE = `
 `
 
 // ── ListDetailView ────────────────────────────────────────────────────────────
+
+
+interface TaskRowProps {
+  task:          Task
+  userId:        number
+  isViewer:      boolean
+  isDragMode:    boolean
+  draggingId:    string | null
+  viewedTaskIds: Set<string>
+  isSwipingRef:  React.MutableRefObject<boolean>
+  onSwipeRight:  (task: Task) => void
+  onSwipeLeft:   (task: Task) => void
+  onToggle:      (task: Task) => void
+  onOpen:        (task: Task) => void
+  onLongPress:   (task: Task, x: number, y: number) => void
+}
+
+const TaskRow = memo(function TaskRow({
+  task, userId, isViewer, isDragMode, draggingId,
+  viewedTaskIds, isSwipingRef,
+  onSwipeRight, onSwipeLeft, onToggle, onOpen, onLongPress,
+}: TaskRowProps) {
+  const handleSwipeRight  = useCallback(() => onSwipeRight(task),  [task, onSwipeRight])
+  const handleSwipeLeft   = useCallback(() => onSwipeLeft(task),   [task, onSwipeLeft])
+  const handleSwipeStart  = useCallback(() => { isSwipingRef.current = true }, [isSwipingRef])
+  const handleSwipeEnd    = useCallback(() => { setTimeout(() => { isSwipingRef.current = false }, 50) }, [isSwipingRef])
+  const handleLongPress   = useCallback((x: number, y: number) => onLongPress(task, x, y), [task, onLongPress])
+
+  return (
+    <SwipeableTaskCard
+      onSwipeRight={handleSwipeRight}
+      onSwipeLeft={handleSwipeLeft}
+      disabled={isDragMode && !!draggingId}
+      isDraggingGlobal={!!draggingId}
+      onSwipeStart={handleSwipeStart}
+      onSwipeEnd={handleSwipeEnd}
+    >
+      <SortableTaskCard
+        task={task}
+        isUnread={!viewedTaskIds.has(task.id)}
+        userId={userId}
+        isViewer={isViewer}
+        isDragMode={isDragMode}
+        isDragging={draggingId === task.id}
+        onToggle={onToggle}
+        onOpen={onOpen}
+        onLongPress={handleLongPress}
+        isSwiping={isSwipingRef}
+      />
+    </SwipeableTaskCard>
+  )
+})
+
 
 export function ListDetailView({ onBack }: Props) {
   const { theme, toggleTheme } = useTheme()
@@ -2322,7 +2375,7 @@ export function ListDetailView({ onBack }: Props) {
             >
             <SortableContext items={sortedIds} strategy={verticalListSortingStrategy}>
               <div className={cn('mt-2', tasksAnimClass && 'tasks-animate')}>
-                <VirtualList
+                {/* <VirtualList
                   items={displayList}
                   getKey={task => task.id}
                   eager={6}
@@ -2357,6 +2410,30 @@ export function ListDetailView({ onBack }: Props) {
                         isSwiping={isSwipingRef}
                       />
                     </SwipeableTaskCard>
+                  )}
+                </VirtualList> */}
+                <VirtualList
+                  items={displayList}
+                  getKey={task => task.id}
+                  eager={6}
+                  minHeight={72}
+                  gap="space-y-2"
+                >
+                  {(task) => (
+                    <TaskRow
+                      task={task}
+                      userId={user?.id ?? 0}
+                      isViewer={isViewer}
+                      isDragMode={isDragMode}
+                      draggingId={draggingId}
+                      viewedTaskIds={viewedTaskIds}
+                      isSwipingRef={isSwipingRef}
+                      onSwipeRight={handleStatusToggle}
+                      onSwipeLeft={handleArchive}
+                      onToggle={handleStatusToggle}
+                      onOpen={onOpen}
+                      onLongPress={handleLongPress}
+                    />
                   )}
                 </VirtualList>
               </div>

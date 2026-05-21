@@ -55,13 +55,9 @@ export function SortableTaskCard({
       className="task-item"
       style={{
         transform: CSS.Transform.toString(transform),
-        // Оригинальный transition от dnd-kit обычно 250ms — немного медленновато.
-        // Заменяем на 120ms для более отзывчивого ощущения.
-        transition: transition
-          ? transition.replace(/\d+ms/, '120ms')
-          : undefined,
-        // Placeholder на месте перетаскиваемой карточки
+        transition: transition ? transition.replace(/\d+ms/, '120ms') : undefined,
         opacity: isDragging ? 0.35 : 1,
+        willChange: isDragging ? 'transform' : 'auto',
       }}
     >
       <TaskCard

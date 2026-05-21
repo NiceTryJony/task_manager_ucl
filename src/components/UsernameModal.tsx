@@ -265,7 +265,7 @@ export function UsernameModal({ onIdentified }: Props) {
         />
 
         <div
-          className="w-14 h-14 rounded-2xl flex items-center justify-center mb-5 mx-auto animate-float"
+          className="w-14 h-14 rounded-2xl flex items-center justify-center mb-5 mx-auto"
           style={{ background: 'rgba(129,115,245,0.12)', border: '0.5px solid rgba(129,115,245,0.22)' }}
         >
           <User size={26} className="text-accent" />
