@@ -555,9 +555,9 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
         />
 
         {/* Handle */}
-        <div className="flex justify-center pt-3 flex-shrink-0">
+        {/* <div className="flex justify-center pt-3 flex-shrink-0">
           <div className="w-9 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }} />
-        </div>
+        </div> */}
 
         {/* Header */}
         <div
