@@ -40,6 +40,10 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
     confirm: [useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null), useRef<HTMLInputElement>(null)],
   }
 
+  const [perfMode, setPerfMode] = useState<'low' | 'high'>(
+    () => (localStorage.getItem('taskflow_perf') === 'low' ? 'low' : 'high')
+  )
+
   useEffect(() => {
     gsap.fromTo(overlayRef.current, { opacity: 0 }, { opacity: 1, duration: 0.2 })
     gsap.fromTo(sheetRef.current, { y: '100%' }, { y: 0, duration: 0.35, ease: 'power3.out' })
@@ -378,6 +382,41 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
               ))}
             </div>
           </div>
+
+          {/* Performance */}
+          <div style={sectionCard}>
+            <p className="text-xs font-semibold text-text-secondary uppercase tracking-widest mb-3">
+              {t('performance')}
+            </p>
+            <button
+              onClick={() => {
+                const next = perfMode === 'low' ? 'high' : 'low'
+                setPerfMode(next)
+                if (next === 'low') {
+                  document.documentElement.setAttribute('data-perf', 'low')
+                } else {
+                  document.documentElement.removeAttribute('data-perf')
+                }
+                localStorage.setItem('taskflow_perf', next)
+              }}
+              className="flex items-center justify-between w-full"
+            >
+              <div className="text-left">
+                <p className="text-sm text-text-primary">{t('reducedMotion')}</p>
+                <p className="text-xs text-text-dim mt-0.5">{t('reducedMotionDesc')}</p>
+              </div>
+              <div
+                className="relative w-11 h-6 rounded-full flex-shrink-0 ml-4 transition-colors duration-200"
+                style={{ background: perfMode === 'low' ? 'var(--c-accent)' : 'rgba(255,255,255,0.12)' }}
+              >
+                <div
+                  className="absolute top-1 w-4 h-4 rounded-full bg-white transition-transform duration-200"
+                  style={{ transform: perfMode === 'low' ? 'translateX(22px)' : 'translateX(4px)' }}
+                />
+              </div>
+            </button>
+          </div>
+          
 
           {/* Sign out */}
           <button

@@ -660,3 +660,28 @@
 .animate-checkbox-burst {
   animation: checkbox-burst 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+
+
+
+
+
+
+
+/* ── Reduced motion: low-perf devices ─────────────────────── */
+[data-perf="low"] .animate-float,
+[data-perf="low"] .animate-pulse-glow,
+[data-perf="low"] .animate-fade-up,
+[data-perf="low"] .animate-scale-pop,
+[data-perf="low"] .skeleton,
+[data-perf="low"] [data-swapy-item][data-swapy-dragging] {
+  animation: none !important;
+  transition: none !important;
+}
+
+/* GSAP-независимые CSS transitions тоже убираем */
+[data-perf="low"] .card,
+[data-perf="low"] .btn-primary,
+[data-perf="low"] .btn-ghost,
+[data-perf="low"] .custom-checkbox {
+  transition: none !important;
+}

@@ -52,10 +52,24 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           (function(){
             var t = localStorage.getItem('taskflow_theme') || 'dark';
             document.documentElement.setAttribute('data-theme', t);
-            // Обновляем meta theme-color динамически
             var meta = document.querySelector('meta[name="theme-color"]');
-            if (meta) {
-              meta.setAttribute('content', t === 'dark' ? '#0F1117' : '#EDE0D0');
+            if (meta) meta.setAttribute('content', t === 'dark' ? '#0F1117' : '#EDE0D0');
+
+            // Performance class detection
+            var saved = localStorage.getItem('taskflow_perf');
+            if (saved === 'low') {
+              document.documentElement.setAttribute('data-perf', 'low');
+            } else if (!saved) {
+              // Запускаем детект после загрузки Telegram SDK
+              window.addEventListener('load', function() {
+                var perf = window?.Telegram?.WebApp?.deviceInfo?.performance_class;
+                if (perf === 'low') {
+                  document.documentElement.setAttribute('data-perf', 'low');
+                  localStorage.setItem('taskflow_perf', 'low');
+                } else if (perf) {
+                  localStorage.setItem('taskflow_perf', perf); // 'average' | 'high'
+                }
+              });
             }
           })();
         `}} />

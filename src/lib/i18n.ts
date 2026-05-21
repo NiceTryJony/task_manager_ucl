@@ -147,6 +147,9 @@ export const translations = {
     searchNoResults: 'Nothing found',
     searchMatchDesc: 'in description',
     searchMatchSubtask: 'in subtask',
+    performance:     'Performance',
+    reducedMotion:   'Reduce animations',
+    reducedMotionDesc: 'Helps on slower devices',
   },
 
   uk: {
@@ -300,6 +303,9 @@ export const translations = {
     searchNoResults: 'Нічого не знайдено',
     searchMatchDesc: 'в описі',
     searchMatchSubtask: 'в підзавданні',
+    performance:    'Продуктивність' ,
+    reducedMotion:   'Спрощені анімації' ,
+    reducedMotionDesc:'Допомагає на слабких пристроях' ,
   },
 } as const
 
