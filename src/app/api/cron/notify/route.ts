@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createServiceClient } from '@/lib/supabase'
 
-// ── Types ──────────────────────────────────────────────────────
 interface NotificationRow {
   id:      string
   user_id: number
@@ -10,7 +9,14 @@ interface NotificationRow {
   meta:    { list_id?: string } | null
 }
 
-// ── Helpers ────────────────────────────────────────────────────
+interface NotificationInsert {
+  user_id: number
+  task_id: string
+  type:    string
+  message: string
+  meta:    { list_id: string }
+}
+
 function escapeHtml(s: string): string {
   return s
     .replace(/&/g, '&amp;')
@@ -23,21 +29,25 @@ function getMiniAppUrl(listId: string): string {
   return `${base}?startapp=list_${listId}`
 }
 
-// Проверяем все записи включая sent=true — корень бесконечного цикла был здесь
-async function hasEverBeenNotified(
+// ── Батчевая проверка: 2 запроса вместо N×M ───────────────────
+async function getAlreadyNotified(
   db:     ReturnType<typeof createServiceClient>,
-  taskId: string,
-  userId: number,
-  type:   string
-): Promise<boolean> {
+  taskIds: string[],
+  type:    string
+): Promise<Set<string>> {
+  if (!taskIds.length) return new Set()
+
   const { data } = await db
     .from('notifications')
-    .select('id')
-    .eq('task_id', taskId)
-    .eq('user_id', userId)
+    .select('task_id, user_id')
+    .in('task_id', taskIds)
     .eq('type', type)
-    .limit(1)
-  return (data?.length ?? 0) > 0
+
+  const set = new Set<string>()
+  for (const row of data ?? []) {
+    set.add(`${row.task_id}:${row.user_id}`)
+  }
+  return set
 }
 
 async function fetchAssigneesForTasks(
@@ -71,7 +81,6 @@ async function sendTgMessage(
       parse_mode: 'HTML',
     }
 
-    // Кнопка web_app — единственный способ открыть Mini App из уведомления
     if (listId) {
       body.reply_markup = {
         inline_keyboard: [[
@@ -83,7 +92,7 @@ async function sendTgMessage(
       }
     }
 
-    const res = await fetch(
+    const res  = await fetch(
       `https://api.telegram.org/bot${process.env.BOT_TOKEN}/sendMessage`,
       {
         method:  'POST',
@@ -92,10 +101,7 @@ async function sendTgMessage(
       }
     )
     const data = await res.json()
-
-    if (!data.ok) {
-      console.error('[tg] sendMessage failed:', data.description)
-    }
+    if (!data.ok) console.error('[tg] sendMessage failed:', data.description)
     return data.ok === true
   } catch (e) {
     console.error('[tg] sendMessage exception:', e)
@@ -103,7 +109,6 @@ async function sendTgMessage(
   }
 }
 
-// ── Route ──────────────────────────────────────────────────────
 export async function GET(req: NextRequest) {
   const secret = process.env.CRON_SECRET
   const auth   = req.headers.get('authorization')
@@ -123,7 +128,8 @@ export async function GET(req: NextRequest) {
     skipped_synthetic: 0,
   }
 
-  // ── 1. Задачи со сроком в ближайшие 24h ─────────────────
+  // ── 1. Задачи со сроком в ближайшие 24h ─────────────────────
+
   const { data: dueTasks } = await db
     .from('tasks')
     .select('id, title, due_at, created_by, list_id')
@@ -132,8 +138,15 @@ export async function GET(req: NextRequest) {
     .eq('archived', false)
     .neq('status', 'done')
 
-  const dueTaskIds      = (dueTasks ?? []).map(t => t.id)
-  const dueAssigneesMap = await fetchAssigneesForTasks(db, dueTaskIds)
+  const dueTaskIds = (dueTasks ?? []).map(t => t.id)
+
+  // Два батчевых запроса вместо N×M индивидуальных
+  const [dueAssigneesMap, dueNotified] = await Promise.all([
+    fetchAssigneesForTasks(db, dueTaskIds),
+    getAlreadyNotified(db, dueTaskIds, 'due_soon'),
+  ])
+
+  const dueInserts: NotificationInsert[] = []
 
   for (const task of dueTasks ?? []) {
     const assigneeIds = dueAssigneesMap.get(task.id) ?? []
@@ -147,9 +160,9 @@ export async function GET(req: NextRequest) {
     })
 
     for (const uid of recipients) {
-      if (await hasEverBeenNotified(db, task.id, uid, 'due_soon')) continue
+      if (dueNotified.has(`${task.id}:${uid}`)) continue
 
-      await db.from('notifications').insert({
+      dueInserts.push({
         user_id: uid,
         task_id: task.id,
         type:    'due_soon',
@@ -161,11 +174,16 @@ export async function GET(req: NextRequest) {
         ].join('\n'),
         meta: { list_id: task.list_id },
       })
-      stats.queued_due++
     }
   }
 
-  // ── 2. Просроченные задачи ───────────────────────────────
+  if (dueInserts.length) {
+    await db.from('notifications').insert(dueInserts)
+    stats.queued_due = dueInserts.length
+  }
+
+  // ── 2. Просроченные задачи ───────────────────────────────────
+
   const { data: overdueTasks } = await db
     .from('tasks')
     .select('id, title, created_by, list_id')
@@ -174,8 +192,14 @@ export async function GET(req: NextRequest) {
     .eq('archived', false)
     .neq('status', 'done')
 
-  const overdueTaskIds      = (overdueTasks ?? []).map(t => t.id)
-  const overdueAssigneesMap = await fetchAssigneesForTasks(db, overdueTaskIds)
+  const overdueTaskIds = (overdueTasks ?? []).map(t => t.id)
+
+  const [overdueAssigneesMap, overdueNotified] = await Promise.all([
+    fetchAssigneesForTasks(db, overdueTaskIds),
+    getAlreadyNotified(db, overdueTaskIds, 'overdue'),
+  ])
+
+  const overdueInserts: NotificationInsert[] = []
 
   for (const task of overdueTasks ?? []) {
     const assigneeIds = overdueAssigneesMap.get(task.id) ?? []
@@ -184,9 +208,9 @@ export async function GET(req: NextRequest) {
     )]
 
     for (const uid of recipients) {
-      if (await hasEverBeenNotified(db, task.id, uid, 'overdue')) continue
+      if (overdueNotified.has(`${task.id}:${uid}`)) continue
 
-      await db.from('notifications').insert({
+      overdueInserts.push({
         user_id: uid,
         task_id: task.id,
         type:    'overdue',
@@ -197,11 +221,16 @@ export async function GET(req: NextRequest) {
         ].join('\n'),
         meta: { list_id: task.list_id },
       })
-      stats.queued_overdue++
     }
   }
 
-  // ── 3. Отправка pending уведомлений ─────────────────────
+  if (overdueInserts.length) {
+    await db.from('notifications').insert(overdueInserts)
+    stats.queued_overdue = overdueInserts.length
+  }
+
+  // ── 3. Отправка pending уведомлений ─────────────────────────
+
   const { data: pending } = await db
     .from('notifications')
     .select('id, user_id, type, message, meta')
@@ -209,10 +238,13 @@ export async function GET(req: NextRequest) {
     .order('created_at', { ascending: true })
     .limit(50)
 
+  // Батч UPDATE вместо отдельного UPDATE на каждое уведомление
+  const sentIds:   string[] = []
+  const failedIds: string[] = []
+
   for (const notif of (pending ?? []) as NotificationRow[]) {
-    // Синтетические пользователи (отрицательный id) — пропускаем
     if (notif.user_id < 0) {
-      await db.from('notifications').update({ sent: true }).eq('id', notif.id)
+      sentIds.push(notif.id)
       stats.skipped_synthetic++
       continue
     }
@@ -220,9 +252,24 @@ export async function GET(req: NextRequest) {
     const listId = notif.meta?.list_id
     const ok     = await sendTgMessage(notif.user_id, notif.message, listId)
 
-    await db.from('notifications').update({ sent: true }).eq('id', notif.id)
-    ok ? stats.sent++ : stats.failed++
+    if (ok) {
+      sentIds.push(notif.id)
+      stats.sent++
+    } else {
+      failedIds.push(notif.id)
+      stats.failed++
+    }
   }
+
+  // Два UPDATE вместо N UPDATE-ов
+  await Promise.all([
+    sentIds.length
+      ? db.from('notifications').update({ sent: true }).in('id', sentIds)
+      : Promise.resolve(),
+    failedIds.length
+      ? db.from('notifications').update({ sent: true }).in('id', failedIds)
+      : Promise.resolve(),
+  ])
 
   return NextResponse.json({
     ok:        true,

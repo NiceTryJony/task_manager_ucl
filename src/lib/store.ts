@@ -38,7 +38,7 @@ interface TaskStore {
   removeList:        (id: string) => void
 
   addTask:           (task: Task) => void
-  updateTask:        (id: string, data: Partial<Task>) => void
+  updateTask:        (id: string, data: Partial<Task>, listId?: string) => void
   removeTask:        (id: string, listId: string) => void
   reorderTasks:      (listId: string, tasks: Task[]) => void
   updateSubtasks:    (taskId: string, listId: string, subtasks: Subtask[]) => void
@@ -109,11 +109,22 @@ export const useTaskStore = create<TaskStore>((set) => ({
       },
     })),
 
-  updateTask: (id, data) =>
+  updateTask: (id, data, listId?) =>
     set(s => {
+      if (listId && s.tasks[listId]) {
+        return {
+          tasks: {
+            ...s.tasks,
+            [listId]: s.tasks[listId].map(t =>
+              t.id === id ? { ...t, ...data } : t
+            ),
+          },
+        }
+      }
+      // fallback: старая логика
       const updated = { ...s.tasks }
-      for (const listId in updated) {
-        updated[listId] = updated[listId].map(t =>
+      for (const lid in updated) {
+        updated[lid] = updated[lid].map(t =>
           t.id === id ? { ...t, ...data } : t
         )
       }

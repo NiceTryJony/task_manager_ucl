@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react'
 import type { TgUser } from '@/types'
+import { invalidateUserCache } from '@/lib/api-client'
 
 // ── Single source of truth for localStorage keys ───────────────
 export const LS_KEY_USER_ID    = 'taskflow_user_id'
@@ -51,6 +52,7 @@ export function useTelegram(): TelegramContext {
     localStorage.setItem(LS_KEY_USER_ID,    String(userId))
     localStorage.setItem(LS_KEY_USERNAME,   username)
     localStorage.setItem(LS_KEY_FIRST_NAME, firstName)
+    invalidateUserCache()
     setUser({ id: userId, first_name: firstName, username })
     setNeedsIdentify(false)
   }, [])

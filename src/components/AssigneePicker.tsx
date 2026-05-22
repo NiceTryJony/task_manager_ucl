@@ -125,7 +125,6 @@ export function AssigneePicker({ listId, userId, assignedTo, onChange, delayFetc
   const { t } = useI18n()
 
   const cached          = useTaskStore(s => s.membersCache[listId])
-  const setMembersCache = useTaskStore(s => s.setMembersCache)
   const [members, setMembers] = useState<ListMember[]>(cached ?? [])
   const [loading, setLoading] = useState(!cached)
   const [error,    setError]    = useState(false)
@@ -148,13 +147,12 @@ export function AssigneePicker({ listId, userId, assignedTo, onChange, delayFetc
       .then(r => r.json())
       .then(d => {
         const raw: ListMember[] = d.members ?? []
-        // Put current user first
         const sorted = [
           ...raw.filter(m => m.user_id === userId),
           ...raw.filter(m => m.user_id !== userId),
         ]
         setMembers(sorted)
-        setMembersCache(listId, sorted)
+        useTaskStore.getState().setMembersCache(listId, sorted)
         setLoading(false)
       })
       .catch(err => {
@@ -162,7 +160,7 @@ export function AssigneePicker({ listId, userId, assignedTo, onChange, delayFetc
         setError(true)
         setLoading(false)
       })
-  }, [listId, userId, setMembersCache])
+  }, [listId, userId]) // setMembersCache убран — читается через getState()
 
   // useEffect(() => {
   //   loadMembers()

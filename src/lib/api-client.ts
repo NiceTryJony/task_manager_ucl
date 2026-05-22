@@ -31,6 +31,24 @@ function getInitData(): string {
   }
 }
 
+let _cachedUserId: string | undefined
+
+export function invalidateUserCache() {
+  _cachedUserId = undefined!
+}
+
+function getStoredUserId(): string {
+  if (_cachedUserId !== undefined) return _cachedUserId
+  let value: string   // ← локальная, всегда string
+  try {
+    value = localStorage.getItem('taskflow_user_id') ?? ''
+  } catch {
+    value = ''
+  }
+  _cachedUserId = value   // присваиваем после — TS видит string
+  return value
+}
+
 /**
  * Drop-in replacement for fetch() that adds Telegram auth headers.
  */
@@ -41,18 +59,11 @@ export async function apiFetch(
   const initData = getInitData()
   const headers = new Headers(init?.headers)
 
-  if (initData) {
-    headers.set('x-telegram-init-data', initData)
-  }
+  if (initData) headers.set('x-telegram-init-data', initData)
 
-  // ← ДОБАВЬ ЭТО: fallback userId из localStorage для PIN-юзеров
   if (!headers.has('x-user-id')) {
-    const storedId = typeof window !== 'undefined'
-      ? localStorage.getItem('taskflow_user_id')
-      : null
-    if (storedId) {
-      headers.set('x-user-id', storedId)
-    }
+    const storedId = getStoredUserId()
+    if (storedId) headers.set('x-user-id', storedId)
   }
 
   if (init?.body && !headers.has('Content-Type')) {
