@@ -393,7 +393,9 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
                 const next = perfMode === 'low' ? 'high' : 'low'
                 setPerfMode(next)
                 if (next === 'low') {
-                  document.documentElement.setAttribute('data-perf', 'low')
+                  // document.documentElement.setAttribute('data-perf', 'low')
+                  localStorage.setItem('taskflow_perf', next)
+                  window.location.reload() // вместо setAttribute('data-perf', ...)
                 } else {
                   document.documentElement.removeAttribute('data-perf')
                 }
@@ -416,7 +418,7 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
               </div>
             </button>
           </div>
-          
+
 
           {/* Sign out */}
           <button
