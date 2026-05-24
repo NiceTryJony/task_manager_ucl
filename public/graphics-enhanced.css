@@ -1,378 +1,505 @@
 /*
-  graphics-enhanced.css
-  Расположение: /public/graphics-enhanced.css
-
+  graphics-enhanced.css  ·  /public/graphics-enhanced.css
+  ─────────────────────────────────────────────────────────
   Загружается ТОЛЬКО на high/average performance устройствах.
   Инжектируется динамически из layout.tsx — НЕ импортировать через Next.js.
 
   Содержит:
-  ├── CSS variables override (blur, shadows, liquid glass tokens)
-  ├── Liquid Glass — backdrop-filter, refraction, specular highlights
-  ├── backdrop-filter на glass-компонентах и overlay
-  ├── Все @keyframes (включая shake)
-  ├── .animate-* классы, .page-enter, .shake
-  ├── Stagger delays (переопределяют пустые из globals.css)
-  ├── Button glow, input focus ring
+  ├── CSS variable overrides (blur, shadows, liquid glass tokens)
+  ├── Liquid Glass — proper technique: backdrop-filter + inset box-shadow
+  ├── Noise texture overlay (body::before SVG data-URI)
+  ├── Cursor ball + card spotlight (CSS vars driven by JS in layout.tsx)
+  ├── All @keyframes including shake
+  ├── .animate-* utility classes
+  ├── Button shimmer sweep
+  ├── Input focus ring
   ├── Skeleton shimmer
-  ├── Checkbox glow burst
-  ├── Page container enhanced shadows
-  ├── Desktop ambient gradient с анимацией
-  ├── Swapy drag — filter и transition
-  ├── Dropdown появление
-  └── Driver.js glassmorphism
+  ├── Checkbox glow
+  ├── Page container enhanced shadows + ambient desktop bg
+  ├── Swapy drag effects
+  ├── Dropdown entrance
+  └── Stagger card appear
 */
 
 
 /* ═══════════════════════════════════════════════════════════
-   0. SVG FILTER DEFS — liquid distortion (встроен в CSS)
-      Используется через filter: url(#liquid-distort) на
-      pseudo-элементах .glass-panel::before и .glass::before
-   ═══════════════════════════════════════════════════════════ */
-
-/* Инжектируем SVG-фильтр один раз в body через CSS content trick —
-   на практике используем чистый CSS-approach (blur + noise gradient),
-   т.к. filter:url() ограничен в cross-browser для backdrop.
-   Вместо этого эффект достигается многослойными псевдоэлементами. */
-
-
-/* ═══════════════════════════════════════════════════════════
-   1. CSS VARIABLES — переопределяем токены из globals.css
+   1.  DESIGN TOKENS — override globals.css low-perf values
    ═══════════════════════════════════════════════════════════ */
 
 :root,
 [data-theme="dark"] {
-  --glass-blur: blur(22px) saturate(180%) brightness(108%);
 
+  /* ── Glass blur ───────────────────────────────────────── */
+  --glass-blur: blur(22px) saturate(190%) brightness(108%);
+
+  /* ── Glass shadows — multi-layer with inset edge lights ── */
   --glass-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.10),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.15),
-    0 8px 32px rgba(0, 0, 0, 0.40),
-    0 2px 8px  rgba(0, 0, 0, 0.25);
+    0 0 0 1px  rgba(255, 255, 255, 0.04) inset,   /* outer rim */
+    0 1px 0    rgba(255, 255, 255, 0.14) inset,   /* top edge highlight */
+    0 8px 32px rgba(0,   0,   0,   0.42),
+    0 2px 8px  rgba(0,   0,   0,   0.26);
 
   --card-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.08),
-    0 1px 2px  rgba(0, 0, 0, 0.45),
-    0 4px 20px rgba(0, 0, 0, 0.32),
-    0 12px 40px rgba(0, 0, 0, 0.18);
+    0 0 0 1px  rgba(255, 255, 255, 0.05) inset,
+    0 1px 0    rgba(255, 255, 255, 0.10) inset,
+    0 1px 2px  rgba(0,   0,   0,   0.50),
+    0 4px 20px rgba(0,   0,   0,   0.36),
+    0 12px 40px rgba(0,  0,   0,   0.20);
 
   --dropdown-shadow:
-    0 16px 48px rgba(0, 0, 0, 0.60),
-    0 4px 16px  rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.09);
+    0 0 0 1px  rgba(255, 255, 255, 0.06) inset,
+    0 1px 0    rgba(255, 255, 255, 0.12) inset,
+    0 16px 48px rgba(0,  0,   0,   0.64),
+    0 4px  16px rgba(0,  0,   0,   0.38);
 
+  /* ── Card shell gradient border ───────────────────────── */
   --card-shell-grad: linear-gradient(
     148deg,
-    rgba(255, 255, 255, 0.13) 0%,
+    rgba(255, 255, 255, 0.14) 0%,
     rgba(255, 255, 255, 0.04) 40%,
-    rgba(129, 115, 245, 0.03) 70%,
+    rgba(129, 115, 245, 0.04) 70%,
     rgba(255, 255, 255, 0.01) 100%
   );
 
+  /* ── Desktop outer background ─────────────────────────── */
   --bg-outer:
-    radial-gradient(ellipse 90% 55% at 50% -5%, rgba(129, 115, 245, 0.09) 0%, transparent 65%),
-    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(232, 121, 160, 0.05) 0%, transparent 55%),
+    radial-gradient(ellipse 90% 55% at 50% -5%, rgba(129, 115, 245, 0.10) 0%, transparent 65%),
+    radial-gradient(ellipse 60% 40% at 80% 100%, rgba(232, 121, 160, 0.06) 0%, transparent 55%),
     #080A10;
 
-  /* ── Liquid glass tokens ──────────────────────────────── */
-  --liquid-bg:           rgba(18, 20, 34, 0.38);
-  --liquid-border:       rgba(255, 255, 255, 0.12);
-  --liquid-shine-top:    rgba(255, 255, 255, 0.16);
-  --liquid-shine-inner:  rgba(255, 255, 255, 0.05);
-  --liquid-refract:      rgba(129, 115, 245, 0.07);
-  --liquid-edge-light:   rgba(255, 255, 255, 0.22);
-  --liquid-edge-dark:    rgba(0, 0, 0, 0.30);
-  --liquid-specular:
-    radial-gradient(
-      ellipse 55% 28% at 30% 8%,
-      rgba(255, 255, 255, 0.18) 0%,
-      transparent 100%
-    );
-  --liquid-caustic:
-    radial-gradient(
-      ellipse 40% 60% at 70% 90%,
-      rgba(129, 115, 245, 0.09) 0%,
-      transparent 100%
-    );
+  /* ── Liquid glass specific ────────────────────────────── */
+  --liquid-modal-bg:    rgba(18, 12, 48, 0.88);
+  --liquid-modal-blur:  blur(40px) saturate(200%);
+  --liquid-sheet-bg:    rgba(10, 12, 28, 0.72);
+  --liquid-sheet-blur:  blur(32px) saturate(180%);
+  --liquid-panel-blur:  blur(18px) saturate(180%);
+
+  /* ── Accent glow colour ───────────────────────────────── */
+  --glow-accent: rgba(129, 115, 245, 0.22);
+  --glow-strong: rgba(129, 115, 245, 0.45);
 }
 
 [data-theme="light"] {
+
   --glass-blur: blur(24px) saturate(200%) brightness(106%);
 
   --glass-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.70),
-    inset 0 -1px 0 rgba(139, 90, 43, 0.06),
-    0 8px 28px rgba(61, 38, 18, 0.14),
-    0 2px 6px  rgba(61, 38, 18, 0.08);
+    0 0 0 1px  rgba(255, 255, 255, 0.55) inset,
+    0 1px 0    rgba(255, 255, 255, 0.80) inset,
+    0 8px 28px rgba(61,  38,  18,  0.14),
+    0 2px 6px  rgba(61,  38,  18,  0.08);
 
   --card-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.65),
-    0 1px 2px  rgba(61, 38, 18, 0.08),
-    0 4px 20px rgba(61, 38, 18, 0.12),
-    0 12px 40px rgba(61, 38, 18, 0.07);
+    0 0 0 1px  rgba(255, 255, 255, 0.60) inset,
+    0 1px 0    rgba(255, 255, 255, 0.75) inset,
+    0 1px 2px  rgba(61,  38,  18,  0.10),
+    0 4px 20px rgba(61,  38,  18,  0.12),
+    0 12px 40px rgba(61, 38,  18,  0.07);
 
   --dropdown-shadow:
-    0 16px 48px rgba(61, 38, 18, 0.22),
-    0 4px 16px  rgba(61, 38, 18, 0.12),
-    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+    0 0 0 1px  rgba(255, 255, 255, 0.60) inset,
+    0 1px 0    rgba(255, 255, 255, 0.80) inset,
+    0 16px 48px rgba(61, 38,  18,  0.24),
+    0 4px  16px rgba(61, 38,  18,  0.14);
 
   --card-shell-grad: linear-gradient(
     148deg,
-    rgba(255, 255, 255, 0.65) 0%,
-    rgba(255, 255, 255, 0.28) 40%,
-    rgba(176, 107, 46, 0.04) 70%,
-    rgba(255, 255, 255, 0.08) 100%
+    rgba(255, 255, 255, 0.68) 0%,
+    rgba(255, 255, 255, 0.30) 40%,
+    rgba(176, 107, 46,  0.04) 70%,
+    rgba(255, 255, 255, 0.10) 100%
   );
 
   --bg-outer: #D4C4B0;
 
-  /* ── Liquid glass tokens ──────────────────────────────── */
-  --liquid-bg:           rgba(255, 250, 242, 0.44);
-  --liquid-border:       rgba(255, 255, 255, 0.55);
-  --liquid-shine-top:    rgba(255, 255, 255, 0.72);
-  --liquid-shine-inner:  rgba(255, 255, 255, 0.22);
-  --liquid-refract:      rgba(176, 107, 46, 0.05);
-  --liquid-edge-light:   rgba(255, 255, 255, 0.88);
-  --liquid-edge-dark:    rgba(139, 90, 43, 0.08);
-  --liquid-specular:
-    radial-gradient(
-      ellipse 55% 28% at 30% 8%,
-      rgba(255, 255, 255, 0.60) 0%,
-      transparent 100%
-    );
-  --liquid-caustic:
-    radial-gradient(
-      ellipse 40% 60% at 70% 90%,
-      rgba(176, 107, 46, 0.07) 0%,
-      transparent 100%
-    );
+  --liquid-modal-bg:    rgba(240, 228, 212, 0.94);
+  --liquid-modal-blur:  blur(40px) saturate(180%);
+  --liquid-sheet-bg:    rgba(245, 235, 220, 0.82);
+  --liquid-sheet-blur:  blur(32px) saturate(160%);
+  --liquid-panel-blur:  blur(18px) saturate(160%);
+
+  --glow-accent: rgba(176, 107, 46, 0.22);
+  --glow-strong: rgba(176, 107, 46, 0.45);
 }
 
 
 /* ═══════════════════════════════════════════════════════════
-   2. LIQUID GLASS — базовые компоненты
+   2.  NOISE TEXTURE — grain overlay, same as reference
+       Very-low-opacity SVG fractalNoise on a fixed pseudo-element.
+       Adds tactile "film grain" quality to glass surfaces.
    ═══════════════════════════════════════════════════════════ */
 
-/*
-  Техника: три слоя поверх backdrop-filter:
-    ::before  — specular highlight (свет сверху, эффект кривизны)
-    ::after   — caustic / edge refraction (снизу)
-    border    — тонкая edge-light линия
-*/
-
-/* Миксин-шаблон — применяется к .glass, .glass-panel, .glass-dropdown */
-.glass,
-.glass-panel,
-.glass-dropdown {
-  position: relative;
-  overflow: hidden; /* clips pseudo-element highlights */
-  isolation: isolate;
-}
-
-/* ── Specular top highlight ──────────────────────────────── */
-.glass::before,
-.glass-panel::before,
-.glass-dropdown::before {
-  content:        '';
-  position:       absolute;
-  inset:          0;
+body::before {
+  content:    '';
+  position:   fixed;
+  inset:      0;
+  z-index:    9998; /* above content, below cursor ball */
+  opacity:    0.028;
   pointer-events: none;
-  z-index:        1;
-  background:     var(--liquid-specular);
-  border-radius:  inherit;
-  mix-blend-mode: screen;
-  opacity:        0.9;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 256px;
 }
 
-/* ── Caustic bottom glow ─────────────────────────────────── */
-.glass::after,
-.glass-panel::after,
-.glass-dropdown::after {
-  content:        '';
-  position:       absolute;
-  inset:          0;
+[data-theme="light"] body::before { opacity: 0.018; }
+
+
+/* ═══════════════════════════════════════════════════════════
+   3.  CURSOR BALL
+       The element (#cursor-ball or .cursor-ball) must exist in
+       the DOM — inject from layout.tsx or page.tsx.
+       JS updates transform via requestAnimationFrame.
+
+       Signature (add to layout.tsx client script):
+         const ball = document.getElementById('cursor-ball');
+         let cx=0,cy=0,tx=0,ty=0;
+         document.addEventListener('mousemove', e => {
+           tx = e.clientX; ty = e.clientY;
+           ball.style.opacity = '1';
+         });
+         (function raf() {
+           cx += (tx-cx)*.10; cy += (ty-cy)*.10;
+           ball.style.transform=`translate(${cx-170}px,${cy-170}px)`;
+           requestAnimationFrame(raf);
+         })();
+   ═══════════════════════════════════════════════════════════ */
+
+.cursor-ball {
+  position:       fixed;
+  top:            0;
+  left:           0;
+  width:          340px;
+  height:         340px;
+  border-radius:  50%;
   pointer-events: none;
-  z-index:        1;
-  background:     var(--liquid-caustic);
-  border-radius:  inherit;
-  mix-blend-mode: screen;
-  opacity:        0.7;
+  z-index:        9999;
+  background:     radial-gradient(circle,
+    rgba(180, 155, 255, 0.48) 0%,
+    rgba(130,  95, 255, 0.24) 28%,
+    rgba(80,  130, 255, 0.10) 55%,
+    transparent               75%
+  );
+  will-change:    transform;
+  transform:      translate(-9999px, -9999px);
+  transition:     opacity 0.4s ease;
+  opacity:        0;
 }
 
-/* Content must sit above pseudo-elements */
-.glass > *,
-.glass-panel > *,
-.glass-dropdown > * {
-  position: relative;
-  z-index:  2;
-}
-
-/* ── glass — модалы, оверлеи, тосты ─────────────────────── */
-.glass {
-  background:              var(--liquid-bg);
-  border:                  0.5px solid var(--liquid-border);
-  backdrop-filter:         var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+.cursor-ball::before {
+  content:       '';
+  position:      absolute;
+  top:           50%;
+  left:          50%;
+  width:         12px;
+  height:        12px;
+  border-radius: 50%;
+  transform:     translate(-50%, -50%);
+  background:    rgba(225, 205, 255, 0.98);
   box-shadow:
-    var(--glass-shadow),
-    inset 0 0 0 0.5px var(--liquid-shine-inner);
+    0 0  8px  3px  rgba(205, 175, 255, 0.90),
+    0 0 20px  6px  rgba(155, 115, 255, 0.65),
+    0 0 40px 12px  rgba(115,  85, 255, 0.35);
 }
 
-/* ── glass-panel — шторки, нижние листы ──────────────────── */
-.glass-panel {
-  background:              var(--liquid-bg);
-  border-top:              0.5px solid var(--liquid-edge-light);
-  backdrop-filter:         var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+[data-theme="light"] .cursor-ball {
+  background: radial-gradient(circle,
+    rgba(200, 150, 80, 0.30) 0%,
+    rgba(176, 107, 46, 0.16) 28%,
+    rgba(176, 107, 46, 0.06) 55%,
+    transparent              75%
+  );
+}
+
+[data-theme="light"] .cursor-ball::before {
+  background: rgba(255, 235, 200, 0.98);
   box-shadow:
-    var(--glass-shadow),
-    inset 0 0 0 0.5px var(--liquid-shine-inner),
-    inset 0 1px 0 var(--liquid-shine-top);
+    0 0  8px  3px  rgba(220, 180, 120, 0.90),
+    0 0 20px  6px  rgba(176, 107,  46, 0.55),
+    0 0 40px 12px  rgba(176, 107,  46, 0.25);
 }
 
-/* ── glass-dropdown — меню, дропдауны ───────────────────── */
-.glass-dropdown {
-  background:              var(--liquid-bg);
-  border:                  0.5px solid var(--liquid-border);
-  backdrop-filter:         blur(28px) saturate(190%) brightness(112%);
-  -webkit-backdrop-filter: blur(28px) saturate(190%) brightness(112%);
-  box-shadow:              var(--dropdown-shadow);
-}
-
-/* ── sheet-overlay — полупрозрачный фон шторки ───────────── */
-.sheet-overlay {
-  backdrop-filter:         blur(12px) saturate(140%);
-  -webkit-backdrop-filter: blur(12px) saturate(140%);
-}
-
-/* ── driver.js ───────────────────────────────────────────── */
-.driver-popover {
-  backdrop-filter:          blur(28px) saturate(190%) !important;
-  -webkit-backdrop-filter:  blur(28px) saturate(190%) !important;
+/* Disable on touch devices */
+@media (pointer: coarse) {
+  .cursor-ball { display: none; }
 }
 
 
 /* ═══════════════════════════════════════════════════════════
-   3. LIQUID GLASS — CARD SHELL (ListCard обёртка)
+   4.  CARD SPOTLIGHT — cursor-tracking radial gradient
+       JS sets --mx, --my (%), --spot (0→1) on each .card-shell.
+       The gradient follows the cursor within the card.
+
+       Signature (add to ListCard.tsx onMouseMove):
+         const card = e.currentTarget;
+         const r = card.getBoundingClientRect();
+         card.style.setProperty('--mx', ((e.clientX-r.left)/r.width*100)+'%');
+         card.style.setProperty('--my', ((e.clientY-r.top)/r.height*100)+'%');
+         card.style.setProperty('--spot', '1');
+       onMouseLeave:
+         card.style.setProperty('--spot', '0');
    ═══════════════════════════════════════════════════════════ */
 
 .card-shell {
-  position:   relative;
-  overflow:   hidden;
-  isolation:  isolate;
-  transition: transform 150ms ease, box-shadow 200ms ease;
+  --mx:   50%;
+  --my:   50%;
+  --spot: 0;
 }
 
-/* Specular отражение на card-shell */
 .card-shell::before {
   content:        '';
   position:       absolute;
   inset:          0;
-  pointer-events: none;
-  z-index:        1;
   border-radius:  inherit;
-  background: linear-gradient(
-    148deg,
-    rgba(255, 255, 255, 0.14) 0%,
-    rgba(255, 255, 255, 0.04) 35%,
-    transparent 60%
-  );
-  opacity: 1;
+  pointer-events: none;
+  z-index:        0;
+  background:
+    radial-gradient(
+      circle at var(--mx) var(--my),
+      rgba(180, 150, 255, calc(var(--spot) * 0.16)) 0%,
+      rgba(129, 115, 245, calc(var(--spot) * 0.07)) 40%,
+      transparent 70%
+    ),
+    linear-gradient(
+      148deg,
+      rgba(255, 255, 255, 0.13) 0%,
+      rgba(255, 255, 255, 0.03) 40%,
+      rgba(129, 115, 245, 0.03) 70%,
+      rgba(255, 255, 255, 0.01) 100%
+    );
+  transition: background 0.05s linear;
 }
 
-.card-shell:hover {
-  transform:  translateY(-2px);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    0 8px 32px  rgba(0, 0, 0, 0.35),
-    0 2px 8px   rgba(0, 0, 0, 0.20),
-    0 0 0 0.5px rgba(129, 115, 245, 0.12);
-}
+.card-shell > * { position: relative; z-index: 1; }
 
-[data-theme="light"] .card-shell:hover {
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.70),
-    0 8px 32px  rgba(61, 38, 18, 0.14),
-    0 2px 8px   rgba(61, 38, 18, 0.08),
-    0 0 0 0.5px rgba(176, 107, 46, 0.12);
+[data-theme="light"] .card-shell::before {
+  background:
+    radial-gradient(
+      circle at var(--mx) var(--my),
+      rgba(220, 170, 100, calc(var(--spot) * 0.14)) 0%,
+      rgba(176, 107,  46, calc(var(--spot) * 0.06)) 40%,
+      transparent 70%
+    ),
+    linear-gradient(
+      148deg,
+      rgba(255, 255, 255, 0.65) 0%,
+      rgba(255, 255, 255, 0.25) 45%,
+      rgba(255, 255, 255, 0.08) 100%
+    );
 }
 
 
 /* ═══════════════════════════════════════════════════════════
-   4. BUTTON — hover glow и liquid shimmer
+   5.  LIQUID GLASS COMPONENTS
+       Technique from reference dashboard:
+       • backdrop-filter for blur/saturation
+       • background with low-opacity dark/light tint
+       • box-shadow with multiple inset layers for edge highlights
+       • border for the glass rim
+       NO overflow:hidden, NO pseudo-element specular — clean approach
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── .glass — general panels, overlays ───────────────────── */
+.glass {
+  backdrop-filter:         var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow:              var(--glass-shadow);
+}
+
+/* ── .glass-panel — bottom sheets, drawers ───────────────── */
+.glass-panel {
+  background:              var(--liquid-sheet-bg);
+  border-top:              0.5px solid rgba(255, 255, 255, 0.18);
+  backdrop-filter:         var(--liquid-sheet-blur);
+  -webkit-backdrop-filter: var(--liquid-sheet-blur);
+  box-shadow:
+    0 0 0 1px  rgba(255, 255, 255, 0.05) inset,
+    0 1px 0    rgba(255, 255, 255, 0.18) inset,
+    0 -24px 60px rgba(0, 0, 0, 0.50),
+    0 -4px  20px rgba(0, 0, 0, 0.30);
+}
+
+[data-theme="light"] .glass-panel {
+  background:   var(--liquid-sheet-bg);
+  border-top:   0.5px solid rgba(255, 255, 255, 0.80);
+  box-shadow:
+    0 0 0 1px  rgba(255, 255, 255, 0.60) inset,
+    0 1px 0    rgba(255, 255, 255, 0.90) inset,
+    0 -24px 60px rgba(61, 38, 18, 0.18),
+    0 -4px  20px rgba(61, 38, 18, 0.10);
+}
+
+/* ── .glass-dropdown — menus, popovers ───────────────────── */
+.glass-dropdown {
+  backdrop-filter:         blur(28px) saturate(200%) brightness(112%);
+  -webkit-backdrop-filter: blur(28px) saturate(200%) brightness(112%);
+  box-shadow:              var(--dropdown-shadow);
+}
+
+/* ── Modal-grade glass — strongest blur, darkest tint ───── */
+/*    Use on .modal-box, sheet content wrapper, etc.         */
+.glass-modal {
+  background:              var(--liquid-modal-bg);
+  border:                  1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter:         var(--liquid-modal-blur);
+  -webkit-backdrop-filter: var(--liquid-modal-blur);
+  box-shadow:
+    0 0 0 1px  rgba(255, 255, 255, 0.06) inset,
+    0 1px 0    rgba(255, 255, 255, 0.18) inset,
+    0 40px 80px rgba(0,  0,  0,   0.72),
+    0 0   80px  var(--glow-accent);
+}
+
+[data-theme="light"] .glass-modal {
+  background: var(--liquid-modal-bg);
+  border:     1px solid rgba(255, 255, 255, 0.55);
+  box-shadow:
+    0 0 0 1px  rgba(255, 255, 255, 0.65) inset,
+    0 1px 0    rgba(255, 255, 255, 0.90) inset,
+    0 40px 80px rgba(61, 38, 18, 0.28),
+    0 0   60px  var(--glow-accent);
+}
+
+/* ── Sheet overlay backdrop ──────────────────────────────── */
+.sheet-overlay {
+  backdrop-filter:         blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
+}
+
+/* ── Driver.js popovers ───────────────────────────────────── */
+.driver-popover {
+  backdrop-filter:          blur(28px) saturate(190%) !important;
+  -webkit-backdrop-filter:  blur(28px) saturate(190%) !important;
+  box-shadow:
+    0 0 0 1px  rgba(255, 255, 255, 0.06);
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   6.  CARD SHELL — hover lift with accent glow
+   ═══════════════════════════════════════════════════════════ */
+
+.card-shell {
+  transition: transform 160ms ease, box-shadow 220ms ease;
+}
+
+.card-shell:hover {
+  transform:  translateY(-5px) scale(1.02);
+  box-shadow:
+    0 0 0 1px  rgba(255, 255, 255, 0.08) inset,
+    0 1px 0    rgba(255, 255, 255, 0.22) inset,
+    0 24px 48px rgba(0,  0,  0,   0.52),
+    0 8px  20px rgba(0,  0,  0,   0.28),
+    0 0   40px  var(--glow-accent);
+}
+
+[data-theme="light"] .card-shell:hover {
+  box-shadow:
+    0 0 0 1px  rgba(255, 255, 255, 0.70) inset,
+    0 1px 0    rgba(255, 255, 255, 0.90) inset,
+    0 24px 48px rgba(61, 38, 18, 0.22),
+    0 8px  20px rgba(61, 38, 18, 0.12),
+    0 0   40px  var(--glow-accent);
+}
+
+/* Also give .card the same hover treatment */
+.card:hover {
+  transform:  translateY(-4px) scale(1.015);
+  box-shadow:
+    0 0 0 1px  rgba(255, 255, 255, 0.07) inset,
+    0 1px 0    rgba(255, 255, 255, 0.16) inset,
+    0 20px 44px rgba(0,  0,  0,   0.48),
+    0 6px  16px rgba(0,  0,  0,   0.26),
+    0 0   36px  var(--glow-accent);
+  transition: transform 160ms ease, box-shadow 220ms ease;
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   7.  BUTTON — shimmer sweep + glow
    ═══════════════════════════════════════════════════════════ */
 
 .btn-primary {
   position:   relative;
   overflow:   hidden;
-  isolation:  isolate;
-  transition: opacity 150ms ease, transform 150ms ease, box-shadow 200ms ease;
+  will-change: transform;
+  transition: opacity 150ms ease, transform 150ms ease, box-shadow 200ms ease,
+              filter 200ms ease;
 }
 
-/* Shimmer sweep on hover */
-.btn-primary::before {
-  content:    '';
-  position:   absolute;
-  top:        0;
-  left:       -100%;
-  width:      60%;
-  height:     100%;
-  background: linear-gradient(
+/* Shimmer sweep — slides left→right on hover */
+.btn-primary::after {
+  content:        '';
+  position:       absolute;
+  top:            0;
+  left:           -110%;
+  width:          55%;
+  height:         100%;
+  background:     linear-gradient(
     90deg,
-    transparent 0%,
-    rgba(255, 255, 255, 0.22) 50%,
-    transparent 100%
+    transparent              0%,
+    rgba(255, 255, 255, 0.24) 50%,
+    transparent              100%
   );
-  transform:   skewX(-18deg);
-  transition:  left 0s;
-  z-index:     1;
+  transform:      skewX(-18deg);
   pointer-events: none;
+  z-index:        1;
 }
 
-.btn-primary:hover::before {
+.btn-primary:hover::after {
   left:       150%;
-  transition: left 550ms ease;
+  transition: left 540ms ease;
 }
 
 .btn-primary:hover {
-  transform:  translateY(-1px);
+  transform:  translateY(-2px) scale(1.03);
+  filter:     brightness(1.10);
   box-shadow:
-    0 4px 18px rgba(129, 115, 245, 0.35),
-    0 0 0 1px rgba(129, 115, 245, 0.20),
-    inset 0 1px 0 rgba(255, 255, 255, 0.20);
+    0 1px 0    rgba(255, 255, 255, 0.22) inset,
+    0 8px 28px var(--glow-strong),
+    0 4px 12px rgba(0,  0,  0,  0.28);
 }
 
-[data-theme="light"] .btn-primary:hover {
-  box-shadow:
-    0 4px 18px rgba(176, 107, 46, 0.38),
-    0 0 0 1px rgba(176, 107, 46, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.30);
+.btn-primary:active {
+  transform:  scale(0.96);
+  filter:     brightness(1.00);
+  transition-duration: 0.10s;
+}
+
+/* .btn-ghost enhanced hover */
+.btn-ghost {
+  transition: color 150ms ease, background 150ms ease,
+              transform 120ms ease, box-shadow 150ms ease;
+}
+
+.btn-ghost:hover {
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08) inset;
 }
 
 
 /* ═══════════════════════════════════════════════════════════
-   5. INPUT — focus glow ring
+   8.  INPUT — focus glow ring
    ═══════════════════════════════════════════════════════════ */
 
 .input-field {
-  transition: border-color 150ms ease, box-shadow 150ms ease, background 150ms ease;
+  transition: border-color 220ms ease, box-shadow 220ms ease, background 220ms ease;
 }
 
 .input-field:focus {
   box-shadow:
-    0 0 0 3px var(--input-focus-ring),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06),
-    inset 0 -1px 0 rgba(129, 115, 245, 0.04);
+    0 1px 0    rgba(255, 255, 255, 0.08) inset,
+    0 0 0 3px  var(--input-focus-ring),
+    0 4px 20px rgba(0,  0,  0,  0.22);
 }
 
 [data-theme="light"] .input-field:focus {
   box-shadow:
-    0 0 0 3px var(--input-focus-ring),
-    inset 0 1px 0 rgba(255, 255, 255, 0.50);
+    0 1px 0    rgba(255, 255, 255, 0.60) inset,
+    0 0 0 3px  var(--input-focus-ring),
+    0 4px 16px rgba(61, 38, 18, 0.10);
 }
 
 
 /* ═══════════════════════════════════════════════════════════
-   6. SKELETON — shimmer анимация
+   9.  SKELETON — shimmer animation
    ═══════════════════════════════════════════════════════════ */
 
 .skeleton {
@@ -393,43 +520,43 @@
 
 
 /* ═══════════════════════════════════════════════════════════
-   7. CHECKBOX — glow burst на checked
+   10.  CHECKBOX — glow on checked
    ═══════════════════════════════════════════════════════════ */
 
 .custom-checkbox {
   transition:
-    background   0.18s cubic-bezier(0.34, 1.56, 0.64, 1),
-    border-color 0.18s ease,
-    box-shadow   0.18s ease,
-    transform    0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+    background    0.18s cubic-bezier(0.34, 1.56, 0.64, 1),
+    border-color  0.18s ease,
+    box-shadow    0.20s ease,
+    transform     0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .custom-checkbox.checked {
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 0  8px 1px rgba(129, 115, 245, 0.28),
-    0 0 18px 2px rgba(129, 115, 245, 0.12);
+    inset 0 1px 0 rgba(255, 255, 255, 0.14),
+    0 0  8px 1px  var(--glow-accent),
+    0 0 20px 2px  rgba(129, 115, 245, 0.10);
 }
 
 [data-theme="light"] .custom-checkbox.checked {
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.50),
-    0 0  8px 1px rgba(176, 107, 46, 0.28),
-    0 0 18px 2px rgba(176, 107, 46, 0.12);
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    0 0  8px 1px  var(--glow-accent),
+    0 0 20px 2px  rgba(176, 107,  46, 0.10);
 }
 
 
 /* ═══════════════════════════════════════════════════════════
-   8. PAGE CONTAINER — enhanced shadows on desktop
+   11.  PAGE CONTAINER — enhanced desktop shadows
    ═══════════════════════════════════════════════════════════ */
 
 @media (min-width: 640px) {
   .page-container {
     box-shadow:
       0 0 0 0.5px rgba(255, 255, 255, 0.07),
-      0 24px 80px  rgba(0, 0, 0, 0.55),
-      0 0  120px   rgba(129, 115, 245, 0.07),
-      0 0    1px   rgba(129, 115, 245, 0.12);
+      0 24px 80px  rgba(0,  0,  0,   0.58),
+      0 0   120px  var(--glow-accent),
+      0 0     1px  rgba(129, 115, 245, 0.14);
   }
 }
 
@@ -437,15 +564,15 @@
   .page-container {
     box-shadow:
       0 0 0 0.5px rgba(255, 255, 255, 0.08),
-      0 32px 100px rgba(0, 0, 0, 0.60),
-      0 0   160px  rgba(129, 115, 245, 0.09),
-      0 0     1px  rgba(129, 115, 245, 0.14);
+      0 32px 100px rgba(0,  0,  0,   0.62),
+      0 0   160px  var(--glow-accent),
+      0 0     1px  rgba(129, 115, 245, 0.16);
   }
 }
 
 
 /* ═══════════════════════════════════════════════════════════
-   9. DESKTOP AMBIENT — animated dual-gradient background
+   12.  DESKTOP AMBIENT — animated background orbs
    ═══════════════════════════════════════════════════════════ */
 
 @media (min-width: 640px) {
@@ -453,30 +580,32 @@
     content:        '';
     position:       fixed;
     inset:          0;
-    background-image:
-      radial-gradient(circle at 22% 20%, rgba(129, 115, 245, 0.07) 0%, transparent 48%),
-      radial-gradient(circle at 78% 78%, rgba(232, 121, 160, 0.05) 0%, transparent 45%),
-      radial-gradient(circle at 50% 50%, rgba(62, 207, 142, 0.02) 0%, transparent 60%);
     z-index:        -1;
     pointer-events: none;
-    animation:      desktop-bg-drift 24s ease-in-out infinite;
+    background-image:
+      radial-gradient(ellipse 65% 55% at 15% 20%,  rgba(100, 80, 210, 0.22) 0%, transparent 65%),
+      radial-gradient(ellipse 55% 50% at 85% 15%,  rgba(37,  99, 235, 0.10) 0%, transparent 58%),
+      radial-gradient(ellipse 60% 55% at 70% 88%,  rgba(109, 40, 217, 0.14) 0%, transparent 60%),
+      radial-gradient(ellipse 45% 45% at 10% 82%,  rgba(30,  58, 138, 0.12) 0%, transparent 58%);
+    animation: desktop-bg-drift 28s ease-in-out infinite;
   }
 }
 
 @keyframes desktop-bg-drift {
-  0%   { transform: scale(1.00) rotate(0deg);    opacity: 1; }
-  33%  { transform: scale(1.04) rotate(1.5deg);  opacity: 0.85; }
-  66%  { transform: scale(0.98) rotate(-1deg);   opacity: 0.95; }
-  100% { transform: scale(1.00) rotate(0deg);    opacity: 1; }
+  0%   { transform: scale(1.00) rotate(0deg);   opacity: 1.0; }
+  30%  { transform: scale(1.05) rotate(2deg);   opacity: 0.80; }
+  65%  { transform: scale(0.97) rotate(-1.5deg); opacity: 0.92; }
+  100% { transform: scale(1.00) rotate(0deg);   opacity: 1.0; }
 }
 
 
 /* ═══════════════════════════════════════════════════════════
-   10. SWAPY — drag эффекты
+   13.  SWAPY — drag effects
    ═══════════════════════════════════════════════════════════ */
 
 .swapy-slot {
-  transition: min-height 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: min-height 200ms cubic-bezier(0.34, 1.56, 0.64, 1),
+              background  200ms ease;
 }
 
 [data-swapy-highlighted] {
@@ -485,9 +614,9 @@
 
 [data-swapy-item][data-swapy-dragging] {
   filter:
-    drop-shadow(0 14px 32px rgba(0, 0, 0, 0.55))
-    drop-shadow(0 0 0 0.5px rgba(129, 115, 245, 0.30))
-    drop-shadow(0 0 20px rgba(129, 115, 245, 0.12));
+    drop-shadow(0 14px 32px rgba(0, 0, 0, 0.58))
+    drop-shadow(0 0 0 0.5px rgba(129, 115, 245, 0.32))
+    drop-shadow(0 0 24px rgba(129, 115, 245, 0.14));
   transition:
     transform  150ms cubic-bezier(0.34, 1.56, 0.64, 1),
     opacity    150ms ease,
@@ -497,7 +626,7 @@
 [data-theme="light"] [data-swapy-item][data-swapy-dragging] {
   filter:
     drop-shadow(0 14px 32px rgba(61, 38, 18, 0.38))
-    drop-shadow(0 0 0 0.5px rgba(176, 107, 46, 0.30));
+    drop-shadow(0 0 0 0.5px rgba(176, 107, 46, 0.32));
 }
 
 @keyframes swapy-slot-pulse {
@@ -507,22 +636,23 @@
 
 
 /* ═══════════════════════════════════════════════════════════
-   11. DROPDOWN — анимация появления
+   14.  DROPDOWN — entrance animation
    ═══════════════════════════════════════════════════════════ */
 
 .dropdown-menu {
-  animation:      dropdown-in 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  animation:       dropdown-in 0.22s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
   transform-style: preserve-3d;
+  transform-origin: top right;
 }
 
 @keyframes dropdown-in {
   from {
-    transform: scale(0.86) perspective(400px) rotateX(-6deg);
+    transform: scale(0.86) perspective(500px) rotateX(-5deg);
     opacity:   0;
     translate: 0 -6px;
   }
   to {
-    transform: scale(1) perspective(400px) rotateX(0deg);
+    transform: scale(1) perspective(500px) rotateX(0deg);
     opacity:   1;
     translate: 0 0;
   }
@@ -530,29 +660,7 @@
 
 
 /* ═══════════════════════════════════════════════════════════
-   12. CARD SHELL — стaggered appear animation
-   ═══════════════════════════════════════════════════════════ */
-
-/* Применяется через .stagger на родителе */
-.stagger > * {
-  animation: card-appear 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-
-.stagger > *:nth-child(1) { animation-delay:   0ms; }
-.stagger > *:nth-child(2) { animation-delay:  55ms; }
-.stagger > *:nth-child(3) { animation-delay: 110ms; }
-.stagger > *:nth-child(4) { animation-delay: 165ms; }
-.stagger > *:nth-child(5) { animation-delay: 220ms; }
-.stagger > *:nth-child(6) { animation-delay: 275ms; }
-
-@keyframes card-appear {
-  from { transform: translateY(14px) scale(0.97); opacity: 0; }
-  to   { transform: translateY(0)    scale(1);    opacity: 1; }
-}
-
-
-/* ═══════════════════════════════════════════════════════════
-   13. @KEYFRAMES — все анимации
+   15.  ALL @KEYFRAMES
    ═══════════════════════════════════════════════════════════ */
 
 @keyframes page-slide-in {
@@ -567,14 +675,14 @@
 
 @keyframes scale-pop {
   0%   { transform: scale(0.84); opacity: 0; }
-  65%  { transform: scale(1.05); opacity: 1; }
+  65%  { transform: scale(1.06); opacity: 1; }
   100% { transform: scale(1);    opacity: 1; }
 }
 
 @keyframes float {
-  0%, 100% { transform: translateY(0px)  rotate(0deg);   }
-  33%       { transform: translateY(-5px) rotate(0.8deg); }
-  66%       { transform: translateY(-3px) rotate(-0.5deg); }
+  0%, 100% { transform: translateY(0px)  rotate(0deg);    }
+  35%       { transform: translateY(-6px) rotate(0.8deg);  }
+  70%       { transform: translateY(-3px) rotate(-0.5deg); }
 }
 
 @keyframes slide-up {
@@ -583,13 +691,13 @@
 }
 
 @keyframes pulse-glow {
-  0%, 100% { box-shadow: 0 0  0 0   rgba(129, 115, 245, 0.00); }
-  50%       { box-shadow: 0 0 20px 4px rgba(129, 115, 245, 0.22); }
+  0%, 100% { box-shadow: 0 0  0   0   rgba(129, 115, 245, 0.00); }
+  50%       { box-shadow: 0 0 22px 5px rgba(129, 115, 245, 0.24); }
 }
 
 @keyframes checkbox-burst {
   0%   { transform: scale(1);    }
-  28%  { transform: scale(1.40); }
+  25%  { transform: scale(1.42); }
   55%  { transform: scale(0.88); }
   78%  { transform: scale(1.06); }
   100% { transform: scale(1);    }
@@ -600,112 +708,67 @@
   100% { transform: translate(-50%, -50%) rotate(var(--angle)) translateY(-16px); opacity: 0; }
 }
 
-/* Liquid ripple — нажатие на кнопки */
-@keyframes ripple {
-  from { transform: scale(0);   opacity: 0.35; }
-  to   { transform: scale(4);   opacity: 0; }
+/* Card appear — used by .stagger children */
+@keyframes card-appear {
+  from { transform: translateY(18px) scale(0.96); opacity: 0; }
+  to   { transform: translateY(0)    scale(1);    opacity: 1; }
 }
 
-/* Shake — UI feedback (был в globals.css, теперь здесь) */
+/* Toast notifications */
+@keyframes toast-in  {
+  from { opacity: 0; transform: translateY(10px) scale(0.94); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+@keyframes toast-out {
+  to   { opacity: 0; transform: translateY(8px)  scale(0.94); }
+}
+
+/* Pulse dot (logo badge) */
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1;    transform: scale(1); }
+  50%       { opacity: 0.45; transform: scale(0.65); }
+}
+
+/* UI feedback */
 @keyframes shake {
-  0%,  100% { transform: translateX(0);   }
-  15%        { transform: translateX(-7px); }
-  30%        { transform: translateX(6px);  }
-  45%        { transform: translateX(-5px); }
-  60%        { transform: translateX(4px);  }
-  75%        { transform: translateX(-2px); }
-  90%        { transform: translateX(2px);  }
-}
-
-/* Liquid glass shimmer — для .glass-panel при появлении */
-@keyframes glass-shine {
-  0%   { left: -120%; opacity: 0; }
-  10%  { opacity: 1; }
-  100% { left: 120%; opacity: 0; }
-}
-
-/* Glow pulse для акцентных элементов */
-@keyframes accent-pulse {
-  0%,  100% { opacity: 0.5; transform: scale(1);    }
-  50%        { opacity: 0.8; transform: scale(1.06); }
+  0%,  100% { transform: translateX(0); }
+  14%        { transform: translateX(-7px); }
+  28%        { transform: translateX(6px); }
+  42%        { transform: translateX(-5px); }
+  57%        { transform: translateX(4px); }
+  71%        { transform: translateX(-3px); }
+  85%        { transform: translateX(2px); }
 }
 
 
 /* ═══════════════════════════════════════════════════════════
-   14. ANIMATION HELPER CLASSES
+   16.  ANIMATION UTILITY CLASSES
    ═══════════════════════════════════════════════════════════ */
 
-.page-enter {
-  animation: page-slide-in 0.34s cubic-bezier(0.32, 0.72, 0, 1) forwards;
-}
-
-.animate-fade-up {
-  animation: fade-up 0.30s ease-out forwards;
-}
-
-.animate-scale-pop {
-  animation: scale-pop 0.36s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
-}
-
-.animate-float {
-  animation: float 3.6s ease-in-out infinite;
-}
-
-.animate-pulse-glow {
-  animation: pulse-glow 2.4s ease-in-out infinite;
-}
-
-.animate-checkbox-burst {
-  animation: checkbox-burst 0.42s cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-/* Shake — теперь живёт здесь (на low-perf просто нет анимации) */
-.shake {
-  animation: shake 0.42s cubic-bezier(0.36, 0.07, 0.19, 0.97);
-}
+.page-enter             { animation: page-slide-in  0.34s cubic-bezier(0.32, 0.72, 0, 1)     forwards; }
+.animate-fade-up        { animation: fade-up         0.30s ease-out                            forwards; }
+.animate-scale-pop      { animation: scale-pop       0.36s cubic-bezier(0.34, 1.56, 0.64, 1)  forwards; }
+.animate-float          { animation: float           3.8s  ease-in-out                         infinite; }
+.animate-pulse-glow     { animation: pulse-glow      2.6s  ease-in-out                         infinite; }
+.animate-checkbox-burst { animation: checkbox-burst  0.44s cubic-bezier(0.34, 1.56, 0.64, 1); }
+.shake                  { animation: shake           0.44s cubic-bezier(0.36, 0.07, 0.19, 0.97); }
+.toast-in               { animation: toast-in        0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.toast-out              { animation: toast-out       0.25s ease forwards; }
+.pulse-dot              { animation: pulse-dot       2.0s  ease-in-out                         infinite; }
 
 
 /* ═══════════════════════════════════════════════════════════
-   15. GLASS-PANEL — entry animation (slide-up + shine)
+   17.  STAGGER — card appear with animation
+        Overrides empty declarations in globals.css
    ═══════════════════════════════════════════════════════════ */
 
-.glass-panel {
-  animation: slide-up 0.30s cubic-bezier(0.32, 0.72, 0, 1) forwards;
+.stagger > * {
+  animation: card-appear 0.40s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
 
-/* Один-разовый shine sweep при появлении шторки */
-.glass-panel::before {
-  animation: glass-shine 1.2s ease-out 0.15s forwards;
-}
-
-/* ═══════════════════════════════════════════════════════════
-   16. SWAPY SLOT — transition
-   ═══════════════════════════════════════════════════════════ */
-
-.swapy-slot {
-  transition:
-    min-height 200ms cubic-bezier(0.34, 1.56, 0.64, 1),
-    background  200ms ease;
-}
-
-
-/* ═══════════════════════════════════════════════════════════
-   17. CARD SHELL — transition complete
-   ═══════════════════════════════════════════════════════════ */
-
-.card-shell {
-  transition: transform 160ms ease, box-shadow 200ms ease;
-}
-
-
-/* ═══════════════════════════════════════════════════════════
-   18. BTN-GHOST — hover transition
-   ═══════════════════════════════════════════════════════════ */
-
-.btn-ghost {
-  transition: color 150ms ease, background 150ms ease, transform 120ms ease, box-shadow 150ms ease;
-}
-
-.btn-ghost:hover {
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
-}
+.stagger > *:nth-child(1) { animation-delay:   0ms; }
+.stagger > *:nth-child(2) { animation-delay:  55ms; }
+.stagger > *:nth-child(3) { animation-delay: 110ms; }
+.stagger > *:nth-child(4) { animation-delay: 165ms; }
+.stagger > *:nth-child(5) { animation-delay: 220ms; }
+.stagger > *:nth-child(6) { animation-delay: 275ms; }
