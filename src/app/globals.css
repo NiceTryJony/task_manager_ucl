@@ -1,8 +1,11 @@
 /* ═══════════════════════════════════════════════════════════
    globals.css — загружается на ВСЕХ устройствах.
-   Нет blur, нет сложных теней, нет анимаций.
-   graphics-enhanced.css (из /public/) добавляет всё остальное
-   только на high/average performance устройствах.
+   Правило: здесь НЕЛЬЗЯ использовать:
+     • @keyframes (кроме shake — нет, он тоже в enhanced)
+     • animation: ...
+     • backdrop-filter
+     • transition на box-shadow, filter, opacity (кроме базовых)
+   Всё визуально-тяжёлое → graphics-enhanced.css
    ═══════════════════════════════════════════════════════════ */
 
 
@@ -74,6 +77,13 @@
   --skeleton-from:   rgba(255, 255, 255, 0.04);
   --skeleton-mid:    rgba(255, 255, 255, 0.09);
   --bg-outer:        #080A10;
+
+  /* ── Liquid Glass (enhanced override) ─────────────────── */
+  --liquid-bg:          rgba(14, 16, 26, 0.42);
+  --liquid-border:      rgba(255, 255, 255, 0.10);
+  --liquid-shine-top:   rgba(255, 255, 255, 0.13);
+  --liquid-shine-inner: rgba(255, 255, 255, 0.04);
+  --liquid-refract:     rgba(129, 115, 245, 0.06);
 }
 
 [data-theme="light"] {
@@ -139,6 +149,13 @@
   --skeleton-from:   rgba(139, 90, 43, 0.05);
   --skeleton-mid:    rgba(139, 90, 43, 0.10);
   --bg-outer:        #D4C4B0;
+
+  /* ── Liquid Glass (enhanced override) ─────────────────── */
+  --liquid-bg:          rgba(255, 248, 238, 0.46);
+  --liquid-border:      rgba(255, 255, 255, 0.42);
+  --liquid-shine-top:   rgba(255, 255, 255, 0.65);
+  --liquid-shine-inner: rgba(255, 255, 255, 0.18);
+  --liquid-refract:     rgba(176, 107, 46, 0.05);
 }
 
 
@@ -195,8 +212,6 @@
       min-height:      100vh;
     }
 
-    /* Базовый фон десктопа — без анимации.
-       graphics-enhanced.css добавляет body::after с дрейфующим градиентом. */
     body::before {
       content:        '';
       position:       fixed;
@@ -235,35 +250,36 @@
     background: var(--glass-bg);
     border:     0.5px solid var(--glass-border);
     box-shadow: var(--glass-shadow);
+    /* backdrop-filter, enhanced borders → graphics-enhanced.css */
   }
 
-  /* Шторки, модалы */
   .glass-panel {
     background:  var(--sheet-bg);
     border-top:  0.5px solid var(--glass-border-top);
     box-shadow:  var(--glass-shadow);
+    /* backdrop-filter, liquid refraction → graphics-enhanced.css */
   }
 
-  /* Меню, дропдауны */
   .glass-dropdown {
     background: var(--dropdown-bg);
     border:     0.5px solid var(--dropdown-border);
     box-shadow: var(--dropdown-shadow);
+    /* backdrop-filter → graphics-enhanced.css */
   }
 
-  /* Лёгкая стеклянная карточка */
   .glass-card {
     background: var(--card-bg);
     border:     0.5px solid var(--card-border);
     box-shadow: var(--card-shadow);
   }
 
-  /* ── Card-shell — обёртка с gradient-border ──────────── */
+  /* ── Card-shell ───────────────────────────────────────── */
   .card-shell {
     background:    var(--card-shell-grad);
     padding:       0.75px;
     border-radius: 24px;
-    transition:    transform 150ms ease, box-shadow 150ms ease;
+    transition:    transform 150ms ease;
+    /* box-shadow glow on hover → graphics-enhanced.css */
   }
 
   /* ── Card ─────────────────────────────────────────────── */
@@ -290,6 +306,7 @@
     border:         none;
     @apply select-none;
     transition:     opacity 150ms ease, transform 150ms ease;
+    /* box-shadow glow, shimmer → graphics-enhanced.css */
   }
   .btn-primary:hover  { opacity: 0.88; }
   .btn-primary:active { transform: scale(0.93); opacity: 0.75; }
@@ -318,23 +335,17 @@
     outline:       none;
     box-shadow:    inset 0 1px 0 rgba(255,255,255,0.05);
     transition:    border-color 150ms ease, background 150ms ease;
+    /* focus glow ring → graphics-enhanced.css */
   }
-  .input-field::placeholder {
-    color:       rgba(216, 220, 240, 0.28);
-    font-weight: 300;
-  }
+  .input-field::placeholder { color: rgba(216, 220, 240, 0.28); font-weight: 300; }
   .input-field:focus {
     border-color: var(--input-focus-border);
     background:   var(--input-focus-bg);
-    /* Glow-кольцо добавляет graphics-enhanced.css */
   }
 
-  /* ── Skeleton — плоский на low-perf ─────────────────── */
-  /* Shimmer добавляет graphics-enhanced.css */
-  .skeleton {
-    background:    var(--skeleton-from);
-    border-radius: 10px;
-  }
+  /* ── Skeleton — плоский цвет для low-perf ────────────── */
+  /* shimmer animation → graphics-enhanced.css */
+  .skeleton { background: var(--skeleton-from); border-radius: 10px; }
 
   /* ── Checkbox ─────────────────────────────────────────── */
 
@@ -348,17 +359,15 @@
     justify-content: center;
     flex-shrink:     0;
     box-shadow:      inset 0 1px 0 rgba(255,255,255,0.07);
-    transition:
-      background   0.18s cubic-bezier(0.34, 1.56, 0.64, 1),
-      border-color 0.18s ease,
-      transform    0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transition:      background 0.18s ease, border-color 0.18s ease,
+                     transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+    /* box-shadow glow → graphics-enhanced.css */
   }
   .custom-checkbox:active { transform: scale(0.85); }
   .custom-checkbox.checked {
     background:   var(--c-accent-dim);
     border-color: var(--c-accent);
     transform:    scale(1.06);
-    /* Glow добавляет graphics-enhanced.css */
   }
   .custom-checkbox.unchecked { border-color: rgba(216, 220, 240, 0.20); }
   .custom-checkbox.unchecked:hover {
@@ -367,7 +376,7 @@
   }
 
   /* ── Sheet overlay ───────────────────────────────────── */
-  /* backdrop-filter добавляет graphics-enhanced.css */
+  /* backdrop-filter → graphics-enhanced.css */
   .sheet-overlay { background: var(--overlay-bg); }
 
   /* ── Page layout ──────────────────────────────────────── */
@@ -410,11 +419,11 @@
   }
 
   /* ── Dropdown — без анимации на low-perf ─────────────── */
-  /* Анимацию добавляет graphics-enhanced.css */
+  /* Анимация появления → graphics-enhanced.css */
   .dropdown-menu { transform-origin: top right; }
 
   /* ── Driver.js — базовые стили ───────────────────────── */
-  /* backdrop-filter добавляет graphics-enhanced.css */
+  /* backdrop-filter → graphics-enhanced.css */
   .driver-popover {
     background:    var(--dropdown-bg) !important;
     border:        0.5px solid var(--dropdown-border) !important;
@@ -422,33 +431,18 @@
     color:         var(--text-primary) !important;
     border-radius: 16px !important;
   }
-  .driver-popover-title {
-    color:     var(--text-primary) !important;
-    font-size: 14px !important;
-  }
-  .driver-popover-description {
-    color:     var(--text-secondary) !important;
-    font-size: 12px !important;
-  }
+  .driver-popover-title       { color: var(--text-primary)   !important; font-size: 14px !important; }
+  .driver-popover-description { color: var(--text-secondary) !important; font-size: 12px !important; }
   .driver-popover-next-btn,
-  .driver-popover-done-btn {
-    background:    var(--btn-primary-bg) !important;
-    border:        none !important;
-    border-radius: 10px !important;
-  }
-  .driver-popover-prev-btn {
-    color:         var(--text-secondary) !important;
-    border-color:  var(--glass-border) !important;
-    border-radius: 10px !important;
-  }
+  .driver-popover-done-btn    { background: var(--btn-primary-bg) !important; border: none !important; border-radius: 10px !important; }
+  .driver-popover-prev-btn    { color: var(--text-secondary) !important; border-color: var(--glass-border) !important; border-radius: 10px !important; }
 
-  /* ── Swapy — базовые структурные стили ──────────────── */
-  /* Визуальные эффекты перетаскивания — в graphics-enhanced.css */
+  /* ── Swapy — только структурные стили ───────────────── */
+  /* filter, animation, transition при drag → graphics-enhanced.css */
 
   .swapy-slot {
     min-height:    56px;
     border-radius: 24px;
-    transition:    min-height 150ms ease;
   }
 
   [data-swapy-highlighted] {
@@ -468,7 +462,7 @@
     opacity:   0.88;
     cursor:    grabbing !important;
     transform: scale(1.025);
-    /* filter и transition добавляет graphics-enhanced.css */
+    /* filter, transition → graphics-enhanced.css */
   }
 
   [data-swapy-handle] {
@@ -509,21 +503,31 @@
     border-radius: 9999px;
   }
 
-  /* UI-фидбек — оставляем здесь, нужен на всех устройствах */
-  .shake { animation: shake 0.4s cubic-bezier(0.36, 0.07, 0.19, 0.97); }
-}
+  /*
+    .shake и @keyframes shake → graphics-enhanced.css
+    На low-perf устройствах shake не критичен, поэтому
+    здесь оставляем только no-op класс для совместимости:
+  */
+  .shake { /* animation injected by graphics-enhanced.css */ }
 
+  /*
+    Классы анимаций — объявлены здесь для корректного
+    применения через JSX className, но сами @keyframes
+    и значения animation: → graphics-enhanced.css.
+    На low-perf они просто ничего не делают.
+  */
+  .animate-fade-up        { /* → graphics-enhanced.css */ }
+  .animate-scale-pop      { /* → graphics-enhanced.css */ }
+  .animate-float          { /* → graphics-enhanced.css */ }
+  .animate-pulse-glow     { /* → graphics-enhanced.css */ }
+  .animate-checkbox-burst { /* → graphics-enhanced.css */ }
+  .page-enter             { /* → graphics-enhanced.css */ }
 
-/* ═══════════════════════════════════════════════════════════
-   6. KEYFRAMES
-   Только shake — нужен на всех устройствах как UI-фидбек.
-   Все остальные анимации живут в graphics-enhanced.css.
-   ═══════════════════════════════════════════════════════════ */
-
-@keyframes shake {
-  0%,100% { transform: translateX(0); }
-  20%     { transform: translateX(-6px); }
-  40%     { transform: translateX(5px); }
-  60%     { transform: translateX(-4px); }
-  80%     { transform: translateX(3px); }
+  /* Stagger delays — структурно нужны здесь */
+  .stagger > *:nth-child(1) { animation-delay:   0ms; }
+  .stagger > *:nth-child(2) { animation-delay:  55ms; }
+  .stagger > *:nth-child(3) { animation-delay: 110ms; }
+  .stagger > *:nth-child(4) { animation-delay: 165ms; }
+  .stagger > *:nth-child(5) { animation-delay: 220ms; }
+  .stagger > *:nth-child(6) { animation-delay: 275ms; }
 }
