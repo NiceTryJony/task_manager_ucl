@@ -150,7 +150,7 @@ export function ListDetailView({ onBack }: Props) {
   const STATUS_TABS = useMemo<{ key: FilterKey; label: string }[]>(() => [
     { key: 'all',         label: t('filter_all')     },
     { key: 'todo',        label: t('filter_todo')    },
-    { key: 'in_progress', label: t('filter_doing')   },
+    //{ key: 'in_progress', label: t('filter_doing')   },
     { key: 'done',        label: t('filter_done')    },
     { key: 'archived',    label: t('filter_archive') },
   ], [t])
