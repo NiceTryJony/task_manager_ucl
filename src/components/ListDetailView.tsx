@@ -99,6 +99,7 @@ interface TaskRowProps {
   draggingId:    string | null
   viewedTaskIds: Set<string>
   isSwipingRef:  React.MutableRefObject<boolean>
+  onSwipeLeftDeep?: (task: Task) => void
   onSwipeRight:  (task: Task) => void
   onSwipeLeft:   (task: Task) => void
   onToggle:      (task: Task) => void
@@ -109,13 +110,15 @@ interface TaskRowProps {
 const TaskRow = memo(function TaskRow({
   task, userId, isViewer, isDragMode, draggingId,
   viewedTaskIds, isSwipingRef,
-  onSwipeRight, onSwipeLeft, onToggle, onOpen, onLongPress,
+  onSwipeRight, onSwipeLeft, onSwipeLeftDeep,
+  onToggle, onOpen, onLongPress,
 }: TaskRowProps) {
   const handleSwipeRight  = useCallback(() => onSwipeRight(task),  [task, onSwipeRight])
   const handleSwipeLeft   = useCallback(() => onSwipeLeft(task),   [task, onSwipeLeft])
   const handleSwipeStart  = useCallback(() => { isSwipingRef.current = true }, [isSwipingRef])
   const handleSwipeEnd    = useCallback(() => { setTimeout(() => { isSwipingRef.current = false }, 50) }, [isSwipingRef])
   const handleLongPress   = useCallback((x: number, y: number) => onLongPress(task, x, y), [task, onLongPress])
+  const handleSwipeLeftDeep   = useCallback(() => onSwipeLeftDeep?.(task), [task, onSwipeLeftDeep])
 
   return (
     <SwipeableTaskCard
@@ -125,6 +128,7 @@ const TaskRow = memo(function TaskRow({
       isDraggingGlobal={!!draggingId}
       onSwipeStart={handleSwipeStart}
       onSwipeEnd={handleSwipeEnd}
+      onSwipeLeftDeep={handleSwipeLeftDeep}
     >
       <SortableTaskCard
         task={task}
@@ -170,7 +174,11 @@ export function ListDetailView({ onBack }: Props) {
   const [filter,         setFilter]         = useState<FilterKey>('all')
   const [sortKey,        setSortKey]        = useState<SortKey>('position')
   const [loading,        setLoading]        = useState(true)
-  const [searchQuery,    setSearchQuery]    = useState('')
+  // const [searchQuery,    setSearchQuery]    = useState('')
+  const SEARCH_KEY = `taskflow_search_${activeListId}`
+  const [searchQuery, setSearchQuery] = useState(
+    () => localStorage.getItem(SEARCH_KEY) ?? ''
+  )
   const [showSearch,     setShowSearch]     = useState(false)
   const [showSort,       setShowSort]       = useState(false)
   const [activeTask,     setActiveTask]     = useState<Task | null>(null)
@@ -666,6 +674,7 @@ export function ListDetailView({ onBack }: Props) {
     setFilter('all')
     setSortKey('position')
     setSearchQuery('')
+    localStorage.removeItem(`taskflow_search_${activeListId}`)
     setShowSearch(false)
     setShowSort(false)
     setContextMenu(null)
@@ -869,13 +878,19 @@ export function ListDetailView({ onBack }: Props) {
             <input
               ref={searchRef}
               value={searchQuery}
-              onChange={e => setSearchQuery(e.target.value)}
+              // onChange={e => setSearchQuery(e.target.value)}
+              onChange={e => {
+                setSearchQuery(e.target.value)
+                if (e.target.value) localStorage.setItem(SEARCH_KEY, e.target.value)
+                else localStorage.removeItem(SEARCH_KEY)
+              }}
               placeholder={t('searchPlaceholder')}
               className="input-field pl-9 pr-9 py-2.5 text-sm"
             />
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
+                
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-text-dim"
                 aria-label="Clear search"
               >
@@ -1098,6 +1113,7 @@ export function ListDetailView({ onBack }: Props) {
                       isSwipingRef={isSwipingRef}
                       onSwipeRight={handleStatusToggle}
                       onSwipeLeft={handleArchive}
+                      onSwipeLeftDeep={!isViewer ? handleDelete : undefined}
                       onToggle={handleStatusToggle}
                       onOpen={onOpen}
                       onLongPress={handleLongPress}

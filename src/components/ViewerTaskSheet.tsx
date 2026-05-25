@@ -250,9 +250,12 @@ export function ViewerTaskSheet({ task, userId, onClose, onSubtaskToggled }: Pro
                     }}
                   >
                     <button
-                      onClick={() => handleToggleSubtask(sub)}
-                      disabled={togglingId === sub.id}
-                      className={cn('custom-checkbox flex-shrink-0 mt-0.5', sub.completed ? 'checked' : 'unchecked')}
+                      onClick={() => { if (togglingId !== sub.id) handleToggleSubtask(sub) }}
+                      className={cn(
+                        'custom-checkbox flex-shrink-0 mt-0.5',
+                        sub.completed ? 'checked' : 'unchecked',
+                        togglingId === sub.id && 'opacity-60',
+                      )}
                     >
                       {sub.completed && (
                         <svg width="11" height="9" viewBox="0 0 11 9" fill="none">
@@ -272,12 +275,12 @@ export function ViewerTaskSheet({ task, userId, onClose, onSubtaskToggled }: Pro
                         </span>
                       )}
                     </div>
-                    {togglingId === sub.id && (
+                    {/* {togglingId === sub.id && (
                       <div
                         className="w-4 h-4 rounded-full border-2 flex-shrink-0 mt-0.5"
                         style={{ borderColor: 'rgba(255,255,255,0.15)', borderTopColor: 'var(--c-accent)', animation: 'spin 0.7s linear infinite' }}
                       />
-                    )}
+                    )} */}
                   </div>
                 ))}
               </div>
