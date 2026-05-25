@@ -65,6 +65,7 @@ type ReorderStatus = 'idle' | 'pending' | 'saving'
 
 const PRIORITY_ORDER: Record<Priority, number> = {
   urgent: 0, high: 1, medium: 2, low: 3,
+  низький: 0, середній: 1, високий: 2, терміново: 3,
 }
 
 // ── CSS stagger animation — ноль GSAP DOM-запросов ───────────────────────────
