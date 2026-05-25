@@ -5,6 +5,9 @@ import { ChevronDown, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { TaskAssignee } from '@/types'
 import { useI18n } from '@/lib/i18n-context'
+import { useTheme }       from '@/lib/theme-context'
+import { apiFetch } from '@/lib/api-client'
+
 
 // ── Colour palette for avatars (cycles by index) ──────────────
 const AVATAR_COLORS = [
@@ -38,6 +41,7 @@ export function TaskAssigneesBadge({
   className,
 }: Props) {
   const [open, setOpen] = useState(false)
+  const { t } = useI18n()
 
   if (!assignees.length) return null
 
@@ -60,8 +64,9 @@ export function TaskAssigneesBadge({
             className="text-[10px] font-medium uppercase tracking-wider"
             style={{ color: 'var(--text-dim)', letterSpacing: '0.06em' }}
           >
-            t('respond'):
+            {t('respond')}
           </span>
+          
 
           {/* Stacked avatars */}
           <div className="flex items-center">
