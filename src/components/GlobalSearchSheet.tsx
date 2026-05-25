@@ -7,6 +7,7 @@ import { PRIORITY_CONFIG, STATUS_CONFIG, cn } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n-context'
 import type { Priority, TaskStatus } from '@/types'
 import { apiFetch } from '@/lib/api-client'
+import { usePriorityConfig } from '@/hooks/usePriorityConfig'
 
 interface SearchResult {
   task: {
@@ -56,7 +57,8 @@ function Highlight({ text, query }: { text: string; query: string }) {
 
 function ResultCard({ result, query, onClick }: { result: SearchResult; query: string; onClick: () => void }) {
   const { t } = useI18n()
-  const priority = PRIORITY_CONFIG[result.task.priority]
+  const PRIORITY_CFG = usePriorityConfig()
+  const priority = PRIORITY_CFG[result.task.priority]
   const status   = STATUS_CONFIG[result.task.status]
 
   return (

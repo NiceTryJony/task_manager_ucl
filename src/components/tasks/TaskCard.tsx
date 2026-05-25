@@ -19,6 +19,7 @@ import { TaskAssigneesBadge } from '@/components/TaskAssigneesBadge'
 import { useI18n } from '@/lib/i18n-context'
 import type { Task } from '@/types'
 import type { useSortable } from '@dnd-kit/sortable'
+import { usePriorityConfig } from '@/hooks/usePriorityConfig'
 
 // ── Module-level constant — вычисляется один раз при загрузке бандла ──────────
 // Ранее вызывался Intl.DateTimeFormat().resolvedOptions() внутри кждого рендера
@@ -135,6 +136,7 @@ export const TaskCard = memo(function TaskCard({
   onToggle, onOpen, onLongPress, isSwiping, isUnread,
 }: CardProps) {
   const { t } = useI18n()
+  const PRIORITY_CFG = usePriorityConfig()
 
   const [isHolding, setIsHolding] = useState(false)
   const [burst,     setBurst]     = useState(false)
@@ -143,7 +145,8 @@ export const TaskCard = memo(function TaskCard({
   const longPressTimer  = useRef<ReturnType<typeof setTimeout>>()
   const didLongPress    = useRef(false)
 
-  const priority   = PRIORITY_CONFIG[task.priority]
+  // const priority   = PRIORITY_CONFIG[task.priority]
+  const priority = PRIORITY_CFG[task.priority]
   const isDone     = task.status === 'done'
   const isArchived = task.archived
   const subDone    = task.subtasks?.filter(s => s.completed).length ?? 0

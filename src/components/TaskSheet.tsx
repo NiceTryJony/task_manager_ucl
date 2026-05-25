@@ -22,6 +22,7 @@ import { usePending } from '@/hooks/usePending'
 import { AssigneePicker } from '@/components/AssigneePicker'
 import { useI18n } from '@/lib/i18n-context'
 import { apiFetch } from '@/lib/api-client'
+import { usePriorityConfig } from '@/hooks/usePriorityConfig'
 
 // ── Lazy-load TaskHistoryPanel — не нужен при открытии ────────
 const TaskHistoryPanel = lazy(() =>
@@ -47,10 +48,9 @@ interface LocalSubtask {
   } | null
 }
 
-const PRIORITIES: Priority[] = ['low', 'medium', 'high', 'urgent', 'низький', 'середній', 'високий', 'терміново']
+const PRIORITIES: Priority[] = ['low', 'medium', 'high', 'urgent']
 const PRIORITY_ICONS: Record<Priority, string> = {
   low: '○', medium: '◑', high: '●', urgent: '⚠',
-  низький: '○', середній: '◑', високий: '●', терміново: '⚠',
 }
 
 function getUserTimezone() {
@@ -293,6 +293,7 @@ const SubtasksList = memo(function SubtasksList({
 const PriorityPicker = memo(function PriorityPicker({
   value, onChange, label,
 }: { value: Priority; onChange: (p: Priority) => void; label: string }) {
+  const PRIORITY_CFG = usePriorityConfig()
   return (
     <div>
       <label className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2.5">
@@ -300,7 +301,7 @@ const PriorityPicker = memo(function PriorityPicker({
       </label>
       <div className="grid grid-cols-4 gap-2">
         {PRIORITIES.map(p => {
-          const cfg    = PRIORITY_CONFIG[p]
+          const cfg    = PRIORITY_CFG[p]
           const active = value === p
           return (
             <button
