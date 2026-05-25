@@ -314,14 +314,19 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // if (due_at) {
-  //   await db.from('notifications').insert({
-  //     user_id: userId,
-  //     task_id: task.id,
-  //     type:    'due_soon',
-  //     message: dueSoonMsg(title, due_at),
-  //   })
-  // }
+  if (due_at) {
+    // Уведомляем всех assignees + создателя
+    const targets = [...new Set([userId, ...ids])].filter(Boolean)
+    await db.from('notifications').insert(
+      targets.map(uid => ({
+        user_id: uid,
+        task_id: task.id,
+        type:    'due_soon',
+        message: dueSoonMsg(title, due_at),
+        meta:    { list_id: listId },
+      }))
+    )
+  }
 
   if (description) {
     const { data: author } = await db

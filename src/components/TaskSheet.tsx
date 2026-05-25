@@ -390,10 +390,35 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
     return () => clearTimeout(t)
   }, [isEdit])
 
+  // const close = useCallback(() => {
+  //   gsap.to(sheetRef.current,   { y: '100%', duration: 0.24, ease: 'power3.in' })
+  //   gsap.to(overlayRef.current, { opacity: 0, duration: 0.2, onComplete: onClose })
+  // }, [onClose])
+
   const close = useCallback(() => {
-    gsap.to(sheetRef.current,   { y: '100%', duration: 0.24, ease: 'power3.in' })
-    gsap.to(overlayRef.current, { opacity: 0, duration: 0.2, onComplete: onClose })
-  }, [onClose])
+  const titleVal = titleRef_.current?.value?.trim() ?? ''
+  const descVal  = descriptionRef.current?.value?.trim() ?? ''
+
+  const originalTitle = task?.title ?? ''
+  const originalDesc  = task?.description ?? ''
+
+  const hasChanges =
+    titleVal !== originalTitle ||
+    descVal  !== originalDesc  ||
+    (!isEdit && (titleVal.length > 0 || subtasks.length > 0))
+
+  if (hasChanges) {
+    const confirmed = window.confirm(
+      isEdit
+        ? t('close_without_saving')
+        : t('close_without_saving_task')
+    )
+    if (!confirmed) return
+  }
+
+  gsap.to(sheetRef.current,   { y: '100%', duration: 0.24, ease: 'power3.in' })
+  gsap.to(overlayRef.current, { opacity: 0, duration: 0.2, onComplete: onClose })
+}, [isEdit, task, subtasks, onClose])
 
   const buildDueAt = useCallback((): string | null => {
     if (!dueDate) return null

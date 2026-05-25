@@ -150,9 +150,13 @@ export const translations = {
     performance:     'Performance',
     reducedMotion:   'Reduce animations',
     reducedMotionDesc: 'Helps on slower devices',
+    close_without_saving: 'There are unsaved changes. Close without saving?',
+    close_without_saving_task: 'Close without saving task?',
   },
 
   uk: {
+    close_without_saving: 'Є незбережені зміни. Закрити без збереження?',
+    close_without_saving_task: 'Закрити без збереження завдання?',
     // ── Home ──────────────────────────────────────────────────
     greeting: 'Привіт', tasksCompleted: 'завдань виконано',
     noLists: 'Поки що немає списків',

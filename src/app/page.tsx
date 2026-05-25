@@ -11,12 +11,75 @@ import { SettingsSheet } from '@/components/SettingsSheet'
 import { ShareSheet } from '@/components/ShareSheet'
 import { GlobalSearchSheet } from '@/components/GlobalSearchSheet'
 import { SkeletonList } from '@/components/ui/Skeleton'
-import { Plus, Search, Sparkles, Settings } from 'lucide-react'
+import { Plus, Search, Sparkles, Settings, GripVertical } from 'lucide-react'
 import type { TaskList } from '@/types'
 import { Toaster } from 'sonner'
 import { SaveBanner } from '@/components/ui/SaveBanner'
 import { useI18n } from '@/lib/i18n-context'
 import { apiFetch, invalidateUserCache } from '@/lib/api-client'
+import {
+  DndContext, closestCenter, PointerSensor,
+  TouchSensor, useSensor, useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  SortableContext, verticalListSortingStrategy,
+  useSortable, arrayMove,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+
+// ── SortableListCard ──────────────────────────────────────────
+// Drag handle отдельно от карточки — не конфликтует с кнопками меню
+
+function SortableListCard(props: React.ComponentProps<typeof ListCard>) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: props.list.id })
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={{
+        transform:  CSS.Transform.toString(transform),
+        transition: transition ?? 'transform 200ms ease',
+        opacity:    isDragging ? 0.45 : 1,
+        zIndex:     isDragging ? 50 : undefined,
+        position:   'relative',
+      }}
+    >
+      {/* Drag handle — только он активирует drag, не вся карточка */}
+      <div
+        ref={setActivatorNodeRef}
+        {...attributes}
+        {...listeners}
+        className="absolute left-0 top-0 bottom-0 z-10 flex items-center pl-1 pr-2 cursor-grab active:cursor-grabbing touch-none select-none"
+        style={{ width: 28 }}
+        onClick={e => e.stopPropagation()}
+      >
+        <GripVertical
+          size={14}
+          style={{
+            color: isDragging ? 'var(--c-accent)' : 'rgba(255,255,255,0.18)',
+            transition: 'color 150ms ease',
+          }}
+        />
+      </div>
+
+      {/* Карточка со смещением чтобы не перекрывать handle */}
+      <div style={{ paddingLeft: 20 }}>
+        <ListCard {...props} />
+      </div>
+    </div>
+  )
+}
+
+// ── HomePage ──────────────────────────────────────────────────
 
 export default function HomePage() {
   const { user, isReady, haptic, needsIdentify, setIdentity } = useTelegram()
@@ -32,18 +95,35 @@ export default function HomePage() {
   const [displayName,  setDisplayName]  = useState('')
   const [currentUn,    setCurrentUn]    = useState('')
 
-  // Stable ref — startParam эффект срабатывает после lists загрузки
   const startParamHandled = useRef(false)
 
-  // ── init — useCallback, стабильная ссылка ────────────────────
-  // setLists / setUserId из Zustand стабильны по ссылке — их можно
-  // не включать в deps, но eslint их требует. Реального пересоздания нет.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor,   { activationConstraint: { delay: 200, tolerance: 8 } }),
+  )
+
+  // ── Восстановление сохранённого порядка ──────────────────────
+  function applyOrder(freshLists: TaskList[]): TaskList[] {
+    try {
+      const savedOrder = localStorage.getItem('taskflow_lists_order')
+      if (!savedOrder) return freshLists
+      const ids: string[] = JSON.parse(savedOrder)
+      return [
+        ...ids.map(id => freshLists.find(l => l.id === id)).filter(Boolean),
+        ...freshLists.filter(l => !ids.includes(l.id)),
+      ] as TaskList[]
+    } catch {
+      return freshLists
+    }
+  }
+
+  // ── init ──────────────────────────────────────────────────────
   const init = useCallback(async (resolvedUid: number) => {
-    // Показываем кеш мгновенно, не ждём сеть
+    // Мгновенно показываем кеш
     try {
       const cached = localStorage.getItem('taskflow_lists_cache')
       if (cached) {
-        setLists(JSON.parse(cached))
+        setLists(applyOrder(JSON.parse(cached)))
         setLoading(false)
       }
     } catch {}
@@ -62,39 +142,59 @@ export default function HomePage() {
 
       const data = await listsRes.json()
       const freshLists: TaskList[] = data.lists ?? []
+      const ordered = applyOrder(freshLists)
 
-      setLists(freshLists)
-      setLoading(false)
+      setLists(ordered)
+      setLoading(false)   // ← всегда вызывается, баг исправлен
 
+      // Сохраняем свежие данные в кеш (без учёта порядка — порядок отдельно)
       try {
         localStorage.setItem('taskflow_lists_cache', JSON.stringify(freshLists))
       } catch {}
+
     } catch (err) {
       console.error('[init] failed:', err)
       setLoading(false)
     }
   }, [setLists])
 
-  // ── Инициализация при готовности Telegram / PIN-auth ─────────
+  // ── DnD reorder ───────────────────────────────────────────────
+  const handleListDragEnd = useCallback((event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    const oldIndex = lists.findIndex(l => l.id === active.id)
+    const newIndex = lists.findIndex(l => l.id === over.id)
+    if (oldIndex === -1 || newIndex === -1) return
+
+    const reordered = arrayMove(lists, oldIndex, newIndex)
+    setLists(reordered)
+    haptic.medium()
+
+    try {
+      localStorage.setItem(
+        'taskflow_lists_order',
+        JSON.stringify(reordered.map(l => l.id))
+      )
+    } catch {}
+  }, [lists, setLists, haptic])
+
+  // ── Effects ───────────────────────────────────────────────────
+
   useEffect(() => {
     if (!isReady || needsIdentify) return
-
     const resolvedUid = user?.id ?? 0
     setUid(resolvedUid)
     setUserId(resolvedUid)
     setDisplayName(user?.first_name ?? '')
     setCurrentUn(user?.username ?? '')
     void init(resolvedUid)
-  }, [isReady, needsIdentify, user?.id]) // init стабилен — не вызовет лишних запусков
+  }, [isReady, needsIdentify, user?.id])
 
-  // ── Deep-link: открыть список из start_param ─────────────────
-  // Срабатывает один раз после загрузки списков
   useEffect(() => {
     if (loading || !lists.length || startParamHandled.current) return
-
     const startParam = window?.Telegram?.WebApp?.initDataUnsafe?.start_param
     if (!startParam?.startsWith('list_')) return
-
     const listId = startParam.replace('list_', '')
     const target = lists.find(l => l.id === listId)
     if (target) {
@@ -124,7 +224,7 @@ export default function HomePage() {
     setUserId(userId)
     setDisplayName(firstName)
     setCurrentUn(username)
-    startParamHandled.current = false  // сбросить — новый пользователь
+    startParamHandled.current = false
     void init(userId)
   }, [setIdentity, setUserId, init])
 
@@ -143,6 +243,7 @@ export default function HomePage() {
   }, [setPendingTaskId, setActiveList])
 
   // ── Derived ───────────────────────────────────────────────────
+
   const totalTasks = lists.reduce((s, l) => s + (l.task_count ?? 0), 0)
   const doneTasks  = lists.reduce((s, l) => s + (l.done_count ?? 0), 0)
 
@@ -237,26 +338,36 @@ export default function HomePage() {
         ) : lists.length === 0 ? (
           <EmptyState onCreate={() => setShowCreate(true)} />
         ) : (
-          <div className="space-y-3 stagger">
-            {lists.map(list => (
-              <div key={list.id} className="list-card">
-                <ListCard
-                  list={list}
-                  userId={uid}
-                  onClick={() => { setActiveList(list.id); haptic.light() }}
-                  onEdited={updated =>
-                    setLists(useTaskStore.getState().lists.map(l =>
-                      l.id === updated.id ? updated : l
-                    ))
-                  }
-                  onDeleted={id =>
-                    setLists(useTaskStore.getState().lists.filter(l => l.id !== id))
-                  }
-                  onShare={l => { setShareList(l); haptic.light() }}
-                />
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragEnd={handleListDragEnd}
+          >
+            <SortableContext
+              items={lists.map(l => l.id)}
+              strategy={verticalListSortingStrategy}
+            >
+              <div className="space-y-3 stagger">
+                {lists.map(list => (
+                  <SortableListCard
+                    key={list.id}
+                    list={list}
+                    userId={uid}
+                    onClick={() => { setActiveList(list.id); haptic.light() }}
+                    onEdited={updated =>
+                      setLists(useTaskStore.getState().lists.map(l =>
+                        l.id === updated.id ? updated : l
+                      ))
+                    }
+                    onDeleted={id =>
+                      setLists(useTaskStore.getState().lists.filter(l => l.id !== id))
+                    }
+                    onShare={l => { setShareList(l); haptic.light() }}
+                  />
+                ))}
               </div>
-            ))}
-          </div>
+            </SortableContext>
+          </DndContext>
         )}
       </div>
 
