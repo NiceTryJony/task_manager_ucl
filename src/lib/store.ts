@@ -1,28 +1,26 @@
 import { create } from 'zustand'
 import type { TaskList, Task, Subtask, TaskAssignee } from '@/types'
 
-// ── ListMember — вынести также в @/types если используется в других местах
 export interface ListMember {
   user_id: number
   users:   TaskAssignee
 }
 
 interface TaskStore {
-  // ── Данные ──────────────────────────────────────────────────
   lists:        TaskList[]
-  tasks:        Record<string, Task[]>      // listId → Task[]
+  tasks:        Record<string, Task[]>
   activeListId: string | null
   userId:       number | null
 
-  // ── Кеши ────────────────────────────────────────────────────
-  membersCache: Record<string, ListMember[]> // listId → members (не фетчим повторно)
+  membersCache: Record<string, ListMember[]>
 
-  // ── Pending ops (SaveBanner) ─────────────────────────────────
   pendingOps:    number
   lastSaveError: boolean
 
-  // ── Навигация ────────────────────────────────────────────────
-  pendingTaskId: string | null  // auto-open после смены списка
+  pendingTaskId: string | null
+
+  // ── Поиск — запоминаем последний запрос ─────────────────────
+  lastSearchQuery: string
 
   // ── Actions ─────────────────────────────────────────────────
   incrementPending:  () => void
@@ -44,22 +42,22 @@ interface TaskStore {
   updateSubtasks:    (taskId: string, listId: string, subtasks: Subtask[]) => void
 
   setPendingTaskId:  (id: string | null) => void
+  setLastSearchQuery:(query: string) => void
 
-  // ── Cache actions ────────────────────────────────────────────
   setMembersCache:   (listId: string, members: ListMember[]) => void
-  clearMembersCache: (listId?: string) => void  // без аргумента — чистит всё
+  clearMembersCache: (listId?: string) => void
 }
 
 export const useTaskStore = create<TaskStore>((set) => ({
-  // ── Initial state ────────────────────────────────────────────
-  lists:         [],
-  tasks:         {},
-  activeListId:  null,
-  userId:        null,
-  membersCache:  {},
-  pendingOps:    0,
-  lastSaveError: false,
-  pendingTaskId: null,
+  lists:           [],
+  tasks:           {},
+  activeListId:    null,
+  userId:          null,
+  membersCache:    {},
+  pendingOps:      0,
+  lastSaveError:   false,
+  pendingTaskId:   null,
+  lastSearchQuery: '',
 
   // ── Pending ──────────────────────────────────────────────────
   incrementPending: () =>
@@ -93,7 +91,7 @@ export const useTaskStore = create<TaskStore>((set) => ({
       return {
         lists:        s.lists.filter(l => l.id !== id),
         tasks:        restTasks,
-        membersCache: restCache,  // чистим кеш при удалении списка
+        membersCache: restCache,
       }
     }),
 
@@ -121,7 +119,6 @@ export const useTaskStore = create<TaskStore>((set) => ({
           },
         }
       }
-      // fallback: старая логика
       const updated = { ...s.tasks }
       for (const lid in updated) {
         updated[lid] = updated[lid].map(t =>
@@ -154,6 +151,9 @@ export const useTaskStore = create<TaskStore>((set) => ({
 
   // ── Navigation ───────────────────────────────────────────────
   setPendingTaskId: (id) => set({ pendingTaskId: id }),
+
+  // ── Search ───────────────────────────────────────────────────
+  setLastSearchQuery: (query) => set({ lastSearchQuery: query }),
 
   // ── Members cache ────────────────────────────────────────────
   setMembersCache: (listId, members) =>

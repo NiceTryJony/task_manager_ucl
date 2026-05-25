@@ -1,7 +1,7 @@
 'use client'
 
 import { useRef, useState, useCallback, memo } from 'react'
-import { CheckCircle2, Archive } from 'lucide-react'
+import { CheckCircle2, Archive, Trash2 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useI18n } from '@/lib/i18n-context'
 
@@ -9,15 +9,17 @@ interface Props {
   children:          React.ReactNode
   onSwipeRight:      () => void
   onSwipeLeft:       () => void
+  onSwipeLeftDeep?:  () => void   // deep swipe → delete (with confirmation in parent)
   onSwipeStart?:     () => void
   onSwipeEnd?:       () => void
   disabled?:         boolean
   isDraggingGlobal?: boolean
 }
 
-const THRESHOLD        = 0.38
+const THRESHOLD        = 0.38   // archive zone
+const THRESHOLD_DELETE = 0.65   // delete zone (deeper left swipe)
 const VELOCITY_TRIGGER = 0.4
-const MAX_OFFSET       = 120
+const MAX_OFFSET       = 150    // slightly larger to show delete zone
 const RETURN_DURATION  = '0.35s'
 const FLY_DURATION     = '0.28s'
 
@@ -25,6 +27,7 @@ export const SwipeableTaskCard = memo(function SwipeableTaskCard({
   children,
   onSwipeRight,
   onSwipeLeft,
+  onSwipeLeftDeep,
   disabled,
   onSwipeStart,
   onSwipeEnd,
@@ -39,11 +42,12 @@ export const SwipeableTaskCard = memo(function SwipeableTaskCard({
   const currentXRef  = useRef(0)
   const trackingRef  = useRef(false)
 
-  const [offset,    setOffset]    = useState(0)
-  const [triggered, setTriggered] = useState(false)
-  const [direction, setDirection] = useState<'left' | 'right' | null>(null)
-  const [flashing,  setFlashing]  = useState(false)
-  const [flying,    setFlying]    = useState(false)
+  const [offset,       setOffset]       = useState(0)
+  const [triggered,    setTriggered]    = useState(false)   // archive zone
+  const [inDeleteZone, setInDeleteZone] = useState(false)   // delete zone
+  const [direction,    setDirection]    = useState<'left' | 'right' | null>(null)
+  const [flashing,     setFlashing]     = useState(false)
+  const [flying,       setFlying]       = useState(false)
 
   const absOffset = Math.abs(offset)
   const progress  = Math.min(absOffset / (MAX_OFFSET * THRESHOLD * 2.5), 1)
@@ -51,10 +55,13 @@ export const SwipeableTaskCard = memo(function SwipeableTaskCard({
   const isLeft    = offset < 0
   const showHint  = absOffset > 8
 
+  // Colour: green for done, red for delete zone, amber for archive
   const bgOpacity = flashing ? 1 : progress * 0.85
   const bgColor   = isRight
     ? `rgba(62, 207, 142, ${bgOpacity})`
-    : `rgba(245, 166, 35, ${bgOpacity})`
+    : inDeleteZone
+      ? `rgba(240, 112, 112, ${bgOpacity})`      // red delete zone
+      : `rgba(245, 166, 35, ${bgOpacity})`        // amber archive zone
 
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     if (disabled) return
@@ -74,14 +81,28 @@ export const SwipeableTaskCard = memo(function SwipeableTaskCard({
       onSwipeStart?.()
     }
 
-    const clamped = Math.max(-MAX_OFFSET, Math.min(MAX_OFFSET, dx))
+    const clamped        = Math.max(-MAX_OFFSET, Math.min(MAX_OFFSET, dx))
+    const containerWidth = containerRef.current?.offsetWidth ?? 300
+    const absDx          = Math.abs(dx)
+
     setOffset(clamped)
     setDirection(dx > 0 ? 'right' : 'left')
 
-    const containerWidth   = containerRef.current?.offsetWidth ?? 300
-    const isTriggeredLocal = Math.abs(dx) > containerWidth * THRESHOLD
-    setTriggered(isTriggeredLocal)
-  }, [disabled, onSwipeStart])
+    // Delete zone only applies to left swipe and only if handler provided
+    const isInDeleteZone = (
+      dx < 0 &&
+      !!onSwipeLeftDeep &&
+      absDx > containerWidth * THRESHOLD_DELETE
+    )
+    const isInArchiveZone = (
+      dx < 0 &&
+      absDx > containerWidth * THRESHOLD &&
+      !isInDeleteZone
+    )
+
+    setInDeleteZone(isInDeleteZone)
+    setTriggered(isInArchiveZone || (dx > 0 && absDx > containerWidth * THRESHOLD))
+  }, [disabled, onSwipeStart, onSwipeLeftDeep])
 
   const onTouchEnd = useCallback(() => {
     if (!trackingRef.current || disabled) return
@@ -92,8 +113,22 @@ export const SwipeableTaskCard = memo(function SwipeableTaskCard({
     const dt             = Date.now() - startTimeRef.current
     const velocity       = Math.abs(dx) / dt
     const containerWidth = containerRef.current?.offsetWidth ?? 300
-    const reachedThreshold = Math.abs(dx) > containerWidth * THRESHOLD
-    const isFast           = velocity > VELOCITY_TRIGGER && Math.abs(dx) > 30
+    const absDx          = Math.abs(dx)
+
+    // ── Delete zone (deep left swipe) ────────────────────────
+    // Snap back → parent shows confirmation → if yes, removes from list
+    if (dx < 0 && !!onSwipeLeftDeep && absDx > containerWidth * THRESHOLD_DELETE) {
+      setOffset(0)
+      setDirection(null)
+      setTriggered(false)
+      setInDeleteZone(false)
+      onSwipeLeftDeep()
+      return
+    }
+
+    // ── Normal archive / done swipe ──────────────────────────
+    const reachedThreshold = absDx > containerWidth * THRESHOLD
+    const isFast           = velocity > VELOCITY_TRIGGER && absDx > 30
 
     if (reachedThreshold || isFast) {
       setFlashing(true)
@@ -110,7 +145,8 @@ export const SwipeableTaskCard = memo(function SwipeableTaskCard({
         setFlashing(false)
         dx > 0 ? onSwipeRight() : onSwipeLeft()
         setTimeout(() => {
-          setOffset(0); setDirection(null); setTriggered(false); setFlying(false)
+          setOffset(0); setDirection(null); setTriggered(false)
+          setInDeleteZone(false); setFlying(false)
           if (cardRef.current) {
             cardRef.current.style.transition = ''
             cardRef.current.style.transform  = ''
@@ -123,8 +159,9 @@ export const SwipeableTaskCard = memo(function SwipeableTaskCard({
       setOffset(0)
       setDirection(null)
       setTriggered(false)
+      setInDeleteZone(false)
     }
-  }, [disabled, onSwipeRight, onSwipeLeft, onSwipeEnd])
+  }, [disabled, onSwipeRight, onSwipeLeft, onSwipeLeftDeep, onSwipeEnd])
 
   return (
     <div
@@ -135,6 +172,7 @@ export const SwipeableTaskCard = memo(function SwipeableTaskCard({
       )}
       style={{ touchAction: 'pan-y' }}
     >
+      {/* Background hint */}
       {showHint && !flying && !isDraggingGlobal && (
         <div
           className="absolute inset-0 rounded-[23.25px] flex items-center transition-all duration-75"
@@ -157,7 +195,8 @@ export const SwipeableTaskCard = memo(function SwipeableTaskCard({
               </span>
             </div>
           )}
-          {isLeft && (
+
+          {isLeft && !inDeleteZone && (
             <div className={cn('flex items-center gap-1.5 transition-all duration-150', triggered ? 'scale-110' : 'scale-100')}>
               <span className="text-white text-xs font-bold tracking-wide">
                 {t('swipeArchive')}
@@ -166,6 +205,20 @@ export const SwipeableTaskCard = memo(function SwipeableTaskCard({
                 size={triggered ? 22 : 18}
                 className="text-white transition-all duration-150"
                 strokeWidth={triggered ? 2.5 : 2}
+              />
+            </div>
+          )}
+
+          {/* Delete zone — only shows on deep left swipe */}
+          {isLeft && inDeleteZone && (
+            <div className="flex items-center gap-1.5 scale-110">
+              <span className="text-white text-xs font-bold tracking-wide">
+                {t('delete')}
+              </span>
+              <Trash2
+                size={22}
+                className="text-white"
+                strokeWidth={2.5}
               />
             </div>
           )}
