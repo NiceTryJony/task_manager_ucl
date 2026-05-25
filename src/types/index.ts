@@ -1,4 +1,4 @@
-export type Priority   = 'low' | 'medium' | 'high' | 'urgent'
+export type Priority   = 'low' | 'medium' | 'high' | 'urgent' | 'низький' | 'середній' | 'високий' | 'терміново'
 export type TaskStatus = 'todo' | 'in_progress' | 'done'
 export type MemberRole = 'owner' | 'editor' | 'viewer'
 

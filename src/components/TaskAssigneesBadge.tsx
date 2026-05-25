@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { ChevronDown, Users } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { TaskAssignee } from '@/types'
+import { useI18n } from '@/lib/i18n-context'
 
 // ── Colour palette for avatars (cycles by index) ──────────────
 const AVATAR_COLORS = [
@@ -59,7 +60,7 @@ export function TaskAssigneesBadge({
             className="text-[10px] font-medium uppercase tracking-wider"
             style={{ color: 'var(--text-dim)', letterSpacing: '0.06em' }}
           >
-            відповідають:
+            t('respond'):
           </span>
 
           {/* Stacked avatars */}

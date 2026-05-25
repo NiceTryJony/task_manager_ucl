@@ -47,9 +47,10 @@ interface LocalSubtask {
   } | null
 }
 
-const PRIORITIES: Priority[] = ['low', 'medium', 'high', 'urgent']
+const PRIORITIES: Priority[] = ['low', 'medium', 'high', 'urgent', 'низький', 'середній', 'високий', 'терміново']
 const PRIORITY_ICONS: Record<Priority, string> = {
   low: '○', medium: '◑', high: '●', urgent: '⚠',
+  низький: '○', середній: '◑', високий: '●', терміново: '⚠',
 }
 
 function getUserTimezone() {

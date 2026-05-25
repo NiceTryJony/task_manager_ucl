@@ -11,6 +11,10 @@ export const PRIORITY_CONFIG: Record<Priority, { label: string; color: string; b
   medium: { label: 'Medium', color: 'text-amber',          bg: 'bg-amber/10',           dot: '#FBBF24' },
   high:   { label: 'High',   color: 'text-pink',           bg: 'bg-pink/10',            dot: '#F472B6' },
   urgent: { label: 'Urgent', color: 'text-danger',         bg: 'bg-danger/10',          dot: '#F87171' },
+  низький:    { label: 'Low',    color: 'text-text-secondary', bg: 'bg-bg-hover',          dot: '#8884A8' },
+  середній: { label: 'Medium', color: 'text-amber',          bg: 'bg-amber/10',           dot: '#FBBF24' },
+  високий:   { label: 'High',   color: 'text-pink',           bg: 'bg-pink/10',            dot: '#F472B6' },
+  терміново: { label: 'Urgent', color: 'text-danger',         bg: 'bg-danger/10',          dot: '#F87171' },
 }
 
 export const STATUS_CONFIG: Record<TaskStatus, { label: string; color: string; bg: string }> = {

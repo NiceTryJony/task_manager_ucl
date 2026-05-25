@@ -152,9 +152,11 @@ export const translations = {
     reducedMotionDesc: 'Helps on slower devices',
     close_without_saving: 'There are unsaved changes. Close without saving?',
     close_without_saving_task: 'Close without saving task?',
+    respond: 'respond:',
   },
 
   uk: {
+    respond: 'відповідають:',
     close_without_saving: 'Є незбережені зміни. Закрити без збереження?',
     close_without_saving_task: 'Закрити без збереження завдання?',
     // ── Home ──────────────────────────────────────────────────
