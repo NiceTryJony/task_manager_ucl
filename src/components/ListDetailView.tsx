@@ -1135,10 +1135,8 @@ export function ListDetailView({ onBack }: Props) {
       </div>
 
       {/* ── FAB ─────────────────────────────────────────────────────────── */}
-      {!isViewer && !(
-        typeof window !== 'undefined' &&
-        window?.Telegram?.WebApp?.MainButton?.isVisible
-      ) && (
+      {!isViewer && !window?.Telegram?.WebApp?.initData
+      && (
         <button
           onClick={() => { if (isBlocked) return; setShowCreate(true); haptic.light() }}
           disabled={isBlocked}
