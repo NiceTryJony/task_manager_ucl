@@ -397,7 +397,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
   //   gsap.to(overlayRef.current, { opacity: 0, duration: 0.2, onComplete: onClose })
   // }, [onClose])
 
-  const close = useCallback(() => {
+  const close = useCallback(async () => {
   const titleVal = titleRef_.current?.value?.trim() ?? ''
   const descVal  = descriptionRef.current?.value?.trim() ?? ''
 
@@ -410,11 +410,18 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
     (!isEdit && (titleVal.length > 0 || subtasks.length > 0))
 
   if (hasChanges) {
-    const confirmed = window.confirm(
-      isEdit
-        ? t('close_without_saving')
-        : t('close_without_saving_task')
-    )
+    const confirmed = new Promise<boolean>(resolve => {
+      if (window?.Telegram?.WebApp?.showConfirm) {
+        window.Telegram.WebApp.showConfirm(
+          isEdit ? t('close_without_saving') : t('close_without_saving_task'),
+          resolve
+        )
+      } else {
+        resolve(window.confirm(
+          isEdit ? t('close_without_saving') : t('close_without_saving_task')
+        ))
+      }
+    })
     if (!confirmed) return
   }
 

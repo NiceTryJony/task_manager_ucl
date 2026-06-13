@@ -731,7 +731,7 @@ export function ListDetailView({ onBack }: Props) {
 
     const debFetch = () => {
       clearTimeout(fetchDebounceRef.current)
-      fetchDebounceRef.current = setTimeout(() => fetchTasksRef.current(false), 300)
+      fetchDebounceRef.current = setTimeout(() => fetchTasksRef.current(false), 600)
     }
 
     const channel = supabase
@@ -1098,7 +1098,7 @@ export function ListDetailView({ onBack }: Props) {
                 <VirtualList
                   items={displayList}
                   getKey={task => task.id}
-                  eager={6}
+                  eager={4}
                   minHeight={72}
                   gap="space-y-2"
                 >
