@@ -729,10 +729,17 @@ export function ListDetailView({ onBack }: Props) {
     //fetchTasks()
     fetchTasksRef.current()
 
-    const debFetch = () => {
-      clearTimeout(fetchDebounceRef.current)
-      fetchDebounceRef.current = setTimeout(() => fetchTasksRef.current(false), 600)
+  const debFetch = (payload?: any) => {
+    const changed = payload?.new ?? payload?.old
+    if (changed) {
+      const listId = listIdRef.current
+      if (changed.list_id && changed.list_id !== listId) return
+      useTaskStore.getState().updateTask(changed.id, changed, listId!)
+      return
     }
+    clearTimeout(fetchDebounceRef.current)
+    fetchDebounceRef.current = setTimeout(() => fetchTasksRef.current(false), 600)
+  }
 
     const channel = supabase
       .channel(`tasks-${activeListId}`)
