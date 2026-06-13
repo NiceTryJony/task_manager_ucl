@@ -730,9 +730,16 @@ export function ListDetailView({ onBack }: Props) {
     fetchTasksRef.current()
 
   const debFetch = (payload?: any) => {
-    const changed = payload?.new ?? payload?.old
-    if (changed) {
-      const listId = listIdRef.current
+    const listId = listIdRef.current
+    if (payload?.eventType === 'DELETE') {
+      const old = payload?.old
+      if (old?.id) {
+        useTaskStore.getState().removeTask(old.id, listId!)
+        return
+      }
+    }
+    const changed = payload?.new
+    if (changed?.id) {
       if (changed.list_id && changed.list_id !== listId) return
       useTaskStore.getState().updateTask(changed.id, changed, listId!)
       return

@@ -169,7 +169,7 @@ export function AssigneePicker({ listId, userId, assignedTo, onChange, delayFetc
   // }, [loadMembers])
 
   useEffect(() => {
-    if (cached) return  // ← кеш есть — не фетчим вообще
+    if (cached && cached.length > 0) return  // ← кеш есть — не фетчим вообще
 
     const t = setTimeout(loadMembers, delayFetch)
     return () => {
