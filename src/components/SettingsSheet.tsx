@@ -39,10 +39,15 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
     setShowUsers(true)
     setUsersLoading(true)
     try {
-      const res  = await apiFetch('/api/admin/users')
+      const res = await apiFetch('/api/users')
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
       const data = await res.json()
       setUsersList(data.users ?? [])
-    } catch {}
+    } catch (e) 
+    {
+    console.error('[SettingsSheet] loadUsers failed:', e)
+    toast.error('Не вдалося завантажити користувачів')
+  }
     setUsersLoading(false)
   }
 
