@@ -8,16 +8,33 @@ export async function GET(req: NextRequest) {
 
   const db = createServiceClient()
 
-  // Только пользователи, состоящие хотя бы в одном списке
-  const { data, error } = await db
+  // Шаг 1: берём уникальные user_id из list_members
+  const { data: members, error: membersError } = await db
+    .from('list_members')
+    .select('user_id')
+
+  if (membersError) {
+    console.error('[/api/users] list_members query failed:', membersError)
+    return NextResponse.json({ error: membersError.message }, { status: 500 })
+  }
+
+  const activeUserIds = [...new Set((members ?? []).map(m => m.user_id))]
+
+  if (activeUserIds.length === 0) {
+    return NextResponse.json({ users: [] })
+  }
+
+  // Шаг 2: берём только этих юзеров
+  const { data: users, error: usersError } = await db
     .from('users')
-    .select('id, username, first_name, created_at, list_members!inner(list_id)')
+    .select('id, username, first_name, created_at')
+    .in('id', activeUserIds)
     .order('created_at', { ascending: false })
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  if (usersError) {
+    console.error('[/api/users] users query failed:', usersError)
+    return NextResponse.json({ error: usersError.message }, { status: 500 })
+  }
 
-  // Дедуп — у одного юзера может быть несколько list_members строк
-  const users = (data ?? []).map(({ list_members: _, ...u }) => u)
-
-  return NextResponse.json({ users })
+  return NextResponse.json({ users: users ?? [] })
 }
