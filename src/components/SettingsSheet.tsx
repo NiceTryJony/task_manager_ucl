@@ -30,6 +30,21 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
   const [error,        setError]        = useState<string | null>(null)
   const [saving,       setSaving]       = useState(false)
   const [pinSection,   setPinSection]   = useState(false)
+  const [showUsers,  setShowUsers]  = useState(false)
+  const [usersList,  setUsersList]  = useState<{ id: number; username: string | null; first_name: string; created_at: string }[]>([])
+  const [usersLoading, setUsersLoading] = useState(false)
+
+  async function loadUsers() {
+    if (usersList.length) { setShowUsers(v => !v); return }
+    setShowUsers(true)
+    setUsersLoading(true)
+    try {
+      const res  = await apiFetch('/api/admin/users')
+      const data = await res.json()
+      setUsersList(data.users ?? [])
+    } catch {}
+    setUsersLoading(false)
+  }
 
   const sheetRef   = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
@@ -418,6 +433,71 @@ export function SettingsSheet({ userId, firstName, username, onClose, onUpdated 
               </div>
             </button>
           </div>
+
+          
+          {/* Users list */}
+          <div style={sectionCard}>
+            <button
+              onClick={loadUsers}
+              className="flex items-center justify-between w-full"
+            >
+              <div className="text-left">
+                <p className="text-sm text-text-primary">Користувачі</p>
+                <p className="text-xs text-text-dim mt-0.5">
+                  {usersList.length > 0 ? `${usersList.length} зареєстровано` : 'Хто входив у застосунок'}
+                </p>
+              </div>
+              <svg
+                width="14" height="14" viewBox="0 0 24 24"
+                fill="none" stroke="currentColor" strokeWidth="2"
+                style={{
+                  color:     'var(--text-dim)',
+                  transform: showUsers ? 'rotate(180deg)' : 'none',
+                  transition: 'transform 0.2s ease',
+                  flexShrink: 0,
+                }}
+              >
+                <path d="m6 9 6 6 6-6"/>
+              </svg>
+            </button>
+
+            {showUsers && (
+              <div className="mt-3" style={{ borderTop: '0.5px solid rgba(255,255,255,0.07)', paddingTop: 12 }}>
+                {usersLoading ? (
+                  <div className="space-y-2">
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="h-10 skeleton rounded-xl" />
+                    ))}
+                  </div>
+                ) : usersList.length === 0 ? (
+                  <p className="text-xs text-text-dim text-center py-2">Нікого немає</p>
+                ) : (
+                  <div className="space-y-2 max-h-64 overflow-y-auto scrollable">
+                    {usersList.map(u => (
+                      <div key={u.id} className="flex items-center gap-2.5">
+                        <div
+                          className="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold flex-shrink-0"
+                          style={{ background: 'rgba(129,115,245,0.14)', color: 'var(--c-accent)' }}
+                        >
+                          {u.first_name[0]?.toUpperCase()}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium truncate">{u.first_name}</p>
+                          {u.username && (
+                            <p className="text-xs text-text-dim">@{u.username}</p>
+                          )}
+                        </div>
+                        <span className="text-[10px] text-text-dim flex-shrink-0 tabular-nums">
+                          {new Date(u.created_at).toLocaleDateString('uk-UA', { day: 'numeric', month: 'short' })}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
 
 
           {/* Sign out */}
