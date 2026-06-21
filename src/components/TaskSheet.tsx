@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState, useCallback, memo, lazy, Suspense } from 'react'
-import { gsap } from 'gsap'
 import {
   X, Plus, Clock, Calendar, AlignLeft, Flag,
   CheckSquare, GripVertical, User, Check,
@@ -24,10 +23,12 @@ import { useI18n } from '@/lib/i18n-context'
 import { apiFetch } from '@/lib/api-client'
 import { usePriorityConfig } from '@/hooks/usePriorityConfig'
 
-// ── Lazy-load TaskHistoryPanel — не нужен при открытии ────────
+// ── Lazy-load TaskHistoryPanel ─────────────────────────────────────────────────
 const TaskHistoryPanel = lazy(() =>
   import('@/components/TaskHistoryPanel').then(m => ({ default: m.TaskHistoryPanel }))
 )
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 interface Props {
   listId:  string
@@ -48,10 +49,44 @@ interface LocalSubtask {
   } | null
 }
 
+// ── Constants (вне компонента) ────────────────────────────────────────────────
+
 const PRIORITIES: Priority[] = ['low', 'medium', 'high', 'urgent']
 const PRIORITY_ICONS: Record<Priority, string> = {
   low: '○', medium: '◑', high: '●', urgent: '⚠',
 }
+
+// ── CSS анимации (вместо GSAP ~100kb) ────────────────────────────────────────
+
+const SHEET_ANIM_CSS = `
+  @keyframes _sheet-up {
+    from { transform: translateY(100%); }
+    to   { transform: translateY(0); }
+  }
+  @keyframes _sheet-down {
+    from { transform: translateY(0); }
+    to   { transform: translateY(100%); }
+  }
+  @keyframes _overlay-in  { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes _overlay-out { from { opacity: 1; } to { opacity: 0; } }
+
+  .sheet-enter   { animation: _sheet-up    0.32s cubic-bezier(0.16,1,0.3,1) both; }
+  .sheet-exit    { animation: _sheet-down  0.24s cubic-bezier(0.4,0,1,1)    both; }
+  .overlay-enter { animation: _overlay-in  0.2s  ease                        both; }
+  .overlay-exit  { animation: _overlay-out 0.22s ease                        both; }
+
+  /* CSS hover вместо onMouseEnter/onMouseLeave DOM-мутаций */
+  .grip-btn:hover     { background: rgba(255,255,255,0.07) !important; }
+  .del-btn:hover      { background: rgba(240,112,112,0.10) !important; color: var(--c-danger) !important; }
+  .close-btn:hover    { background: rgba(255,255,255,0.11) !important; }
+  .priority-btn:hover { background: rgba(255,255,255,0.07) !important; }
+  @media (hover: none) {
+    .grip-btn:hover, .del-btn:hover,
+    .close-btn:hover, .priority-btn:hover { background: inherit !important; }
+  }
+`
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getUserTimezone() {
   try { return Intl.DateTimeFormat().resolvedOptions().timeZone } catch { return 'UTC' }
@@ -66,9 +101,7 @@ function formatInTz(isoStr: string, tz: string) {
   } catch { return isoStr }
 }
 
-// ── SortableSubtaskRow — вынесен и memo-изирован ──────────────
-// Принимает только примитивы и стабильные коллбэки →
-// не ре-рендерится при изменении title/description в родителе
+// ── SortableSubtaskRow ────────────────────────────────────────────────────────
 
 interface SubtaskRowProps {
   sub:      LocalSubtask
@@ -94,13 +127,17 @@ const SortableSubtaskRow = memo(function SortableSubtaskRow({
     transform, transition, isDragging,
   } = useSortable({ id: nodeId })
 
-  const style = {
+  const dndStyle = {
     transform:   CSS.Transform.toString(transform),
     transition:  transition ?? 'transform 150ms ease',
     opacity:     isDragging ? 0.5 : 1,
     zIndex:      isDragging ? 10 : undefined,
     touchAction: 'manipulation' as const,
   }
+
+  const rowStyle: React.CSSProperties = isDragging
+    ? { background: 'rgba(129,115,245,0.10)', border: '0.5px solid rgba(129,115,245,0.30)', boxShadow: '0 4px 20px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.08)', borderRadius: 14 }
+    : { background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.08)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)', borderRadius: 14 }
 
   function startEdit() {
     if (sub.completed) return
@@ -125,22 +162,16 @@ const SortableSubtaskRow = memo(function SortableSubtaskRow({
 
   function cancelEdit() { setEditing(false); setDraft(sub.title) }
 
-  const rowStyle: React.CSSProperties = isDragging
-    ? { background: 'rgba(129,115,245,0.10)', border: '0.5px solid rgba(129,115,245,0.30)', boxShadow: '0 4px 20px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.08)', borderRadius: 14 }
-    : { background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.08)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05)', borderRadius: 14 }
-
   return (
-    <div ref={setNodeRef} style={style}>
+    <div ref={setNodeRef} style={dndStyle}>
       <div className="flex items-center gap-2.5 px-3 py-2.5 transition-all duration-150" style={rowStyle}>
         <button
           ref={setActivatorNodeRef}
           {...attributes}
           {...listeners}
-          className="text-text-dim flex-shrink-0 cursor-grab active:cursor-grabbing p-1 -ml-1 rounded-lg transition-colors touch-none"
+          className="grip-btn text-text-dim flex-shrink-0 cursor-grab active:cursor-grabbing p-1 -ml-1 rounded-lg transition-colors touch-none"
           style={{ touchAction: 'none' }}
           tabIndex={-1}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.07)' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
         >
           <GripVertical size={15} />
         </button>
@@ -203,10 +234,8 @@ const SortableSubtaskRow = memo(function SortableSubtaskRow({
 
         <button
           onClick={() => onDelete(idx)}
-          className="flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-text-dim transition-all duration-150 active:scale-90"
+          className="del-btn flex-shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-text-dim transition-all duration-150 active:scale-90"
           style={{ touchAction: 'manipulation' }}
-          onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(240,112,112,0.10)'; (e.currentTarget as HTMLElement).style.color = 'var(--c-danger)' }}
-          onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent'; (e.currentTarget as HTMLElement).style.color = 'var(--text-dim)' }}
         >
           <X size={14} />
         </button>
@@ -215,9 +244,7 @@ const SortableSubtaskRow = memo(function SortableSubtaskRow({
   )
 })
 
-// ── SubtasksList — изолированный компонент для DnD ────────────
-// Вынесен из TaskSheet чтобы DndContext не пересоздавался
-// при изменении title/description/newSubtask в родителе
+// ── SubtasksList ──────────────────────────────────────────────────────────────
 
 interface SubtasksListProps {
   subtasks: LocalSubtask[]
@@ -238,7 +265,8 @@ const SubtasksList = memo(function SubtasksList({
 
   const subtaskIds = subtasks.map((s, i) => s.id ?? `new-${i}`)
 
-  function handleDragEnd(event: DragEndEvent) {
+  // useCallback — handleDragEnd не пересоздаётся при ре-рендерах SubtasksList
+  const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event
     if (!over || active.id === over.id) return
 
@@ -261,7 +289,7 @@ const SubtasksList = memo(function SubtasksList({
           )
       ).catch(() => {})
     }
-  }
+  }, [subtasks, userId, isEdit, onReorder])
 
   return (
     <DndContext
@@ -289,7 +317,8 @@ const SubtasksList = memo(function SubtasksList({
   )
 })
 
-// ── PriorityPicker — изолирован чтобы не ре-рендерить при тайпинге
+// ── PriorityPicker ────────────────────────────────────────────────────────────
+
 const PriorityPicker = memo(function PriorityPicker({
   value, onChange, label,
 }: { value: Priority; onChange: (p: Priority) => void; label: string }) {
@@ -307,13 +336,11 @@ const PriorityPicker = memo(function PriorityPicker({
             <button
               key={p}
               onClick={() => onChange(p)}
-              className="flex flex-col items-center gap-1 py-2.5 px-1 rounded-[14px] transition-all duration-150 text-xs font-semibold"
+              className="priority-btn flex flex-col items-center gap-1 py-2.5 px-1 rounded-[14px] transition-all duration-150 text-xs font-semibold"
               style={active
                 ? { background: 'rgba(129,115,245,0.10)', border: '0.5px solid rgba(129,115,245,0.30)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.07)', transform: 'scale(1.03)' }
                 : { background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.08)', color: 'var(--text-secondary)' }
               }
-              onMouseEnter={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.07)' }}
-              onMouseLeave={e => { if (!active) (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)' }}
             >
               <span className="text-base leading-none">{PRIORITY_ICONS[p]}</span>
               {cfg.label}
@@ -325,48 +352,71 @@ const PriorityPicker = memo(function PriorityPicker({
   )
 })
 
-// ── Main component ────────────────────────────────────────────
+// ── Main component ────────────────────────────────────────────────────────────
 
 export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
   const { t } = useI18n()
   const isEdit = !!task
 
-  // ── UNCONTROLLED refs для полей которые не влияют на UI ──────
-  // Ключевая оптимизация: title/description/newSubtask не вызывают ре-рендер
-  const titleRef_      = useRef<HTMLInputElement>(null)
+  // ── Uncontrolled refs для полей без влияния на UI ─────────────────────────
+  const titleRef       = useRef<HTMLInputElement>(null)
   const descriptionRef = useRef<HTMLTextAreaElement>(null)
-  const newSubtaskRef_ = useRef<HTMLInputElement>(null)
   const subtaskInputRef = useRef<HTMLInputElement>(null)
+  const charCountRef   = useRef<HTMLSpanElement>(null)
 
-  // ── CONTROLLED state — только то что реально влияет на UI ───
-  const [priority,   setPriority]   = useState<Priority>(task?.priority ?? 'medium')
-  const [dueDate,    setDueDate]     = useState('')
-  const [dueTime,    setDueTime]     = useState('')
-  const [assignedTo, setAssignedTo] = useState<number[]>(
-    task?.assignees?.map(a => a.id) ?? (task?.assigned_to ? [task.assigned_to] : [])
-  )
-  const [subtasks, setSubtasks] = useState<LocalSubtask[]>(
-    task?.subtasks?.map(s => ({ id: s.id, title: s.title, completed: s.completed, creator: s.creator ?? null })) ?? []
-  )
-  const [saving, setSaving] = useState(false)
-  // Defer AssigneePicker монтирование до завершения анимации открытия
-  const [showAssignee, setShowAssignee] = useState(false)
-  // Lazy history: монтируем только после первого показа
-  const [historyMounted, setHistoryMounted] = useState(false)
-
-  const { run } = usePending()
-  const [viewerTz] = useState(getUserTimezone)
-
+  // ── DOM refs для анимации ─────────────────────────────────────────────────
   const sheetRef   = useRef<HTMLDivElement>(null)
   const overlayRef = useRef<HTMLDivElement>(null)
-  // Char counter для title — отдельный ref чтобы не делать setState
-  const charCountRef = useRef<HTMLSpanElement>(null)
 
-  // Stable userId ref
+  // ── Timer refs для cleanup ────────────────────────────────────────────────
+  const shakeTimerRef   = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const assigneeTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  // ── Stable refs для коллбэков — устраняют stale closures ─────────────────
+  const onCloseRef = useRef(onClose)
+  const onSavedRef = useRef(onSaved)
+  useEffect(() => { onCloseRef.current = onClose; onSavedRef.current = onSaved })
+
+  // ── Stable userId ref ─────────────────────────────────────────────────────
   const userIdRef = useRef(userId)
   useEffect(() => { userIdRef.current = userId }, [userId])
 
-  // ── Init due date ────────────────────────────────────────────
+  // ── Controlled state (только то, что влияет на рендер) ───────────────────
+  const [priority,    setPriority]    = useState<Priority>(task?.priority ?? 'medium')
+  const [dueDate,     setDueDate]     = useState('')
+  const [dueTime,     setDueTime]     = useState('')
+  const [assignedTo,  setAssignedTo]  = useState<number[]>(
+    task?.assignees?.map(a => a.id) ?? (task?.assigned_to ? [task.assigned_to] : [])
+  )
+  const [subtasks,    setSubtasks]    = useState<LocalSubtask[]>(
+    task?.subtasks?.map(s => ({
+      id: s.id, title: s.title, completed: s.completed, creator: s.creator ?? null,
+    })) ?? []
+  )
+  const [saving,         setSaving]         = useState(false)
+  const [showAssignee,   setShowAssignee]   = useState(false)
+  const [historyMounted, setHistoryMounted] = useState(false)
+  const [viewerTz]                          = useState(getUserTimezone)
+
+  // Ref-копии state для чтения внутри close/handleSave без пересоздания
+  const subtasksRef  = useRef(subtasks)
+  const priorityRef  = useRef(priority)
+  const assignedRef  = useRef(assignedTo)
+  const dueDateRef   = useRef(dueDate)
+  const dueTimeRef   = useRef(dueTime)
+  useEffect(() => { subtasksRef.current = subtasks },  [subtasks])
+  useEffect(() => { priorityRef.current = priority },  [priority])
+  useEffect(() => { assignedRef.current = assignedTo }, [assignedTo])
+  useEffect(() => { dueDateRef.current  = dueDate },   [dueDate])
+  useEffect(() => { dueTimeRef.current  = dueTime },   [dueTime])
+
+  // ── Cleanup таймеров при unmount ──────────────────────────────────────────
+  useEffect(() => () => {
+    clearTimeout(shakeTimerRef.current)
+    clearTimeout(assigneeTimerRef.current)
+  }, [])
+
+  // ── Init due date ─────────────────────────────────────────────────────────
   useEffect(() => {
     const raw = task?.due_at ?? task?.due_date
     if (!raw) return
@@ -375,67 +425,82 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
       setDueDate(d.toISOString().split('T')[0])
       setDueTime(d.toISOString().split('T')[1].slice(0, 5))
     } catch {}
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // ── Entrance animation + deferred AssigneePicker ─────────────
+  // ── Entrance animation (CSS вместо GSAP) + deferred AssigneePicker ────────
   useEffect(() => {
-    gsap.fromTo(overlayRef.current, { opacity: 0 }, { opacity: 1, duration: 0.2 })
-    gsap.fromTo(sheetRef.current,   { y: '100%' },  { y: 0, duration: 0.32, ease: 'power3.out' })
+    const sheet   = sheetRef.current
+    const overlay = overlayRef.current
+    if (sheet)   sheet.classList.add('sheet-enter')
+    if (overlay) overlay.classList.add('overlay-enter')
 
     if (!isEdit) {
-      setTimeout(() => titleRef_.current?.focus(), 350)
+      setTimeout(() => titleRef.current?.focus(), 350)
     }
 
-    // Монтируем AssigneePicker только после завершения анимации
-    // чтобы его fetch не конкурировал с GSAP
-    const t = setTimeout(() => setShowAssignee(true), 420)
-    return () => clearTimeout(t)
-  }, [isEdit])
+    // Defer AssigneePicker — не конкурирует с анимацией открытия
+    assigneeTimerRef.current = setTimeout(() => setShowAssignee(true), 420)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
-  // const close = useCallback(() => {
-  //   gsap.to(sheetRef.current,   { y: '100%', duration: 0.24, ease: 'power3.in' })
-  //   gsap.to(overlayRef.current, { opacity: 0, duration: 0.2, onComplete: onClose })
-  // }, [onClose])
+  // ── Анимированное закрытие ────────────────────────────────────────────────
+  const animateClose = useCallback(() => {
+    const sheet   = sheetRef.current
+    const overlay = overlayRef.current
 
+    if (!sheet) { onCloseRef.current(); return }
+
+    sheet.classList.replace('sheet-enter', 'sheet-exit')
+    if (overlay) overlay.classList.replace('overlay-enter', 'overlay-exit')
+
+    const onEnd = () => {
+      sheet.removeEventListener('animationend', onEnd)
+      onCloseRef.current()
+    }
+    sheet.addEventListener('animationend', onEnd, { once: true })
+    // Страховка на случай если animationend не сработал (reduced-motion, hidden tab)
+    setTimeout(onCloseRef.current, 350)
+  }, [])
+
+  // ── close — проверяет несохранённые изменения ─────────────────────────────
+  // Читает всё через refs → deps = [] → никогда не пересоздаётся
   const close = useCallback(async () => {
-  const titleVal = titleRef_.current?.value?.trim() ?? ''
-  const descVal  = descriptionRef.current?.value?.trim() ?? ''
+    const titleVal = titleRef.current?.value?.trim() ?? ''
+    const descVal  = descriptionRef.current?.value?.trim() ?? ''
 
-  const originalTitle = task?.title ?? ''
-  const originalDesc  = task?.description ?? ''
+    const hasChanges =
+      titleVal !== (task?.title       ?? '') ||
+      descVal  !== (task?.description ?? '') ||
+      (!isEdit && (titleVal.length > 0 || subtasksRef.current.length > 0))
 
-  const hasChanges =
-    titleVal !== originalTitle ||
-    descVal  !== originalDesc  ||
-    (!isEdit && (titleVal.length > 0 || subtasks.length > 0))
+    if (hasChanges) {
+      // FIX: await — без него Promise<boolean> всегда truthy и диалог игнорируется
+      const confirmed = await new Promise<boolean>(resolve => {
+        const msg = isEdit ? t('close_without_saving') : t('close_without_saving_task')
+        if (window?.Telegram?.WebApp?.showConfirm) {
+          window.Telegram.WebApp.showConfirm(msg, resolve)
+        } else {
+          resolve(window.confirm(msg))
+        }
+      })
+      if (!confirmed) return
+    }
 
-  if (hasChanges) {
-    const confirmed = new Promise<boolean>(resolve => {
-      if (window?.Telegram?.WebApp?.showConfirm) {
-        window.Telegram.WebApp.showConfirm(
-          isEdit ? t('close_without_saving') : t('close_without_saving_task'),
-          resolve
-        )
-      } else {
-        resolve(window.confirm(
-          isEdit ? t('close_without_saving') : t('close_without_saving_task')
-        ))
-      }
-    })
-    if (!confirmed) return
-  }
+    animateClose()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [animateClose, t])  // task/isEdit стабильны пока sheet открыт; subtasks через ref
 
-  gsap.to(sheetRef.current,   { y: '100%', duration: 0.24, ease: 'power3.in' })
-  gsap.to(overlayRef.current, { opacity: 0, duration: 0.2, onComplete: onClose })
-}, [isEdit, task, subtasks, onClose])
-
+  // ── buildDueAt — читает через refs, стабилен ─────────────────────────────
   const buildDueAt = useCallback((): string | null => {
-    if (!dueDate) return null
-    const s = dueTime ? `${dueDate}T${dueTime}:00` : `${dueDate}T00:00:00`
+    const date = dueDateRef.current
+    const time = dueTimeRef.current
+    if (!date) return null
+    const s = time ? `${date}T${time}:00` : `${date}T00:00:00`
     return new Date(s).toISOString()
-  }, [dueDate, dueTime])
+  }, [])
 
-  // ── Стабильные коллбэки для SubtasksList ────────────────────
+  // ── Subtask handlers ──────────────────────────────────────────────────────
   const handleSubtaskToggle = useCallback((idx: number) => {
     setSubtasks(prev => prev.map((s, i) => i === idx ? { ...s, completed: !s.completed } : s))
   }, [])
@@ -452,7 +517,6 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
     setSubtasks(reordered)
   }, [])
 
-  // ── addSubtaskLocal — читает из uncontrolled ref ─────────────
   const addSubtaskLocal = useCallback(() => {
     const trimmed = subtaskInputRef.current?.value.trim()
     if (!trimmed) return
@@ -461,21 +525,26 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
     subtaskInputRef.current?.focus()
   }, [])
 
-  // ── handleSave — читает uncontrolled refs напрямую ───────────
+  // ── handleSave — читает refs напрямую, deps минимальны ───────────────────
   const handleSave = useCallback(async () => {
-    const titleVal = titleRef_.current?.value?.trim() ?? ''
+    const titleVal = titleRef.current?.value?.trim() ?? ''
     const descVal  = descriptionRef.current?.value ?? ''
 
     if (!titleVal) {
-      titleRef_.current?.focus()
-      if (titleRef_.current) {
-        titleRef_.current?.classList.add('shake')
-        setTimeout(() => titleRef_.current?.classList.remove('shake'), 400)
+      titleRef.current?.focus()
+      if (titleRef.current) {
+        titleRef.current.classList.add('shake')
+        // clearTimeout при unmount — в useEffect cleanup выше
+        shakeTimerRef.current = setTimeout(() => titleRef.current?.classList.remove('shake'), 400)
       }
       return
     }
 
     setSaving(true)
+    const currentSubtasks = subtasksRef.current
+    const currentPriority = priorityRef.current
+    const currentAssigned = assignedRef.current
+
     try {
       if (isEdit) {
         await apiFetch('/api/tasks', {
@@ -486,14 +555,14 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
             userId:       userIdRef.current,
             title:        titleVal,
             description:  descVal,
-            priority,
+            priority:     currentPriority,
             due_at:       buildDueAt(),
             creator_tz:   getUserTimezone(),
-            assignee_ids: assignedTo,
+            assignee_ids: currentAssigned,
           }),
         })
 
-        await Promise.all(subtasks.map(s =>
+        await Promise.all(currentSubtasks.map(s =>
           s.id
             ? apiFetch('/api/tasks/subtasks', {
                 method:  'PATCH',
@@ -507,7 +576,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
               })
         ))
 
-        const keptIds = new Set(subtasks.filter(s => s.id).map(s => s.id))
+        const keptIds = new Set(currentSubtasks.filter(s => s.id).map(s => s.id))
         const toDelete = (task!.subtasks ?? []).filter(orig => !keptIds.has(orig.id))
         if (toDelete.length) {
           await Promise.all(
@@ -527,16 +596,16 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
             userId:       userIdRef.current,
             title:        titleVal,
             description:  descVal,
-            priority,
+            priority:     currentPriority,
             due_at:       buildDueAt(),
             creator_tz:   getUserTimezone(),
-            assignee_ids: assignedTo,
+            assignee_ids: currentAssigned,
           }),
         })
         const data = await res.json()
 
-        if (data.task?.id && subtasks.length > 0) {
-          await Promise.all(subtasks.map(s =>
+        if (data.task?.id && currentSubtasks.length > 0) {
+          await Promise.all(currentSubtasks.map(s =>
             apiFetch('/api/tasks/subtasks', {
               method:  'POST',
               headers: { 'Content-Type': 'application/json' },
@@ -554,9 +623,10 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
     }
 
     setSaving(false)
-    onSaved()
-  }, [priority, assignedTo, subtasks, isEdit, task, listId, buildDueAt, t, onSaved])
+    onSavedRef.current()
+  }, [isEdit, task, listId, buildDueAt, t])
 
+  // ── Derived values ────────────────────────────────────────────────────────
   const subDone  = subtasks.filter(s => s.completed).length
   const subTotal = subtasks.length
   const subPct   = subTotal > 0 ? Math.round((subDone / subTotal) * 100) : 0
@@ -567,32 +637,30 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
 
   const sectionLabel = 'flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-widest'
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 z-50 flex items-end">
+      <style>{SHEET_ANIM_CSS}</style>
+
       <div ref={overlayRef} className="absolute inset-0 sheet-overlay" onClick={close} />
 
       <div
         ref={sheetRef}
         className="relative w-full flex flex-col"
         style={{
-          height:              '92dvh',
-          background:          'var(--sheet-bg)',
-          backdropFilter:      'var(--glass-blur)',
-          WebkitBackdropFilter:'var(--glass-blur)',
-          borderRadius:        '24px 24px 0 0',
-          borderTop:           '0.5px solid var(--glass-border-top)',
-          boxShadow:           'var(--glass-shadow)',
+          height:               '92dvh',
+          background:           'var(--sheet-bg)',
+          backdropFilter:       'var(--glass-blur)',
+          WebkitBackdropFilter: 'var(--glass-blur)',
+          borderRadius:         '24px 24px 0 0',
+          borderTop:            '0.5px solid var(--glass-border-top)',
+          boxShadow:            'var(--glass-shadow)',
         }}
       >
         <div
           className="absolute top-0 left-12 right-12 h-px pointer-events-none"
           style={{ background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.14), transparent)' }}
         />
-
-        {/* Handle */}
-        {/* <div className="flex justify-center pt-3 flex-shrink-0">
-          <div className="w-9 h-1 rounded-full" style={{ background: 'rgba(255,255,255,0.12)' }} />
-        </div> */}
 
         {/* Header */}
         <div
@@ -615,10 +683,8 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
           </div>
           <button
             onClick={close}
-            className="w-8 h-8 flex items-center justify-center rounded-[10px] text-text-secondary transition-colors"
+            className="close-btn w-8 h-8 flex items-center justify-center rounded-[10px] text-text-secondary transition-colors"
             style={{ background: 'rgba(255,255,255,0.07)' }}
-            onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.11)' }}
-            onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.07)' }}
           >
             <X size={16} />
           </button>
@@ -646,14 +712,13 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
                 className="text-[11px] tabular-nums"
                 style={{ color: 'var(--text-dim)' }}
               >
-                {(task?.title?.length ?? 0)} / 200
+                {task?.title?.length ?? 0} / 200
               </span>
             </div>
             <input
-              ref={titleRef_}
+              ref={titleRef}
               defaultValue={task?.title ?? ''}
               onChange={e => {
-                // Обновляем счётчик напрямую через DOM — без setState
                 if (charCountRef.current) {
                   const len = e.target.value.length
                   charCountRef.current.textContent = `${len} / 200`
@@ -683,7 +748,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
             />
           </div>
 
-          {/* Priority — controlled, изолирован в memo */}
+          {/* Priority */}
           <PriorityPicker value={priority} onChange={setPriority} label={t('priority')} />
 
           {/* Due date */}
@@ -760,7 +825,6 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
               delayFetch={300}
             />
           ) : (
-            // Placeholder пока AssigneePicker не смонтирован
             <div>
               <div className="flex items-center gap-1.5 text-xs font-semibold text-text-secondary uppercase tracking-widest mb-2.5">
                 <span style={{ width: 12, height: 12, display: 'inline-block' }} /> {t('assignee')}
@@ -794,7 +858,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
                 <div
                   className="h-full rounded-full transition-all duration-500"
                   style={{
-                    width:     `${subPct}%`,
+                    width:      `${subPct}%`,
                     background: subPct === 100 ? 'linear-gradient(90deg,#3ECF8E,#22B97A)' : 'var(--c-accent)',
                     boxShadow:  subPct === 100 ? '0 0 6px rgba(62,207,142,0.40)' : '0 0 6px rgba(129,115,245,0.35)',
                   }}
@@ -802,7 +866,6 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
               </div>
             )}
 
-            {/* SubtasksList — изолированный компонент, не ре-рендерится при тайпинге */}
             {subTotal > 0 && (
               <div className="mb-3">
                 <SubtasksList
@@ -856,9 +919,7 @@ export function TaskSheet({ listId, userId, task, onClose, onSaved }: Props) {
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'var(--text-dim)' }}><path d="m6 9 6 6 6-6"/></svg>
                 </button>
               ) : (
-                <Suspense fallback={
-                  <div className="h-12 skeleton rounded-2xl" />
-                }>
+                <Suspense fallback={<div className="h-12 skeleton rounded-2xl" />}>
                   <TaskHistoryPanel taskId={task!.id} userId={userId} />
                 </Suspense>
               )}
