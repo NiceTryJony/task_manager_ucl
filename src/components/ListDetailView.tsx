@@ -3,23 +3,18 @@
 /**
  * ListDetailView
  *
- * Исправлено по сравнению с предыдущей версией:
- * - Добавлены handleOpenAsViewer / handleOpenAsEditor (useCallback) —
- *   устраняет создание новой функции на каждый элемент map, memo TaskCard
- *   перестаёт ломаться при каждом рендере
- * - Устранена коллизия имён: параметр `t` в onOpen-колбэках (тень useI18n's `t`)
- *   переименован в `openedTask`
- * - fetchTasks / flushReorderSave — в useCallback с явными зависимостями
- * - Пустой catch → console.error с контекстом
- * - AbortError обрабатывается в flushReorderSave (не показываем toast при отмене)
- * - dragActivatorRef пробрасывается через SortableTaskCard → TaskCard → grip-handle
+ * Рефакторинг v2:
+ * - 16 useState → useReducer (один ре-рендер вместо N)
+ * - viewedTaskIds → useRef<Set<string>> (просмотры не вызывают ре-рендер)
+ * - Убран GSAP (был ~100kb), анимации → CSS transitions
+ * - Исправлен двойной online/offline listener (был дублирован в двух useEffect)
+ * - Сброс списка → dispatch({ type: 'RESET_LIST' }) одним вызовом
  */
 
 import {
   useEffect, useRef, useState, useMemo,
-  useCallback, memo
+  useCallback, memo, useReducer,
 } from 'react'
-import { gsap } from 'gsap'
 import {
   DndContext, DragOverlay,
   PointerSensor, TouchSensor, KeyboardSensor,
@@ -53,7 +48,7 @@ import { usePending }     from '@/hooks/usePending'
 import { useTheme }       from '@/lib/theme-context'
 import { useI18n }        from '@/lib/i18n-context'
 import { SaveBanner }     from '@/components/ui/SaveBanner'
-import { VirtualList } from '@/components/VirtualItem'
+import { VirtualList }    from '@/components/VirtualItem'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -67,7 +62,7 @@ const PRIORITY_ORDER: Record<Priority, number> = {
   urgent: 0, high: 1, medium: 2, low: 3
 }
 
-// ── CSS stagger animation — ноль GSAP DOM-запросов ───────────────────────────
+// ── CSS stagger animation — ноль DOM-запросов ─────────────────────────────────
 
 const TASK_ANIM_STYLE = `
   @keyframes _task-slide-in {
@@ -88,8 +83,128 @@ const TASK_ANIM_STYLE = `
   .tasks-animate .task-item:nth-child(n+9){ animation-delay: 320ms; }
 `
 
-// ── ListDetailView ────────────────────────────────────────────────────────────
+// ── CSS-анимации входа/выхода (вместо GSAP) ──────────────────────────────────
 
+const PAGE_ANIM_STYLE = `
+  @keyframes _page-enter {
+    from { transform: translateX(40px); opacity: 0; }
+    to   { transform: translateX(0);    opacity: 1; }
+  }
+  @keyframes _page-exit {
+    from { transform: translateX(0);    opacity: 1; }
+    to   { transform: translateX(40px); opacity: 0; }
+  }
+  .page-entering { animation: _page-enter 0.32s cubic-bezier(0.16,1,0.3,1) both; }
+  .page-exiting  { animation: _page-exit  0.22s ease-in both; }
+`
+
+// ── useReducer state & actions ────────────────────────────────────────────────
+
+interface ViewState {
+  myRole:        MemberRole
+  filter:        FilterKey
+  sortKey:       SortKey
+  loading:       boolean
+  searchQuery:   string
+  showSearch:    boolean
+  showSort:      boolean
+  activeTask:    Task | null
+  showCreate:    boolean
+  isOnline:      boolean
+  showConfetti:  boolean
+  contextMenu:   { task: Task; x: number; y: number } | null
+  isPulling:     boolean
+  viewerTask:    Task | null
+  tasksAnimClass: boolean
+  draggingId:    string | null
+  reorderStatus: ReorderStatus
+}
+
+type ViewAction =
+  | { type: 'SET_ROLE';         payload: MemberRole }
+  | { type: 'SET_FILTER';       payload: FilterKey }
+  | { type: 'SET_SORT';         payload: SortKey }
+  | { type: 'SET_LOADING';      payload: boolean }
+  | { type: 'SET_SEARCH';       payload: string }
+  | { type: 'TOGGLE_SEARCH' }
+  | { type: 'TOGGLE_SORT' }
+  | { type: 'SET_ACTIVE_TASK';  payload: Task | null }
+  | { type: 'SET_SHOW_CREATE';  payload: boolean }
+  | { type: 'SET_ONLINE';       payload: boolean }
+  | { type: 'SET_CONFETTI';     payload: boolean }
+  | { type: 'SET_CONTEXT_MENU'; payload: { task: Task; x: number; y: number } | null }
+  | { type: 'SET_PULLING';      payload: boolean }
+  | { type: 'SET_VIEWER_TASK';  payload: Task | null }
+  | { type: 'SET_TASKS_ANIM';   payload: boolean }
+  | { type: 'SET_DRAGGING';     payload: string | null }
+  | { type: 'SET_REORDER';      payload: ReorderStatus }
+  | { type: 'RESET_LIST';       payload: string }   // payload = searchKey to clear
+  | { type: 'OPEN_CREATE' }
+  | { type: 'CLOSE_SHEET' }
+
+function viewReducer(state: ViewState, action: ViewAction): ViewState {
+  switch (action.type) {
+    case 'SET_ROLE':         return { ...state, myRole: action.payload }
+    case 'SET_FILTER':       return { ...state, filter: action.payload }
+    case 'SET_SORT':         return { ...state, sortKey: action.payload }
+    case 'SET_LOADING':      return { ...state, loading: action.payload }
+    case 'SET_SEARCH':       return { ...state, searchQuery: action.payload }
+    case 'TOGGLE_SEARCH':    return { ...state, showSearch: !state.showSearch }
+    case 'TOGGLE_SORT':      return { ...state, showSort: !state.showSort }
+    case 'SET_ACTIVE_TASK':  return { ...state, activeTask: action.payload }
+    case 'SET_SHOW_CREATE':  return { ...state, showCreate: action.payload }
+    case 'SET_ONLINE':       return { ...state, isOnline: action.payload }
+    case 'SET_CONFETTI':     return { ...state, showConfetti: action.payload }
+    case 'SET_CONTEXT_MENU': return { ...state, contextMenu: action.payload }
+    case 'SET_PULLING':      return { ...state, isPulling: action.payload }
+    case 'SET_VIEWER_TASK':  return { ...state, viewerTask: action.payload }
+    case 'SET_TASKS_ANIM':   return { ...state, tasksAnimClass: action.payload }
+    case 'SET_DRAGGING':     return { ...state, draggingId: action.payload }
+    case 'SET_REORDER':      return { ...state, reorderStatus: action.payload }
+    case 'OPEN_CREATE':      return { ...state, showCreate: true }
+    case 'CLOSE_SHEET':      return { ...state, showCreate: false, activeTask: null }
+    // Сброс всего UI-состояния при смене активного списка — один dispatch вместо 9
+    case 'RESET_LIST':
+      localStorage.removeItem(action.payload)
+      return {
+        ...state,
+        loading:       true,
+        filter:        'all',
+        sortKey:       'position',
+        searchQuery:   '',
+        showSearch:    false,
+        showSort:      false,
+        contextMenu:   null,
+        reorderStatus: 'idle',
+      }
+    default:
+      return state
+  }
+}
+
+function makeInitialState(searchKey: string): ViewState {
+  return {
+    myRole:        'viewer',
+    filter:        'all',
+    sortKey:       'position',
+    loading:       true,
+    searchQuery:   (() => { try { return localStorage.getItem(searchKey) ?? '' } catch { return '' } })(),
+    showSearch:    false,
+    showSort:      false,
+    activeTask:    null,
+    showCreate:    false,
+    isOnline:      true,
+    showConfetti:  false,
+    contextMenu:   null,
+    isPulling:     false,
+    viewerTask:    null,
+    tasksAnimClass: false,
+    draggingId:    null,
+    reorderStatus: 'idle',
+  }
+}
+
+// ── TaskRow — мемоизированная строка задачи ───────────────────────────────────
 
 interface TaskRowProps {
   task:          Task
@@ -113,12 +228,12 @@ const TaskRow = memo(function TaskRow({
   onSwipeRight, onSwipeLeft, onSwipeLeftDeep,
   onToggle, onOpen, onLongPress,
 }: TaskRowProps) {
-  const handleSwipeRight  = useCallback(() => onSwipeRight(task),  [task, onSwipeRight])
-  const handleSwipeLeft   = useCallback(() => onSwipeLeft(task),   [task, onSwipeLeft])
-  const handleSwipeStart  = useCallback(() => { isSwipingRef.current = true }, [isSwipingRef])
-  const handleSwipeEnd    = useCallback(() => { setTimeout(() => { isSwipingRef.current = false }, 50) }, [isSwipingRef])
-  const handleLongPress   = useCallback((x: number, y: number) => onLongPress(task, x, y), [task, onLongPress])
-  const handleSwipeLeftDeep   = useCallback(() => onSwipeLeftDeep?.(task), [task, onSwipeLeftDeep])
+  const handleSwipeRight    = useCallback(() => onSwipeRight(task),  [task, onSwipeRight])
+  const handleSwipeLeft     = useCallback(() => onSwipeLeft(task),   [task, onSwipeLeft])
+  const handleSwipeStart    = useCallback(() => { isSwipingRef.current = true }, [isSwipingRef])
+  const handleSwipeEnd      = useCallback(() => { setTimeout(() => { isSwipingRef.current = false }, 50) }, [isSwipingRef])
+  const handleLongPress     = useCallback((x: number, y: number) => onLongPress(task, x, y), [task, onLongPress])
+  const handleSwipeLeftDeep = useCallback(() => onSwipeLeftDeep?.(task), [task, onSwipeLeftDeep])
 
   return (
     <SwipeableTaskCard
@@ -146,17 +261,17 @@ const TaskRow = memo(function TaskRow({
   )
 })
 
+// ── ListDetailView ────────────────────────────────────────────────────────────
 
 export function ListDetailView({ onBack }: Props) {
   const { theme, toggleTheme } = useTheme()
   const { t } = useI18n()
 
   const STATUS_TABS = useMemo<{ key: FilterKey; label: string }[]>(() => [
-    { key: 'all',         label: t('filter_all')     },
-    { key: 'todo',        label: t('filter_todo')    },
-    //{ key: 'in_progress', label: t('filter_doing')   },
-    { key: 'done',        label: t('filter_done')    },
-    { key: 'archived',    label: t('filter_archive') },
+    { key: 'all',      label: t('filter_all')     },
+    { key: 'todo',     label: t('filter_todo')    },
+    { key: 'done',     label: t('filter_done')    },
+    { key: 'archived', label: t('filter_archive') },
   ], [t])
 
   const { user, haptic } = useTelegram()
@@ -169,51 +284,49 @@ export function ListDetailView({ onBack }: Props) {
 
   const list = lists.find(l => l.id === activeListId)
 
-  // ── UI state ──────────────────────────────────────────────────────────────
-  const [myRole,         setMyRole]         = useState<MemberRole>('viewer')
-  const [filter,         setFilter]         = useState<FilterKey>('all')
-  const [sortKey,        setSortKey]        = useState<SortKey>('position')
-  const [loading,        setLoading]        = useState(true)
-  // const [searchQuery,    setSearchQuery]    = useState('')
+  // ── Единый reducer вместо 16 useState ────────────────────────────────────
   const SEARCH_KEY = `taskflow_search_${activeListId}`
-  const [searchQuery, setSearchQuery] = useState(
-    () => localStorage.getItem(SEARCH_KEY) ?? ''
-  )
-  const [showSearch,     setShowSearch]     = useState(false)
-  const [showSort,       setShowSort]       = useState(false)
-  const [activeTask,     setActiveTask]     = useState<Task | null>(null)
-  const [showCreate,     setShowCreate]     = useState(false)
-  const [isOnline,       setIsOnline]       = useState(true)
-  const [showConfetti,   setShowConfetti]   = useState(false)
-  const [contextMenu,    setContextMenu]    = useState<{ task: Task; x: number; y: number } | null>(null)
-  const [isPulling,      setIsPulling]      = useState(false)
-  const [viewerTask,     setViewerTask]     = useState<Task | null>(null)
-  const [viewedTaskIds,  setViewedTaskIds]  = useState<Set<string>>(new Set())
-  const [tasksAnimClass, setTasksAnimClass] = useState(false)
+  const [vs, dispatch] = useReducer(viewReducer, SEARCH_KEY, makeInitialState)
 
-  // ── DnD state ─────────────────────────────────────────────────────────────
-  const [draggingId,    setDraggingId]    = useState<string | null>(null)
-  const [reorderStatus, setReorderStatus] = useState<ReorderStatus>('idle')
+  // Деструктурируем для удобства — без изменений в JSX
+  const {
+    myRole, filter, sortKey, loading, searchQuery,
+    showSearch, showSort, activeTask, showCreate,
+    isOnline, showConfetti, contextMenu, isPulling,
+    viewerTask, tasksAnimClass, draggingId, reorderStatus,
+  } = vs
 
-  // ── Refs ───────────────────────────────────────────────────────────────────
+  // ── viewedTaskIds → ref (не вызывает ре-рендер при добавлении) ───────────
+  // Компоненты читают Set напрямую при рендере; обновление через forceReadRef
+  const viewedTaskIdsRef  = useRef<Set<string>>(new Set())
+  // Триггер для перерисовки только тех строк, где нужно убрать «unread» значок
+  const [viewedVersion, setViewedVersion] = useState(0)
+  const markViewed = useCallback((id: string) => {
+    if (viewedTaskIdsRef.current.has(id)) return
+    viewedTaskIdsRef.current.add(id)
+    setViewedVersion(v => v + 1)
+  }, [])
+
+  // ── Refs ─────────────────────────────────────────────────────────────────
   const pageRef             = useRef<HTMLDivElement>(null)
   const listRef             = useRef<HTMLDivElement>(null)
   const searchRef           = useRef<HTMLInputElement>(null)
   const pullStartY          = useRef(0)
   const wasDone             = useRef(false)
-  const animTimerRef        = useRef<ReturnType<typeof setTimeout>>()
-  const fetchDebounceRef    = useRef<ReturnType<typeof setTimeout>>()
-  const abortRef            = useRef<AbortController>()
+  const animTimerRef        = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const fetchDebounceRef    = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const abortRef            = useRef<AbortController | undefined>(undefined)
   const isSwipingRef        = useRef(false)
   const frozenSortedRef     = useRef<Task[]>([])
   const isDraggingRef       = useRef(false)
   const sortedRef           = useRef<Task[]>([])
-  const reorderAbortRef     = useRef<AbortController>()
+  const reorderAbortRef     = useRef<AbortController | undefined>(undefined)
   const pendingOrderRef     = useRef<Task[] | null>(null)
   const originalOrderRef    = useRef<Task[] | null>(null)
   const wantsToGoBackRef    = useRef(false)
-  const reorderDebounceRef  = useRef<ReturnType<typeof setTimeout>>()
-  const onlineDebounceRef = useRef<ReturnType<typeof setTimeout>>()
+  const reorderDebounceRef  = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const onlineDebounceRef   = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const isExitingRef        = useRef(false)
 
   // Stable userId / listId refs — предотвращают stale-closures в async handlers
   const userIdRef = useRef(user?.id ?? 0)
@@ -291,22 +404,24 @@ export function ListDetailView({ onBack }: Props) {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
-  // ────────────────────────────────────────────────────────────────────────
-  //  navigateBack — базовый, вызывается из handleBack и flushReorderSave
-  // ────────────────────────────────────────────────────────────────────────
+  // ── navigateBack — CSS transition вместо GSAP ────────────────────────────
   const navigateBack = useCallback(() => {
+    if (isExitingRef.current) return
+    isExitingRef.current = true
     haptic.light()
     window?.Telegram?.WebApp?.BackButton?.hide()
     window?.Telegram?.WebApp?.MainButton?.hide()
-    gsap.to(pageRef.current, {
-      x: 40, opacity: 0, duration: 0.22, ease: 'power2.in',
-      onComplete: onBack,
-    })
+    const el = pageRef.current
+    if (!el) { onBack(); return }
+    el.classList.remove('page-entering')
+    el.classList.add('page-exiting')
+    const onEnd = () => { el.removeEventListener('animationend', onEnd); onBack() }
+    el.addEventListener('animationend', onEnd)
+    // Fallback если анимация не запустилась
+    setTimeout(() => { if (isExitingRef.current) onBack() }, 350)
   }, [haptic, onBack])
 
-  // ────────────────────────────────────────────────────────────────────────
-  //  fetchTasks — useCallback с явными deps, стабильная ссылка для useEffect
-  // ────────────────────────────────────────────────────────────────────────
+  // ── fetchTasks ────────────────────────────────────────────────────────────
   const fetchTasks = useCallback(async (showAnim = true) => {
     abortRef.current?.abort()
     const ctrl = new AbortController()
@@ -338,19 +453,23 @@ export function ListDetailView({ onBack }: Props) {
         ...(dataArchived.tasks ?? []),
       ])
 
-      // Batch-запрос просмотров (fire-and-forget, не блокирует)
+      // Batch-запрос просмотров (fire-and-forget)
       apiFetch(`/api/tasks/views/batch?listId=${currentListId}`)
         .then(r => r.json())
-        .then(d => setViewedTaskIds(new Set(d.viewedTaskIds ?? [])))
+        .then(d => {
+          const ids: string[] = d.viewedTaskIds ?? []
+          ids.forEach(id => viewedTaskIdsRef.current.add(id))
+          if (ids.length > 0) setViewedVersion(v => v + 1)
+        })
         .catch(err => console.warn('[fetchTasks] views/batch failed:', err))
 
-      setLoading(false)
+      dispatch({ type: 'SET_LOADING', payload: false })
 
       // CSS stagger animation при первичной загрузке
       if (showAnim && listRef.current) {
         clearTimeout(animTimerRef.current)
-        setTasksAnimClass(true)
-        animTimerRef.current = setTimeout(() => setTasksAnimClass(false), 600)
+        dispatch({ type: 'SET_TASKS_ANIM', payload: true })
+        animTimerRef.current = setTimeout(() => dispatch({ type: 'SET_TASKS_ANIM', payload: false }), 600)
       }
 
       // Confetti когда ВСЕ активные задачи выполнены
@@ -360,24 +479,22 @@ export function ListDetailView({ onBack }: Props) {
         activeFetched.every((task: Task) => task.status === 'done')
       )
       if (allDone && !wasDone.current) {
-        setShowConfetti(true)
+        dispatch({ type: 'SET_CONFETTI', payload: true })
         haptic.success()
       }
       wasDone.current = allDone
 
     } catch (err: unknown) {
       if (err instanceof Error && err.name === 'AbortError') return
-      // Не показываем toast при фоновом realtime-обновлении — логируем
       console.error('[fetchTasks] error:', err)
+      dispatch({ type: 'SET_LOADING', payload: false })
     }
   }, [haptic, setTasks])
 
-  // ────────────────────────────────────────────────────────────────────────
-  //  flushReorderSave — в useCallback, зависит от navigateBack
-  // ────────────────────────────────────────────────────────────────────────
+  // ── flushReorderSave ──────────────────────────────────────────────────────
   const flushReorderSave = useCallback(async () => {
     const ordered = pendingOrderRef.current
-    if (!ordered) { setReorderStatus('idle'); return }
+    if (!ordered) { dispatch({ type: 'SET_REORDER', payload: 'idle' }); return }
 
     reorderAbortRef.current?.abort()
     reorderAbortRef.current = new AbortController()
@@ -385,7 +502,7 @@ export function ListDetailView({ onBack }: Props) {
     const signal        = reorderAbortRef.current.signal
     const currentUserId = userIdRef.current
     const currentListId = listIdRef.current
-    if (!currentListId) { setReorderStatus('idle'); return }
+    if (!currentListId) { dispatch({ type: 'SET_REORDER', payload: 'idle' }); return }
 
     try {
       const results = await Promise.all(
@@ -399,9 +516,7 @@ export function ListDetailView({ onBack }: Props) {
         )
       )
 
-      if (results.some(r => !r.ok)) {
-        throw new Error('partial reorder failure')
-      }
+      if (results.some(r => !r.ok)) throw new Error('partial reorder failure')
 
       pendingOrderRef.current  = null
       originalOrderRef.current = null
@@ -409,14 +524,11 @@ export function ListDetailView({ onBack }: Props) {
 
     } catch (err: unknown) {
       decrementPending(false)
-
-      // AbortError — пользователь ушёл назад во время сохранения, toast не нужен
       if (err instanceof Error && err.name === 'AbortError') return
 
       console.error('[flushReorderSave] error:', err)
       toast.error(t('reorderFailed'))
 
-      // Откат к оригинальному порядку
       if (originalOrderRef.current) {
         reorderTasks(currentListId, originalOrderRef.current)
       }
@@ -424,7 +536,7 @@ export function ListDetailView({ onBack }: Props) {
       originalOrderRef.current = null
 
     } finally {
-      setReorderStatus('idle')
+      dispatch({ type: 'SET_REORDER', payload: 'idle' })
       if (wantsToGoBackRef.current) {
         wantsToGoBackRef.current = false
         navigateBack()
@@ -436,17 +548,16 @@ export function ListDetailView({ onBack }: Props) {
 
   const handleDragStart = useCallback((event: DragStartEvent) => {
     const id = String(event.active.id)
-    // Замораживаем порядок в момент начала drag
     frozenSortedRef.current = sortedRef.current
     isDraggingRef.current   = true
-    setDraggingId(id)
+    dispatch({ type: 'SET_DRAGGING', payload: id })
     haptic.light()
   }, [haptic])
 
   const handleDragEnd = useCallback((event: DragEndEvent) => {
     const { active, over } = event
     isDraggingRef.current = false
-    setDraggingId(null)
+    dispatch({ type: 'SET_DRAGGING', payload: null })
     if (!over || active.id === over.id) return
 
     haptic.medium()
@@ -460,15 +571,14 @@ export function ListDetailView({ onBack }: Props) {
     if (!originalOrderRef.current) originalOrderRef.current = frozen
     pendingOrderRef.current = newOrder
 
-    // rAF чтобы не конкурировать с dnd-kit cleanup
     requestAnimationFrame(() => {
       reorderTasks(listIdRef.current!, [...newOrder, ...archivedTasks])
     })
 
-    setReorderStatus('pending')
+    dispatch({ type: 'SET_REORDER', payload: 'pending' })
     clearTimeout(reorderDebounceRef.current)
     reorderDebounceRef.current = setTimeout(() => {
-      setReorderStatus('saving')
+      dispatch({ type: 'SET_REORDER', payload: 'saving' })
       incrementPending()
       void flushReorderSave()
     }, 1)
@@ -476,7 +586,7 @@ export function ListDetailView({ onBack }: Props) {
 
   const handleDragCancel = useCallback(() => {
     isDraggingRef.current = false
-    setDraggingId(null)
+    dispatch({ type: 'SET_DRAGGING', payload: null })
   }, [])
 
   // ── handleBack ────────────────────────────────────────────────────────────
@@ -485,7 +595,7 @@ export function ListDetailView({ onBack }: Props) {
       wantsToGoBackRef.current = true
       if (reorderStatus === 'pending') {
         clearTimeout(reorderDebounceRef.current)
-        setReorderStatus('saving')
+        dispatch({ type: 'SET_REORDER', payload: 'saving' })
         void flushReorderSave()
       }
       return
@@ -493,33 +603,22 @@ export function ListDetailView({ onBack }: Props) {
     navigateBack()
   }, [reorderStatus, navigateBack, flushReorderSave])
 
-  // ────────────────────────────────────────────────────────────────────────
-  //  Task open handlers — стабильные useCallback, НЕ создаются в map
-  //
-  //  Было: onOpen={(t) => { setViewerTask(t); ... }} внутри displayList.map()
-  //  → новая функция на каждый элемент при каждом рендере → memo TaskCard ломается
-  //
-  //  Стало: два стабильных обработчика, onOpen = один из них (по isViewer)
-  //  → ссылка меняется только при смене myRole, memo работает корректно
-  // ────────────────────────────────────────────────────────────────────────
+  // ── Task open handlers ────────────────────────────────────────────────────
 
-  /** Открытие задачи для viewer (read-only sheet) */
   const handleOpenAsViewer = useCallback((openedTask: Task) => {
-    setViewerTask(openedTask)
-    setViewedTaskIds(prev => new Set([...prev, openedTask.id]))
-  }, [])
+    dispatch({ type: 'SET_VIEWER_TASK', payload: openedTask })
+    markViewed(openedTask.id)
+  }, [markViewed])
 
-  /** Открытие задачи для editor/owner (редактируемый sheet) */
   const handleOpenAsEditor = useCallback((openedTask: Task) => {
-    setActiveTask(openedTask)
-    setViewedTaskIds(prev => new Set([...prev, openedTask.id]))
-    // fire-and-forget, не ждём ответа
+    dispatch({ type: 'SET_ACTIVE_TASK', payload: openedTask })
+    markViewed(openedTask.id)
     apiFetch('/api/tasks/views', {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ taskId: openedTask.id }),
     }).catch(err => console.warn('[handleOpenAsEditor] views POST failed:', err))
-  }, [])
+  }, [markViewed])
 
   // ── Task mutation handlers ────────────────────────────────────────────────
 
@@ -538,20 +637,18 @@ export function ListDetailView({ onBack }: Props) {
     )
 
     if (!ok) {
-      updateTask(task.id, { status: next }, task.list_id)
+      updateTask(task.id, { status: task.status }, task.list_id)
       toast.error(t('failedStatus'))
       return
     }
 
-    // Проверяем confetti — все активные задачи выполнены?
-    // const current = tasks[listIdRef.current!] ?? []
     const current = useTaskStore.getState().tasks[listIdRef.current!] ?? []
     const allDone = current
       .filter(taskItem => !taskItem.archived)
       .every(taskItem => (taskItem.id === task.id ? next === 'done' : taskItem.status === 'done'))
 
     if (allDone && current.filter(taskItem => !taskItem.archived).length > 0) {
-      setShowConfetti(true)
+      dispatch({ type: 'SET_CONFETTI', payload: true })
       haptic.success()
     }
   }, [isViewer, isPending, updateTask, haptic, run, t])
@@ -614,16 +711,16 @@ export function ListDetailView({ onBack }: Props) {
   }, [isPending, removeTask, haptic, run, t, fetchTasks])
 
   const handleLongPress = useCallback((task: Task, x: number, y: number) => {
-    setContextMenu({ task, x, y })
+    dispatch({ type: 'SET_CONTEXT_MENU', payload: { task, x, y } })
     haptic.medium()
   }, [haptic])
 
   const getContextItems = useCallback((task: Task): ContextMenuItem[] => {
     if (isViewer) {
-      return [{ label: t('viewTask'), icon: '👁', onClick: () => setViewerTask(task) }]
+      return [{ label: t('viewTask'), icon: '👁', onClick: () => dispatch({ type: 'SET_VIEWER_TASK', payload: task }) }]
     }
     return [
-      { label: t('edit'), icon: '✏️', onClick: () => setActiveTask(task) },
+      { label: t('edit'),       icon: '✏️', onClick: () => dispatch({ type: 'SET_ACTIVE_TASK', payload: task }) },
       task.status !== 'done'
         ? { label: t('markAsDone'), icon: '✅', onClick: () => handleStatusToggle(task) }
         : { label: t('markAsTodo'), icon: '⬜', onClick: () => handleStatusToggle(task) },
@@ -645,12 +742,12 @@ export function ListDetailView({ onBack }: Props) {
     if (isDraggingRef.current) return
     if (!listRef.current || listRef.current.scrollTop > 0) return
     if (e.touches[0].clientY - pullStartY.current < 40) return
-    setIsPulling(true)
+    dispatch({ type: 'SET_PULLING', payload: true })
   }, [])
 
   const onTouchEnd = useCallback(async () => {
     if (isDraggingRef.current || !isPulling) return
-    setIsPulling(false)
+    dispatch({ type: 'SET_PULLING', payload: false })
     haptic.light()
     await fetchTasks()
     toast.success(t('refreshed'))
@@ -664,25 +761,22 @@ export function ListDetailView({ onBack }: Props) {
     const target = allTasks.find(task => task.id === pendingTaskId)
     setPendingTaskId(null)
     if (!target) return
-    if (isViewer) { setViewerTask(target) } else { setActiveTask(target) }
+    if (isViewer) {
+      dispatch({ type: 'SET_VIEWER_TASK', payload: target })
+    } else {
+      dispatch({ type: 'SET_ACTIVE_TASK', payload: target })
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingTaskId, loading, allTasks])
 
-  // Сброс при смене списка
+  // Сброс при смене списка — один dispatch вместо 9 setState
   useEffect(() => {
-    setLoading(true)
-    setFilter('all')
-    setSortKey('position')
-    setSearchQuery('')
-    localStorage.removeItem(`taskflow_search_${activeListId}`)
-    setShowSearch(false)
-    setShowSort(false)
-    setContextMenu(null)
-    wasDone.current = false
+    dispatch({ type: 'RESET_LIST', payload: `taskflow_search_${activeListId}` })
+    wasDone.current          = false
+    isExitingRef.current     = false
     clearTimeout(reorderDebounceRef.current)
     pendingOrderRef.current  = null
     originalOrderRef.current = null
-    setReorderStatus('idle')
     wantsToGoBackRef.current = false
   }, [activeListId])
 
@@ -691,62 +785,58 @@ export function ListDetailView({ onBack }: Props) {
     if (!activeListId || !user) return
     apiFetch(`/api/lists/share?listId=${activeListId}&userId=${user.id}`)
       .then(r => r.json())
-      .then(d => { if (d.myRole) setMyRole(d.myRole) })
+      .then(d => { if (d.myRole) dispatch({ type: 'SET_ROLE', payload: d.myRole }) })
       .catch(err => console.warn('[role fetch]', err))
   }, [activeListId, user])
 
-  // Entrance animation
+  // Entrance animation (CSS, без GSAP)
   useEffect(() => {
-    gsap.fromTo(
-      pageRef.current,
-      { x: 40, opacity: 0 },
-      { x: 0, opacity: 1, duration: 0.32, ease: 'power3.out' },
-    )
+    const el = pageRef.current
+    if (!el) return
+    el.classList.add('page-entering')
+    const onEnd = () => el.classList.remove('page-entering')
+    el.addEventListener('animationend', onEnd, { once: true })
   }, [])
-
-  // Online / offline
-  useEffect(() => {
-    const goOnline  = () => { setIsOnline(true); fetchTasks(false) }
-    const goOffline = () => setIsOnline(false)
-    window.addEventListener('online',  goOnline)
-    window.addEventListener('offline', goOffline)
-    return () => {
-      window.removeEventListener('online',  goOnline)
-      window.removeEventListener('offline', goOffline)
-    }
-  }, [fetchTasks])
-
-
 
   const fetchTasksRef = useRef(fetchTasks)
   useEffect(() => { fetchTasksRef.current = fetchTasks }, [fetchTasks])
 
   // Realtime subscription + начальная загрузка
+  // online/offline listener здесь один (дебаунс 3с на offline) — убран дубль
   useEffect(() => {
     if (!activeListId || !user) return
     listIdRef.current = activeListId
     userIdRef.current = user.id
-    //fetchTasks()
     fetchTasksRef.current()
 
-  const debFetch = (payload?: any) => {
-    const listId = listIdRef.current
-    if (payload?.eventType === 'DELETE') {
-      const old = payload?.old
-      if (old?.id) {
-        useTaskStore.getState().removeTask(old.id, listId!)
+    const debFetch = (payload?: any) => {
+      const listId = listIdRef.current
+      if (payload?.eventType === 'DELETE') {
+        const old = payload?.old
+        if (old?.id) { useTaskStore.getState().removeTask(old.id, listId!); return }
+      }
+      const changed = payload?.new
+      if (changed?.id) {
+        if (changed.list_id && changed.list_id !== listId) return
+        useTaskStore.getState().updateTask(changed.id, changed, listId!)
         return
       }
+      clearTimeout(fetchDebounceRef.current)
+      fetchDebounceRef.current = setTimeout(() => fetchTasksRef.current(false), 600)
     }
-    const changed = payload?.new
-    if (changed?.id) {
-      if (changed.list_id && changed.list_id !== listId) return
-      useTaskStore.getState().updateTask(changed.id, changed, listId!)
-      return
+
+    const goOnline = () => {
+      clearTimeout(onlineDebounceRef.current)
+      dispatch({ type: 'SET_ONLINE', payload: true })
+      fetchTasksRef.current(false)
     }
-    clearTimeout(fetchDebounceRef.current)
-    fetchDebounceRef.current = setTimeout(() => fetchTasksRef.current(false), 600)
-  }
+    const goOffline = () => {
+      clearTimeout(onlineDebounceRef.current)
+      onlineDebounceRef.current = setTimeout(() => dispatch({ type: 'SET_ONLINE', payload: false }), 3000)
+    }
+
+    window.addEventListener('online',  goOnline)
+    window.addEventListener('offline', goOffline)
 
     const channel = supabase
       .channel(`tasks-${activeListId}`)
@@ -758,35 +848,29 @@ export function ListDetailView({ onBack }: Props) {
         event: '*', schema: 'public', table: 'subtasks',
       }, debFetch)
       .subscribe((status: string) => {
-        if (status === 'SUBSCRIBED') setIsOnline(true)
+        if (status === 'SUBSCRIBED') dispatch({ type: 'SET_ONLINE', payload: true })
       })
 
     return () => {
       supabase.removeChannel(channel)
       clearTimeout(fetchDebounceRef.current)
+      clearTimeout(onlineDebounceRef.current)
       abortRef.current?.abort()
+      window.removeEventListener('online',  goOnline)
+      window.removeEventListener('offline', goOffline)
     }
   }, [activeListId, user])
 
-
-  useEffect(() => {
-    const goOnline  = () => { clearTimeout(onlineDebounceRef.current); setIsOnline(true); fetchTasksRef.current(false) }
-    const goOffline = () => { clearTimeout(onlineDebounceRef.current); onlineDebounceRef.current = setTimeout(() => setIsOnline(false), 3000) }
-    window.addEventListener('online',  goOnline)
-    window.addEventListener('offline', goOffline)
-    return () => { window.removeEventListener('online', goOnline); window.removeEventListener('offline', goOffline) }
-  }, [])
-
-  const stableBack = useRef(() => handleBackRef.current())
-  const handleBackRef = useRef(handleBack)
-  useEffect(() => { handleBackRef.current = handleBack }, [handleBack])
   // Telegram Back / Main buttons
+  const handleBackRef = useRef(handleBack)
+  const stableBack    = useRef(() => handleBackRef.current())
+  useEffect(() => { handleBackRef.current = handleBack }, [handleBack])
+
   useEffect(() => {
     const tg = window?.Telegram?.WebApp
     if (!tg) return
 
-    const onMain = () => { setShowCreate(true); haptic.light() }
-    const onBack  = () => handleBackRef.current()
+    const onMain = () => { dispatch({ type: 'OPEN_CREATE' }); haptic.light() }
 
     if (!isViewer) {
       tg.MainButton.setText(t('newTaskBtn'))
@@ -797,14 +881,12 @@ export function ListDetailView({ onBack }: Props) {
     }
 
     tg.BackButton.show()
-    // tg.BackButton.onClick(handleBack)
     tg.BackButton.onClick(stableBack.current)
 
     return () => {
       tg.MainButton.hide()
       tg.MainButton.offClick(onMain)
       tg.BackButton.hide()
-      // tg.BackButton.offClick(handleBack)
       tg.BackButton.offClick(stableBack.current)
     }
   }, [isViewer, haptic, t])
@@ -812,16 +894,20 @@ export function ListDetailView({ onBack }: Props) {
   // ── Guard ─────────────────────────────────────────────────────────────────
   if (!list) return null
 
-  // ── Stable onOpen — выбираем из двух стабильных обработчиков ─────────────
-  // Это НЕ создаёт новую функцию в map — isViewer меняется редко
   const onOpen = isViewer ? handleOpenAsViewer : handleOpenAsEditor
+
+  // viewedTaskIds для TaskRow — читаем Set из ref напрямую
+  // viewedVersion нужен только чтобы React знал что нужно перерисоваться
+  void viewedVersion
+  const viewedTaskIds = viewedTaskIdsRef.current
 
   // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div ref={pageRef} className="page-container">
       <style>{TASK_ANIM_STYLE}</style>
+      <style>{PAGE_ANIM_STYLE}</style>
 
-      {showConfetti && <Confetti onDone={() => setShowConfetti(false)} />}
+      {showConfetti && <Confetti onDone={() => dispatch({ type: 'SET_CONFETTI', payload: false })} />}
       <SaveBanner />
 
       {/* ── Header ──────────────────────────────────────────────────────── */}
@@ -868,7 +954,7 @@ export function ListDetailView({ onBack }: Props) {
 
           <button
             onClick={() => {
-              setShowSearch(!showSearch)
+              dispatch({ type: 'TOGGLE_SEARCH' })
               if (!showSearch) setTimeout(() => searchRef.current?.focus(), 100)
             }}
             className={cn('btn-ghost p-2', showSearch && 'text-accent bg-accent/10')}
@@ -878,7 +964,7 @@ export function ListDetailView({ onBack }: Props) {
           </button>
 
           <button
-            onClick={() => setShowSort(!showSort)}
+            onClick={() => dispatch({ type: 'TOGGLE_SORT' })}
             className={cn('btn-ghost p-2', sortKey !== 'position' && 'text-accent bg-accent/10')}
             aria-label="Sort"
           >
@@ -892,19 +978,18 @@ export function ListDetailView({ onBack }: Props) {
             <input
               ref={searchRef}
               value={searchQuery}
-              // onChange={e => setSearchQuery(e.target.value)}
               onChange={e => {
-                setSearchQuery(e.target.value)
-                if (e.target.value) localStorage.setItem(SEARCH_KEY, e.target.value)
-                else localStorage.removeItem(SEARCH_KEY)
+                const v = e.target.value
+                dispatch({ type: 'SET_SEARCH', payload: v })
+                if (v) localStorage.setItem(SEARCH_KEY, v)
+                else   localStorage.removeItem(SEARCH_KEY)
               }}
               placeholder={t('searchPlaceholder')}
               className="input-field pl-9 pr-9 py-2.5 text-sm"
             />
             {searchQuery && (
               <button
-                onClick={() => setSearchQuery('')}
-                
+                onClick={() => dispatch({ type: 'SET_SEARCH', payload: '' })}
                 className="absolute right-3 top-1/2 -translate-y-1/2 text-text-dim"
                 aria-label="Clear search"
               >
@@ -924,13 +1009,13 @@ export function ListDetailView({ onBack }: Props) {
             ] as { key: SortKey; label: string }[]).map(s => (
               <button
                 key={s.key}
-                onClick={() => { setSortKey(s.key); haptic.select() }}
+                onClick={() => { dispatch({ type: 'SET_SORT', payload: s.key }); haptic.select() }}
                 style={sortKey === s.key
                   ? { background: 'var(--c-accent)', color: '#fff', borderRadius: 8 }
                   : {
-                      background:  'rgba(255,255,255,0.05)',
-                      border:      '0.5px solid rgba(255,255,255,0.08)',
-                      color:       'var(--text-secondary)',
+                      background:   'rgba(255,255,255,0.05)',
+                      border:       '0.5px solid rgba(255,255,255,0.08)',
+                      color:        'var(--text-secondary)',
                       borderRadius: 8,
                     }
                 }
@@ -965,7 +1050,7 @@ export function ListDetailView({ onBack }: Props) {
             return (
               <button
                 key={tab.key}
-                onClick={() => { setFilter(tab.key); haptic.select() }}
+                onClick={() => { dispatch({ type: 'SET_FILTER', payload: tab.key }); haptic.select() }}
                 className={cn(
                   'px-3 py-1.5 rounded-lg text-sm font-medium whitespace-nowrap transition-all',
                   filter === tab.key
@@ -996,10 +1081,7 @@ export function ListDetailView({ onBack }: Props) {
               <span className="w-1.5 h-1.5 rounded-full bg-danger animate-pulse flex-shrink-0" />
               {t('noConnection')}
             </div>
-            <button
-              onClick={() => fetchTasks()}
-              className="text-xs text-danger underline"
-            >
+            <button onClick={() => fetchTasks()} className="text-xs text-danger underline">
               {t('retry')}
             </button>
           </div>
@@ -1015,7 +1097,6 @@ export function ListDetailView({ onBack }: Props) {
 
       {/* ── Task list ────────────────────────────────────────────────────── */}
       <div className="flex-1 relative min-h-0">
-        {/* Blocking overlay во время сохранения reorder */}
         {isBlocked && (
           <div className="absolute inset-0 z-20 bg-bg-base/30 backdrop-blur-[1px] pointer-events-auto" />
         )}
@@ -1027,7 +1108,6 @@ export function ListDetailView({ onBack }: Props) {
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
         >
-          {/* Loading skeleton */}
           {loading ? (
             <div className="space-y-2 mt-2">
               {[...Array(4)].map((_, i) => (
@@ -1039,7 +1119,6 @@ export function ListDetailView({ onBack }: Props) {
               ))}
             </div>
 
-          /* Empty state */
           ) : sorted.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-48 text-center animate-fade-up">
               <p className="text-text-dim text-sm">
@@ -1052,7 +1131,7 @@ export function ListDetailView({ onBack }: Props) {
               </p>
               {!searchQuery && filter !== 'archived' && !isViewer && (
                 <button
-                  onClick={() => setShowCreate(true)}
+                  onClick={() => dispatch({ type: 'SET_SHOW_CREATE', payload: true })}
                   className="mt-3 text-accent text-sm font-medium"
                 >
                   {t('addOne')}
@@ -1060,7 +1139,6 @@ export function ListDetailView({ onBack }: Props) {
               )}
             </div>
 
-          /* Task cards */
           ) : (
             <DndContext
               sensors={sensors}
@@ -1070,74 +1148,36 @@ export function ListDetailView({ onBack }: Props) {
               onDragEnd={handleDragEnd}
               onDragCancel={handleDragCancel}
             >
-            <SortableContext items={sortedIds} strategy={verticalListSortingStrategy}>
-              <div className={cn('mt-2', tasksAnimClass && 'tasks-animate')}>
-                {/* <VirtualList
-                  items={displayList}
-                  getKey={task => task.id}
-                  eager={6}
-                  minHeight={72}
-                  gap="space-y-2"
-                >
-                  {(task) => (
-                    <SwipeableTaskCard
-                      onSwipeRight={() => {
-                        if (task.status !== 'done') handleStatusToggle(task)
-                      }}
-                      onSwipeLeft={() => {
-                        if (!task.archived) handleArchive(task)
-                      }}
-                      disabled={isDragMode && !!draggingId}
-                      isDraggingGlobal={!!draggingId}
-                      onSwipeStart={() => { isSwipingRef.current = true }}
-                      onSwipeEnd={() => {
-                        setTimeout(() => { isSwipingRef.current = false }, 50)
-                      }}
-                    >
-                      <SortableTaskCard
+              <SortableContext items={sortedIds} strategy={verticalListSortingStrategy}>
+                <div className={cn('mt-2', tasksAnimClass && 'tasks-animate')}>
+                  <VirtualList
+                    items={displayList}
+                    getKey={task => task.id}
+                    eager={4}
+                    minHeight={72}
+                    gap="space-y-2"
+                  >
+                    {(task) => (
+                      <TaskRow
                         task={task}
-                        isUnread={!viewedTaskIds.has(task.id)}
                         userId={user?.id ?? 0}
                         isViewer={isViewer}
                         isDragMode={isDragMode}
-                        isDragging={draggingId === task.id}
+                        draggingId={draggingId}
+                        viewedTaskIds={viewedTaskIds}
+                        isSwipingRef={isSwipingRef}
+                        onSwipeRight={handleStatusToggle}
+                        onSwipeLeft={handleArchive}
+                        onSwipeLeftDeep={!isViewer ? handleDelete : undefined}
                         onToggle={handleStatusToggle}
                         onOpen={onOpen}
-                        onLongPress={(x, y) => handleLongPress(task, x, y)}
-                        isSwiping={isSwipingRef}
+                        onLongPress={handleLongPress}
                       />
-                    </SwipeableTaskCard>
-                  )}
-                </VirtualList> */}
-                <VirtualList
-                  items={displayList}
-                  getKey={task => task.id}
-                  eager={4}
-                  minHeight={72}
-                  gap="space-y-2"
-                >
-                  {(task) => (
-                    <TaskRow
-                      task={task}
-                      userId={user?.id ?? 0}
-                      isViewer={isViewer}
-                      isDragMode={isDragMode}
-                      draggingId={draggingId}
-                      viewedTaskIds={viewedTaskIds}
-                      isSwipingRef={isSwipingRef}
-                      onSwipeRight={handleStatusToggle}
-                      onSwipeLeft={handleArchive}
-                      onSwipeLeftDeep={!isViewer ? handleDelete : undefined}
-                      onToggle={handleStatusToggle}
-                      onOpen={onOpen}
-                      onLongPress={handleLongPress}
-                    />
-                  )}
-                </VirtualList>
-              </div>
-            </SortableContext>
+                    )}
+                  </VirtualList>
+                </div>
+              </SortableContext>
 
-              {/* DragOverlay — рендерится поверх всего во время drag */}
               <DragOverlay
                 dropAnimation={{
                   duration: 180,
@@ -1165,10 +1205,9 @@ export function ListDetailView({ onBack }: Props) {
       </div>
 
       {/* ── FAB ─────────────────────────────────────────────────────────── */}
-      {!isViewer && !window?.Telegram?.WebApp?.initData
-      && (
+      {!isViewer && !window?.Telegram?.WebApp?.initData && (
         <button
-          onClick={() => { if (isBlocked) return; setShowCreate(true); haptic.light() }}
+          onClick={() => { if (isBlocked) return; dispatch({ type: 'OPEN_CREATE' }); haptic.light() }}
           disabled={isBlocked}
           className={cn(
             'fixed bottom-6 right-4 w-14 h-14 rounded-2xl bg-accent text-white',
@@ -1192,7 +1231,7 @@ export function ListDetailView({ onBack }: Props) {
           items={getContextItems(contextMenu.task)}
           x={contextMenu.x}
           y={contextMenu.y}
-          onClose={() => setContextMenu(null)}
+          onClose={() => dispatch({ type: 'SET_CONTEXT_MENU', payload: null })}
         />
       )}
 
@@ -1200,7 +1239,7 @@ export function ListDetailView({ onBack }: Props) {
         <ViewerTaskSheet
           task={viewerTask}
           userId={user?.id ?? 0}
-          onClose={() => setViewerTask(null)}
+          onClose={() => dispatch({ type: 'SET_VIEWER_TASK', payload: null })}
           onSubtaskToggled={() => fetchTasks(false)}
         />
       )}
@@ -1210,8 +1249,8 @@ export function ListDetailView({ onBack }: Props) {
           listId={activeListId!}
           userId={user?.id ?? 0}
           task={activeTask ?? undefined}
-          onClose={() => { setShowCreate(false); setActiveTask(null) }}
-          onSaved={() => { setShowCreate(false); setActiveTask(null); fetchTasks() }}
+          onClose={() => dispatch({ type: 'CLOSE_SHEET' })}
+          onSaved={() => { dispatch({ type: 'CLOSE_SHEET' }); fetchTasks() }}
         />
       )}
     </div>
